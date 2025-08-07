@@ -5,6 +5,7 @@
 #include "Curves/CurveFloat.h"
 #include "FlightDynamicsComponent.generated.h"
 
+
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API UFlightDynamicsComponent : public UActorComponent
 {
@@ -22,12 +23,9 @@ protected:
 
 
 private:
-	FRotator GetWingChordConfiguration(int32 Side);
-	FRotator GetTailChordConfiguration(int32 Side);
-
-	FVector FindChordDirection(FVector WorldOffset, FRotator TiltRotator, bool Draw);
-	FVector FindAirflowDirection(FVector WorldOffset, bool Draw);
-	FVector FindLiftDirection(FVector WorldOffset, FVector AirflowDirection, bool Draw);
+	FVector FindChordDirection(FVector ForcePoint, FVector LeadingEdgeOffset, FVector TrailingEdgeOffset, int32 Side);
+	FVector FindAirflowDirection(FVector WorldOffset);
+	FVector FindLiftDirection(FVector WorldOffset, FVector AirflowDirection);
 	float GetSpeedInMetersPerSecond();
 	float CalculateDragInNewtons(UCurveFloat* CurveCd, float Area, float AoA);
 	float CalculateLiftInNewtons(UCurveFloat* CurveCl, float Area, float AoA);
@@ -36,8 +34,7 @@ private:
 
 
 	void LogMsg(FString Text);
-
-	float CalculateAoASimple(FVector AirflowDirection, FVector WingChordDirection);
+	void DrawVectorAsArrow(const UWorld* World, FVector StartLocation, FVector Direction, FColor Color = FColor::Red, float Multiplier = 1.0f,  float ArrowSize = 1.0f, float Duration = -1.0f, float Thickness = 0.5f);
 
 private:
 	// Кешовані посилання для оптимізації
@@ -63,7 +60,11 @@ public:
 
 	// ДОДАНО: Параметр для тяги двигуна
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Engine", meta = (ToolTip = "Максимальна сила тяги двигуна в Ньютонах"))
-		float MaxThrustForce = 20.0f;
+		float ThrustForce = 1350.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Engine", meta = (ToolTip = "Зміщення точки прикладання сил двигуна відносно центру мас."))
+		FVector EngineForcePointOffset = FVector(-40.0f, 0.0f, 0.0f);
+
 	// ~~~ Вхідні дані керування (поки не використовуються) ~~~
 	UPROPERTY(BlueprintReadWrite, Category = "Aircraft | Control Inputs", meta = (ToolTip = "Газ [0, 1]"))
 		float ThrottleInput = 0.0f;
@@ -90,12 +91,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Aerodynamics", meta = (ToolTip = "Крива коефіцієнта опору (CD) для хвоста"))
 		UCurveFloat* TailCurveCd;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Aerodynamics", meta = (ToolTip = "Загальна площа крила в м²"))
-		float WingArea = 0.14f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Aerodynamics", meta = (ToolTip = "Загальна площа хвоста в м² (приблизно 15-20% від площі крила)"))
-		float TailArea = 0.025f;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Aerodynamics", meta = (ToolTip = "Щільність повітря в кг/м³"))
 		float AirDensity = 1.225f;
 
@@ -103,25 +98,38 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Surfaces", meta = (ToolTip = "Зміщення аеродинамічного центру крила відносно центру мас."))
 		FVector WingForcePointOffset = FVector(-2.0f, 20.0f, 0.0f);
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Surfaces", meta = (ToolTip = "Зміщення хорди крила відносно локальної осі Y."))
-		float WingChordYAngle;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Surfaces", meta = (ToolTip = "Локальне зміщення передньої кромки хорди крила відносно центру мас."))
+		FVector WingLeadingEdgeOffset = FVector(6.0f, 0.0f, 0.0f);
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Surfaces", meta = (ToolTip = "Зміщення хорди крила відносно локальної осі Z."))
-		float WingChordZAngle;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Surfaces", meta = (ToolTip = "Локальне зміщення задньої кромки хорди крила відносно центру мас."))
+		FVector WingTrailingEdgeOffset = FVector(-10.0f, 0.0f, 0.0f);
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Surfaces", meta = (ToolTip = "Загальна площа крила в м²"))
+		float WingArea = 0.14f;
 
-	// ~~~ РОЗТАШУВАННЯ ПОВЕРХОНЬ ХВОСТА ~~~
+	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Surfaces", meta = (ToolTip = "Зміщення аеродинамічного центру хвоста відносно центру мас."))
-		FVector TailForcePointOffset = FVector(-35.0f, 10.0f, 5.0f);
+		FVector TailForcePointOffset = FVector(-35.0f, 10.0f, 0.0f);
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Surfaces", meta = (ToolTip = "Зміщення хорди хвоста відносно локальної осі Y."))
-		float TailChordYAngle;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Surfaces", meta = (ToolTip = "Локальне зміщення передньої кромки хорди хвоста відносно центру мас."))
+		FVector TailLeadingEdgeOffset = FVector(4.0f, 0.0f, 0.0f);
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Surfaces", meta = (ToolTip = "Зміщення хорди хвоста відносно локальної осі Z."))
-		float TailChordZAngle;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Surfaces", meta = (ToolTip = "Локальне зміщення задньої кромки хорди хвоста відносно центру мас."))
+		FVector TailTrailingEdgeOffset = FVector(-5.0f, 0.0f, 0.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Surfaces", meta = (ToolTip = "Загальна площа хвоста в м² (приблизно 15-20% від площі крила)"))
+		float TailArea = 0.025f;
 
 	// ~~~ НАЛАГОДЖЕННЯ ~~~
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug")
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення відображення логів в консолі."))
+		bool DebugConsoleLogs = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення відображення логів на екрані."))
+		bool DebugUILogs = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення відображення візуальних маркерів."))
 		bool bDrawDebugMarkers = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення відображення векторів для крил."))
@@ -130,31 +138,24 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення відображення векторів для хвоста."))
 		bool DebugDrawTailInfo = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Застосовувати сили у локальних координатах."))
-		bool DebugIsLocalForce = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення відображення логів в консолі."))
+		float LiftWingForseMultiplier = 1.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Застосувати силу."))
-		FVector DebugForce = FVector(0.0f, 0.0f, 0.0f);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення відображення логів в консолі."))
+		float LiftTailForseMultiplier = 1.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Масштаб для візуалізації векторів сил. Збільште, якщо лінії занадто короткі."))
-		float DebugForceScale = 0.1f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення підйомної сили."))
+		bool DisableLiftForse = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення крила з розрахунків."))
-		bool DebugDisableWings = false;	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення відображення логів в консолі."))
+		float DragWingForseMultiplier = 1.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення підйомної сили (Lift) для крил з розрахунків."))
-		bool DebugDisableLiftForceWings = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення відображення логів в консолі."))
+		float DragTailForseMultiplier = 1.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення супротиву повітря (Drag) для крил з розрахунків."))
-		bool DebugDisableDragForceWings = false;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення хвоста з розрахунків."))
-		bool DebugDisableTail = false;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення підйомної сили (Lift) для хвоста з розрахунків."))
-		bool DebugDisableLiftForceTail = false;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення супротиву повітря (Drag) для хвоста з розрахунків."))
-		bool DebugDisableDragForceTail = false;
-
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення супротиву повітря."))
+		bool DisableDragForse = false;
+	
+	UPROPERTY(EditAnywhere, Category = "Aircraft | Debug", meta = (ToolTip = "Початкова швидкість у м/с."))
+		float InitialSpeed = 0.0f;
 };
