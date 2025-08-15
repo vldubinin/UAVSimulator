@@ -16,13 +16,13 @@ class UAVSIMULATOR_API UAerodynamicProfileDataAsset : public UPrimaryDataAsset
 
 public:
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "Аеродинамічний профіль"))
 		UDataTable* Profile;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "Крива підйомної сили до кута атаки"))
 		UCurveFloat* ClVsAoA;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "Крива супротиву повітря до кута атаки"))
 		UCurveFloat* CdVsAoA;
 
 };

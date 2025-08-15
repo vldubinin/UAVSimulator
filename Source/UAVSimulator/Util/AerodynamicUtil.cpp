@@ -1,7 +1,8 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-#include "Runtime/Core/Public/Math/Vector.h"
 #include "UAVSimulator/Util/AerodynamicUtil.h"
+#include "Runtime/Core/Public/Math/Vector.h"
+
 
 Chord AerodynamicUtil::FindChord(TArray<FAerodynamicProfileStructure> Points, FVector Offset)
 {
@@ -42,15 +43,12 @@ Chord AerodynamicUtil::FindChord(TArray<FVector> Points) {
     }
 
 
-    return Chord(MinXPoint, MaxXPoint);
+    return Chord(MaxXPoint, MinXPoint);
 }
 
-
-// Приймаємо масив за константним посиланням (&), щоб уникнути непотрібного копіювання
 TArray<FAerodynamicProfileStructure> AerodynamicUtil::Scale(const TArray<FAerodynamicProfileStructure> Points, float ScaleFactor)
 {
     TArray<FAerodynamicProfileStructure> ScaledPoints;
-    // Резервуємо місце в масиві для ефективності
     ScaledPoints.Reserve(Points.Num());
 
     Chord ChordPosition = FindChord(Points);
@@ -65,18 +63,56 @@ TArray<FAerodynamicProfileStructure> AerodynamicUtil::Scale(const TArray<FAerody
         float RelativeX = Point.X - Pivot.X;
         float RelativeZ = Point.Z - Pivot.Z;
 
-        // ВИПРАВЛЕНО: Множимо відносні координати на коефіцієнт, а не перезаписуємо їх.
-        RelativeX *= ScaleFactor; // Те саме, що RelativeX = RelativeX * ScaleFactor;
-        RelativeZ *= ScaleFactor; // Те саме, що RelativeZ = RelativeZ * ScaleFactor;
+        RelativeX *= ScaleFactor; 
+        RelativeZ *= ScaleFactor; 
 
-        FAerodynamicProfileStructure ScaledPoint; // Немає потреби в FAerodynamicProfileStructure()
+        FAerodynamicProfileStructure ScaledPoint;
         ScaledPoint.X = Pivot.X + RelativeX;
         ScaledPoint.Z = Pivot.Z + RelativeZ;
-        // Можна також скопіювати інші поля, якщо вони є
-        // ScaledPoint.SomeOtherField = Point.SomeOtherField;
 
         ScaledPoints.Add(ScaledPoint);
     }
 
     return ScaledPoints;
+}
+
+TArray<FAerodynamicProfileStructure> AerodynamicUtil::NormalizePoints(TArray<FAerodynamicProfileStructure> Points)
+{
+    TArray<FAerodynamicProfileStructure> NormalizedPoints;
+    for (FAerodynamicProfileStructure Point : Points) {
+        FAerodynamicProfileStructure NormalizedPoint = FAerodynamicProfileStructure();
+        NormalizedPoint.X = -Point.X;
+        NormalizedPoint.Z = Point.Z;
+        NormalizedPoints.Add(NormalizedPoint);
+    }
+    return NormalizedPoints;
+}
+
+
+TArray<FVector> AerodynamicUtil::ConvertTo3DPoints(TArray<FAerodynamicProfileStructure> Profile, float ChordLength, float ExpectedChordLength, FVector Offset)
+{
+    TArray<FAerodynamicProfileStructure> ScaledProfilePoints = AerodynamicUtil::Scale(Profile, ExpectedChordLength / ChordLength);
+    return AdaptTo(ScaledProfilePoints, Offset);
+}
+
+TArray<FVector> AerodynamicUtil::AdaptTo(TArray<FAerodynamicProfileStructure> Points, FVector Offset)
+{
+    TArray<FVector> VectorsArray = TArray<FVector>();
+    for (FAerodynamicProfileStructure Point : Points) {
+        VectorsArray.Add(FVector(Point.X, 0.f, Point.Z) + Offset);
+    }
+    return VectorsArray;
+}
+
+TArray<FVector> AerodynamicUtil::ConvertToWorldCoordinates(USceneComponent* Component, TArray<FVector> LocalCoordinates)
+{
+    TArray<FVector> WorldCoordinates;
+    WorldCoordinates.Reserve(LocalCoordinates.Num());
+    const FTransform& ComponentWorldTransform = Component->GetComponentTransform();
+    for (const FVector& LocalPos : LocalCoordinates)
+    {
+        WorldCoordinates.Add(ComponentWorldTransform.TransformPosition(LocalPos));
+    }
+
+    return WorldCoordinates;
 }

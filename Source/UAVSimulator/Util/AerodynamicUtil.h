@@ -14,4 +14,8 @@ public:
 	static Chord FindChord(TArray<FAerodynamicProfileStructure> Points, FVector Offset = FVector(0.f, 0.f, 0.f));
 	static Chord FindChord(TArray<FVector> Points);
 	static TArray<FAerodynamicProfileStructure> Scale(TArray<FAerodynamicProfileStructure> Points, float ScaleFactor);
+	static TArray<FAerodynamicProfileStructure> NormalizePoints(TArray<FAerodynamicProfileStructure> Points);
+	static TArray<FVector> ConvertTo3DPoints(TArray<FAerodynamicProfileStructure> Profile, float ChordLength, float ExpectedChordLength, FVector Offset);
+	static TArray<FVector> AdaptTo(TArray<FAerodynamicProfileStructure> Points, FVector Offset);
+	static TArray<FVector> ConvertToWorldCoordinates(USceneComponent* Component, TArray<FVector> LocalCoordinates);
 };
