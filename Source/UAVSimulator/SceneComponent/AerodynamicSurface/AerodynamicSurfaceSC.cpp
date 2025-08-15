@@ -81,7 +81,7 @@ void UAerodynamicSurfaceSC::BuildSubsurfaces(int32 Direction)
 		{
 			CustomSceneComponent->AttachToComponent(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 			CustomSceneComponent->RegisterComponent();
-			CustomSceneComponent->InitComponent(Start3DProfile, End3DProfile, ComponentName, AerodynamicCenterOffsetPercent);
+			CustomSceneComponent->InitComponent(AerodynamicUtil::ConvertToWorldCoordinates(this, Start3DProfile), AerodynamicUtil::ConvertToWorldCoordinates(this, End3DProfile), ComponentName, AerodynamicCenterOffsetPercent);
 			SubSurfaces.Add(CustomSceneComponent);
 		}
 	}

@@ -2,7 +2,6 @@
 
 
 #include "SubAerodynamicSurfaceSC.h"
-#include <Runtime/Engine/Public/DrawDebugHelpers.h>
 
 // Sets default values for this component's properties
 USubAerodynamicSurfaceSC::USubAerodynamicSurfaceSC()
@@ -16,6 +15,7 @@ USubAerodynamicSurfaceSC::USubAerodynamicSurfaceSC()
 	StartChord = Chord();
 	EndChord = Chord();
 	CenterOfPressure = FVector();
+	SurfaceArea = 0.f;
 }
 
 
@@ -32,17 +32,19 @@ void USubAerodynamicSurfaceSC::TickComponent(float DeltaTime, ELevelTick TickTyp
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 }
 
-void USubAerodynamicSurfaceSC::InitComponent(TArray<FVector> InStart3DProfile, TArray<FVector> InEnd3DProfile, FName SurfaceName, float CenterOfPressureOffset)
+void USubAerodynamicSurfaceSC::InitComponent(TArray<FVector> InStart3DProfile, TArray<FVector> InEnd3DProfile, FName SurfaceName, float CenterOfPressureOffset/*, FVector GlobalSurfaceCenterOfMass*/ )
 {
-	Start3DProfile = AerodynamicUtil::ConvertToWorldCoordinates(this, InStart3DProfile);
-	End3DProfile = AerodynamicUtil::ConvertToWorldCoordinates(this, InEnd3DProfile);
+	Start3DProfile = InStart3DProfile;
+	End3DProfile = InEnd3DProfile;
 	StartChord = AerodynamicUtil::FindChord(Start3DProfile);
 	EndChord = AerodynamicUtil::FindChord(End3DProfile);
 
-	FVector MidPoint = (StartChord.StartPoint + EndChord.StartPoint) / 2.0f;
 	CenterOfPressure = FindCenterOfPressure(CenterOfPressureOffset);
+	SurfaceArea = CalculateQuadSurfaceArea();
 
 	DrawSurface(SurfaceName);
+	DrawSplineCrosshairs(CenterOfPressure, SurfaceName);
+	DrawText(FString::Printf(TEXT("Area: %f sm²"), SurfaceArea), CenterOfPressure, FVector(0.f, 0.f, 50.f), FRotator(90.f, 180.f, 0.f), FColor::Red, SurfaceName);
 	
 }
 
@@ -59,9 +61,19 @@ void USubAerodynamicSurfaceSC::DrawSurface(FName SplineName)
 	BottomBorder.Add(StartChord.EndPoint);
 	BottomBorder.Add(EndChord.EndPoint);
 	DrawSpline(BottomBorder, FName(*FString::Printf(TEXT("Bottom_Border_Spline_%s"), *SplineName.ToString())));
+}
 
-	DrawSplineCrosshairs(CenterOfPressure, SplineName);
-	//DrawDebugCrosshairs(GetWorld(), CenterOfPressure, FRotator::ZeroRotator, 250.0f, FColor::Magenta, false, 500, 0);
+void USubAerodynamicSurfaceSC::DrawText(FString Text, FVector Point, FVector Offset, FRotator Rotator, FColor Color, FName SplineName)
+{
+	UTextRenderComponent* AreaTextRenderComponent = NewObject<UTextRenderComponent>(this, FName(*FString::Printf(TEXT("Area_Text_%s"), *SplineName.ToString())));
+	AreaTextRenderComponent->RegisterComponent();
+	AreaTextRenderComponent->AttachToComponent(this, FAttachmentTransformRules::KeepRelativeTransform);
+	AreaTextRenderComponent->SetVerticalAlignment(EVRTA_TextCenter);
+	AreaTextRenderComponent->SetHorizontalAlignment(EHTA_Center);
+	AreaTextRenderComponent->SetWorldSize(10.0f);
+	AreaTextRenderComponent->SetTextRenderColor(Color);
+	AreaTextRenderComponent->SetWorldLocationAndRotation(Point + Offset, Rotator);
+	AreaTextRenderComponent->SetText(FText::FromString(*Text));
 }
 
 void USubAerodynamicSurfaceSC::DrawSpline(TArray<FVector> Points, FName SplineName)
@@ -104,4 +116,16 @@ FVector USubAerodynamicSurfaceSC::FindCenterOfPressure(float PercentageOffset)
 	float Alpha = FMath::Clamp(PercentageOffset / 100.0f, 0.0f, 1.0f);
 
 	return FMath::Lerp(FrontChordMidpoint, BackChordMidpoint, Alpha);
+}
+
+float USubAerodynamicSurfaceSC::CalculateQuadSurfaceArea()
+{
+	const FVector Edge1 = StartChord.EndPoint - StartChord.StartPoint;
+	const FVector Edge2 = EndChord.EndPoint - StartChord.StartPoint;
+	const float Area1 = FVector::CrossProduct(Edge1, Edge2).Size() * 0.5f;
+
+	const FVector Edge3 = EndChord.StartPoint - StartChord.StartPoint;
+	const float Area2 = FVector::CrossProduct(Edge2, Edge3).Size() * 0.5f;
+
+	return Area1 + Area2;
 }

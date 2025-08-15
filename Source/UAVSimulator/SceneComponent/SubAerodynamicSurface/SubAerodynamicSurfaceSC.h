@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Components/TextRenderComponent.h"
 #include "Components/SplineComponent.h"
 #include "Components/SceneComponent.h"
 #include "UAVSimulator/Entity/Chord.h"
@@ -25,7 +26,10 @@ private:
 	TArray<FVector> End3DProfile;
 	Chord StartChord;
 	Chord EndChord;
+
+private:
 	FVector CenterOfPressure;
+	float SurfaceArea;
 
 protected:
 	// Called when the game starts
@@ -33,9 +37,11 @@ protected:
 
 private:
 	FVector FindCenterOfPressure(float PercentageOffset);
+	float CalculateQuadSurfaceArea();
 	void DrawSurface(FName SplineName);
 	void DrawSpline(TArray<FVector> Points, FName SplineName);
 	void DrawSplineCrosshairs(FVector Point, FName SplineName);
+	void DrawText(FString Text, FVector Point, FVector Offset, FRotator Rotator, FColor Color, FName SplineName);
 
 public:	
 	// Called every frame
