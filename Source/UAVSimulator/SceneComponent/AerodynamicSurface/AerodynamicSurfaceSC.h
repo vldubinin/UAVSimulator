@@ -37,6 +37,9 @@ public:
 private:
 	TArray<FAerodynamicProfileStructure> GetPoints();
 	void BuildSubsurfaces(int32 Direction);
+	void DestroySubsurfaces();
+	FVector GetCenterOfMass();
+	FVector FindAirflowDirection();
 
 private:
 	TArray<USubAerodynamicSurfaceSC*> SubSurfaces;

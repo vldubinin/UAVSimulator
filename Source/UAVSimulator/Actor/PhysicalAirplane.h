@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
 #include "UAVSimulator/SceneComponent/AerodynamicSurface/AerodynamicSurfaceSC.h"
+#include "Kismet/GameplayStatics.h"
 #include "PhysicalAirplane.generated.h"
 
 UCLASS()
@@ -28,6 +29,10 @@ public:
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+protected:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Unreal", meta = (ToolTip = "Швидкість роботи симуляції. Значення '1' відповідає звичайній швидкості."))
+		float DebugSimulatorSpeed = 1.0f;
 
 private:
 	TArray<UAerodynamicSurfaceSC*> Surfaces;

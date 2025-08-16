@@ -3,12 +3,13 @@
 
 #include "PhysicalAirplane.h"
 
+
 // Sets default values
 APhysicalAirplane::APhysicalAirplane()
 {
  	// Set this pawn to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
-
+	
 }
 
 void APhysicalAirplane::OnConstruction(const FTransform& Transform)
@@ -25,7 +26,7 @@ void APhysicalAirplane::OnConstruction(const FTransform& Transform)
 void APhysicalAirplane::BeginPlay()
 {
 	Super::BeginPlay();
-	
+	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), DebugSimulatorSpeed);
 }
 
 // Called every frame

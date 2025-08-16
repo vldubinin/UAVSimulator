@@ -30,6 +30,7 @@ private:
 private:
 	FVector CenterOfPressure;
 	float SurfaceArea;
+	float DistanceToCenterOfMass;
 
 protected:
 	// Called when the game starts
@@ -38,6 +39,7 @@ protected:
 private:
 	FVector FindCenterOfPressure(float PercentageOffset);
 	float CalculateQuadSurfaceArea();
+
 	void DrawSurface(FName SplineName);
 	void DrawSpline(TArray<FVector> Points, FName SplineName);
 	void DrawSplineCrosshairs(FVector Point, FName SplineName);
@@ -47,5 +49,6 @@ public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	void InitComponent(TArray<FVector> InStart3DProfile, TArray<FVector> InEnd3DProfile, FName SurfaceName, float CenterOfPressureOffset);
+	void InitComponent(TArray<FVector> InStart3DProfile, TArray<FVector> InEnd3DProfile, FName SurfaceName, float CenterOfPressureOffset, FVector GlobalSurfaceCenterOfMass);
+	void CalculateEffectOfForcesOnSurface(FVector AirflowDirection);
 };

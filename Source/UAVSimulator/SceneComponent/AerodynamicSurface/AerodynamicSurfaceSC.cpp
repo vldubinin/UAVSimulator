@@ -16,6 +16,7 @@ UAerodynamicSurfaceSC::UAerodynamicSurfaceSC()
 void UAerodynamicSurfaceSC::BeginPlay()
 {
 	Super::BeginPlay();
+	OnConstruction();
 }
 
 
@@ -24,6 +25,12 @@ void UAerodynamicSurfaceSC::TickComponent(float DeltaTime, ELevelTick TickType, 
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
+	const FVector AirflowDirection = FindAirflowDirection();
+
+	for (USubAerodynamicSurfaceSC* SubSurface : SubSurfaces)
+	{
+		SubSurface->CalculateEffectOfForcesOnSurface(AirflowDirection);
+	}
 }
 
 
@@ -34,21 +41,25 @@ void UAerodynamicSurfaceSC::OnConstruction()
 		return;
 	}
 
+	DestroySubsurfaces();
+
 	BuildSubsurfaces(1);
 	if (Mirror) {
 		BuildSubsurfaces(-1);
 	}
 }
 
-
-void UAerodynamicSurfaceSC::BuildSubsurfaces(int32 Direction)
-{
+void UAerodynamicSurfaceSC::DestroySubsurfaces() {
 	for (USubAerodynamicSurfaceSC* SubSurface : SubSurfaces)
 	{
 		if (SubSurface) SubSurface->DestroyComponent();
 	}
 	SubSurfaces.Empty();
+}
 
+
+void UAerodynamicSurfaceSC::BuildSubsurfaces(int32 Direction)
+{
 	TArray<FAerodynamicProfileStructure> Points = AerodynamicUtil::NormalizePoints(GetPoints());
 	if (Points.Num() == 0) {
 		UE_LOG(LogTemp, Warning, TEXT("Profile is missing."));
@@ -76,13 +87,13 @@ void UAerodynamicSurfaceSC::BuildSubsurfaces(int32 Direction)
 		TArray<FVector> End3DProfile = AerodynamicUtil::ConvertTo3DPoints(Points, ProfileChord.Length, EndConfig.ChordSize, GlobalOffset);
 
 		FName ComponentName = FName(*FString::Printf(TEXT("Sub_%s__%d_dir_%d"), *this->GetName(), i, Direction));
-		USubAerodynamicSurfaceSC* CustomSceneComponent = NewObject<USubAerodynamicSurfaceSC>(this, ComponentName);
-		if (CustomSceneComponent)
+		USubAerodynamicSurfaceSC* SubAerodynamicSurface = NewObject<USubAerodynamicSurfaceSC>(this, ComponentName);
+		if (SubAerodynamicSurface)
 		{
-			CustomSceneComponent->AttachToComponent(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
-			CustomSceneComponent->RegisterComponent();
-			CustomSceneComponent->InitComponent(AerodynamicUtil::ConvertToWorldCoordinates(this, Start3DProfile), AerodynamicUtil::ConvertToWorldCoordinates(this, End3DProfile), ComponentName, AerodynamicCenterOffsetPercent);
-			SubSurfaces.Add(CustomSceneComponent);
+			SubAerodynamicSurface->AttachToComponent(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+			SubAerodynamicSurface->RegisterComponent();
+			SubAerodynamicSurface->InitComponent(Start3DProfile, End3DProfile, ComponentName, AerodynamicCenterOffsetPercent, GetCenterOfMass());
+			SubSurfaces.Add(SubAerodynamicSurface);
 		}
 	}
 }
@@ -110,4 +121,37 @@ TArray<FAerodynamicProfileStructure> UAerodynamicSurfaceSC::GetPoints()
 		}
 	}
 	return ResultPoints;
+}
+
+FVector UAerodynamicSurfaceSC::FindAirflowDirection() {
+	const AActor* OwningActor = this->GetOwner();
+	if (!OwningActor)
+	{
+		return FVector::ZeroVector;
+	}
+	const FVector ActorVelocity = OwningActor->GetVelocity();
+	if (ActorVelocity.IsNearlyZero())
+	{
+		return FVector();
+	}
+	return -ActorVelocity.GetSafeNormal();
+}
+
+FVector UAerodynamicSurfaceSC::GetCenterOfMass()
+{
+	const AActor* OwningActor = this->GetOwner();
+	if (!OwningActor)
+	{
+		return FVector::ZeroVector;
+	}
+
+	const UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(OwningActor->GetRootComponent());
+	if (PrimitiveComponent)
+	{
+		if (const FBodyInstance* BodyInstance = PrimitiveComponent->GetBodyInstance())
+		{
+			return BodyInstance->GetCOMPosition();
+		}
+	}
+	return OwningActor->GetActorLocation();
 }

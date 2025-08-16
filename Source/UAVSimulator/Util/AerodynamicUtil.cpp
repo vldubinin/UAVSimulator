@@ -116,3 +116,9 @@ TArray<FVector> AerodynamicUtil::ConvertToWorldCoordinates(USceneComponent* Comp
 
     return WorldCoordinates;
 }
+
+FVector AerodynamicUtil::ConvertToWorldCoordinate(USceneComponent* Component, FVector LocalCoordinate)
+{
+    const FTransform& ComponentWorldTransform = Component->GetComponentTransform();
+    return ComponentWorldTransform.TransformPosition(LocalCoordinate);
+}

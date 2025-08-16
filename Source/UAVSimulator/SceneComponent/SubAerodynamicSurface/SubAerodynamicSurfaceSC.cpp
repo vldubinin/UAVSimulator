@@ -2,6 +2,7 @@
 
 
 #include "SubAerodynamicSurfaceSC.h"
+#include <Runtime/Engine/Public/DrawDebugHelpers.h>
 
 // Sets default values for this component's properties
 USubAerodynamicSurfaceSC::USubAerodynamicSurfaceSC()
@@ -16,6 +17,7 @@ USubAerodynamicSurfaceSC::USubAerodynamicSurfaceSC()
 	EndChord = Chord();
 	CenterOfPressure = FVector();
 	SurfaceArea = 0.f;
+	DistanceToCenterOfMass = 0.f;
 }
 
 
@@ -32,7 +34,7 @@ void USubAerodynamicSurfaceSC::TickComponent(float DeltaTime, ELevelTick TickTyp
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 }
 
-void USubAerodynamicSurfaceSC::InitComponent(TArray<FVector> InStart3DProfile, TArray<FVector> InEnd3DProfile, FName SurfaceName, float CenterOfPressureOffset/*, FVector GlobalSurfaceCenterOfMass*/ )
+void USubAerodynamicSurfaceSC::InitComponent(TArray<FVector> InStart3DProfile, TArray<FVector> InEnd3DProfile, FName SurfaceName, float CenterOfPressureOffset, FVector GlobalSurfaceCenterOfMass)
 {
 	Start3DProfile = InStart3DProfile;
 	End3DProfile = InEnd3DProfile;
@@ -41,10 +43,12 @@ void USubAerodynamicSurfaceSC::InitComponent(TArray<FVector> InStart3DProfile, T
 
 	CenterOfPressure = FindCenterOfPressure(CenterOfPressureOffset);
 	SurfaceArea = CalculateQuadSurfaceArea();
+	DistanceToCenterOfMass = FVector::Dist(GlobalSurfaceCenterOfMass, CenterOfPressure);
 
 	DrawSurface(SurfaceName);
 	DrawSplineCrosshairs(CenterOfPressure, SurfaceName);
-	DrawText(FString::Printf(TEXT("Area: %f sm²"), SurfaceArea), CenterOfPressure, FVector(0.f, 0.f, 50.f), FRotator(90.f, 180.f, 0.f), FColor::Red, SurfaceName);
+	DrawText(FString::Printf(TEXT("Area: %f sm²"), SurfaceArea), CenterOfPressure, FVector(0.f, 0.f, 50.f), FRotator(90.f, 180.f, 0.f), FColor::Red, FName(FString::Printf(TEXT("Area_%s"), *SurfaceName.ToString())));
+	DrawText(FString::Printf(TEXT("Dist to CoM: %f"), DistanceToCenterOfMass), CenterOfPressure, FVector(-20.f, 0.f, 50.f), FRotator(90.f, 180.f, 0.f), FColor::Red, FName(FString::Printf(TEXT("Distance_%s"), *SurfaceName.ToString())));
 	
 }
 
@@ -72,7 +76,7 @@ void USubAerodynamicSurfaceSC::DrawText(FString Text, FVector Point, FVector Off
 	AreaTextRenderComponent->SetHorizontalAlignment(EHTA_Center);
 	AreaTextRenderComponent->SetWorldSize(10.0f);
 	AreaTextRenderComponent->SetTextRenderColor(Color);
-	AreaTextRenderComponent->SetWorldLocationAndRotation(Point + Offset, Rotator);
+	AreaTextRenderComponent->SetRelativeLocationAndRotation(Point + Offset, Rotator);
 	AreaTextRenderComponent->SetText(FText::FromString(*Text));
 }
 
@@ -90,7 +94,7 @@ void USubAerodynamicSurfaceSC::DrawSpline(TArray<FVector> Points, FName SplineNa
 	ProfileSplineComponent->ClearSplinePoints();
 	for (int32 i = 0; i < Points.Num(); ++i)
 	{
-		ProfileSplineComponent->AddSplinePoint(Points[i], ESplineCoordinateSpace::World);
+		ProfileSplineComponent->AddSplinePoint(Points[i], ESplineCoordinateSpace::Local);
 	}
 	ProfileSplineComponent->UpdateSpline();
 }
@@ -128,4 +132,26 @@ float USubAerodynamicSurfaceSC::CalculateQuadSurfaceArea()
 	const float Area2 = FVector::CrossProduct(Edge2, Edge3).Size() * 0.5f;
 
 	return Area1 + Area2;
+}
+
+void USubAerodynamicSurfaceSC::CalculateEffectOfForcesOnSurface(FVector AirflowDirection)
+{
+	const float ArrowLength = 200.0f;
+
+	// Колір стрілки (можна вибрати будь-який)
+	const FColor ArrowColor = FColor::Cyan;
+
+	// Розраховуємо кінцеву точку стрілки
+	const FVector EndPoint = AerodynamicUtil::ConvertToWorldCoordinate(this, CenterOfPressure) + AirflowDirection * ArrowLength;
+	DrawDebugDirectionalArrow(
+		GetWorld(),          // Вказівник на світ
+		AerodynamicUtil::ConvertToWorldCoordinate(this, CenterOfPressure),          // Початкова точка
+		EndPoint,       // Кінцева точка
+		25.0f,          // Розмір наконечника стрілки
+		ArrowColor,     // Колір
+		false,          // Чи залишати лінію назавжди (persistent)
+		-1.f,           // Час життя (якщо не persistent), -1 = 1 кадр
+		0,              // Пріоритет глибини (зазвичай 0)
+		5.0f            // Товщина лінії
+	);
 }

@@ -18,4 +18,5 @@ public:
 	static TArray<FVector> ConvertTo3DPoints(TArray<FAerodynamicProfileStructure> Profile, float ChordLength, float ExpectedChordLength, FVector Offset);
 	static TArray<FVector> AdaptTo(TArray<FAerodynamicProfileStructure> Points, FVector Offset);
 	static TArray<FVector> ConvertToWorldCoordinates(USceneComponent* Component, TArray<FVector> LocalCoordinates);
+	static FVector ConvertToWorldCoordinate(USceneComponent* Component, FVector LocalCoordinate);
 };
