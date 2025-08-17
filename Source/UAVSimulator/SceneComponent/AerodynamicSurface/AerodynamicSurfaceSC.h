@@ -13,6 +13,8 @@
 #include "UAVSimulator/Util/AerodynamicUtil.h"
 #include "UAVSimulator/Entity/SubSurface.h"
 #include "UAVSimulator/SceneComponent/SubAerodynamicSurface/SubAerodynamicSurfaceSC.h"
+#include "Runtime/Engine/Public/DrawDebugHelpers.h"
+#include "UAVSimulator/Entity/AerodynamicForce.h"
 #include "AerodynamicSurfaceSC.generated.h"
 
 
@@ -25,22 +27,15 @@ public:
 	// Sets default values for this component's properties
 	UAerodynamicSurfaceSC();
 
-protected:
-	// Called when the game starts
-	virtual void BeginPlay() override;
-
 public:	
-	// Called every frame
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-	void OnConstruction();
+	void OnConstruction(FVector CenterOfMass);
+	AerodynamicForce CalculateForcesOnSurface(FVector CenterOfMass, FVector LinearVelocity, FVector AngularVelocity, FVector AirflowDirection);
 
 private:
 	TArray<FAerodynamicProfileStructure> GetPoints();
-	void BuildSubsurfaces(int32 Direction);
+	void BuildSubsurfaces(FVector CenterOfMass, int32 Direction);
 	void DestroySubsurfaces();
-	FVector GetCenterOfMass();
-	FVector FindAirflowDirection();
-
+	
 private:
 	TArray<USubAerodynamicSurfaceSC*> SubSurfaces;
 

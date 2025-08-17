@@ -4,8 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
+#include "Components/SplineComponent.h"
 #include "UAVSimulator/SceneComponent/AerodynamicSurface/AerodynamicSurfaceSC.h"
 #include "Kismet/GameplayStatics.h"
+#include "UAVSimulator/Util/AerodynamicUtil.h"
+#include "UAVSimulator/Entity/AerodynamicForce.h"
 #include "PhysicalAirplane.generated.h"
 
 UCLASS()
@@ -30,11 +33,24 @@ public:
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
+
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Unreal", meta = (ToolTip = "Швидкість роботи симуляції. Значення '1' відповідає звичайній швидкості."))
 		float DebugSimulatorSpeed = 1.0f;
 
+
+private:
+	void CalculateParameters();
+
+private:
+	void UpdateThrottle(float Value);
+
 private:
 	TArray<UAerodynamicSurfaceSC*> Surfaces;
-	
+	FVector LinearVelocity;
+	FVector AngularVelocity;
+	FVector CenterOfMassInWorld;
+	FVector AirflowDirection;
+
+	float ThrottlePercent = 1.f;
 };

@@ -2,7 +2,7 @@
 
 
 #include "SubAerodynamicSurfaceSC.h"
-#include <Runtime/Engine/Public/DrawDebugHelpers.h>
+
 
 // Sets default values for this component's properties
 USubAerodynamicSurfaceSC::USubAerodynamicSurfaceSC()
@@ -20,30 +20,20 @@ USubAerodynamicSurfaceSC::USubAerodynamicSurfaceSC()
 	DistanceToCenterOfMass = 0.f;
 }
 
-
-// Called when the game starts
-void USubAerodynamicSurfaceSC::BeginPlay()
-{
-	Super::BeginPlay();
-}
-
-
-// Called every frame
-void USubAerodynamicSurfaceSC::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-{
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-}
-
-void USubAerodynamicSurfaceSC::InitComponent(TArray<FVector> InStart3DProfile, TArray<FVector> InEnd3DProfile, FName SurfaceName, float CenterOfPressureOffset, FVector GlobalSurfaceCenterOfMass)
+void USubAerodynamicSurfaceSC::InitComponent(TArray<FVector> InStart3DProfile, TArray<FVector> InEnd3DProfile, FName SurfaceName, float CenterOfPressureOffset, FVector GlobalSurfaceCenterOfMass, UAerodynamicProfileDataAsset* AerodynamicProfile)
 {
 	Start3DProfile = InStart3DProfile;
 	End3DProfile = InEnd3DProfile;
 	StartChord = AerodynamicUtil::FindChord(Start3DProfile);
 	EndChord = AerodynamicUtil::FindChord(End3DProfile);
 
+	ClVsAoA = AerodynamicProfile->ClVsAoA;
+	CdVsAoA = AerodynamicProfile->CdVsAoA;
+	CmVsAoA = AerodynamicProfile->CmVsAoA;
+
 	CenterOfPressure = FindCenterOfPressure(CenterOfPressureOffset);
 	SurfaceArea = CalculateQuadSurfaceArea();
-	DistanceToCenterOfMass = FVector::Dist(GlobalSurfaceCenterOfMass, CenterOfPressure);
+	DistanceToCenterOfMass = FVector::Dist(GlobalSurfaceCenterOfMass, AerodynamicUtil::ConvertToWorldCoordinate(this, CenterOfPressure));
 
 	DrawSurface(SurfaceName);
 	DrawSplineCrosshairs(CenterOfPressure, SurfaceName);
@@ -134,24 +124,136 @@ float USubAerodynamicSurfaceSC::CalculateQuadSurfaceArea()
 	return Area1 + Area2;
 }
 
-void USubAerodynamicSurfaceSC::CalculateEffectOfForcesOnSurface(FVector AirflowDirection)
+AerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(FVector LinearVelocity, FVector AngularVelocity, FVector GlobalCenterOfMassInWorld, FVector AirflowDirection)
 {
-	const float ArrowLength = 200.0f;
+	UE_LOG(LogTemp, Warning, TEXT("###############################################"));
+	Chord StartChordInWorld = AerodynamicUtil::ConvertChordToWorldCoordinate(this, StartChord);
+	Chord EndChordInWorld = AerodynamicUtil::ConvertChordToWorldCoordinate(this, EndChord);
 
-	// Колір стрілки (можна вибрати будь-який)
-	const FColor ArrowColor = FColor::Cyan;
+	FVector CenterOfPressureInWorld = AerodynamicUtil::ConvertToWorldCoordinate(this, CenterOfPressure);
+	FVector StartChordDirection = (StartChordInWorld.StartPoint - StartChordInWorld.EndPoint).GetSafeNormal();
+	FVector EndChordDirection = (EndChordInWorld.StartPoint - EndChordInWorld.EndPoint).GetSafeNormal();
+	
+	float AvarageChordLength = CalculateAvarageChordLength(StartChordInWorld, EndChordInWorld);
+	FVector AverageChordDirection = (StartChordDirection + EndChordDirection).GetSafeNormal();
+	FVector RelativePosition = AerodynamicUtil::ConvertToWorldCoordinate(this, CenterOfPressure) - GlobalCenterOfMassInWorld;
+	FVector RotationalVelocity = FVector::CrossProduct(AngularVelocity, RelativePosition);
+	FVector WorldAirVelocity = -LinearVelocity + Wind - RotationalVelocity;
+	float Speed = ToSpeedInMetersPerSecond(WorldAirVelocity);
 
-	// Розраховуємо кінцеву точку стрілки
-	const FVector EndPoint = AerodynamicUtil::ConvertToWorldCoordinate(this, CenterOfPressure) + AirflowDirection * ArrowLength;
+	UE_LOG(LogTemp, Warning, TEXT("Speed: %f m/sec"), Speed);
+	UE_LOG(LogTemp, Warning, TEXT("WorldAirVelocity: %s"), *WorldAirVelocity.ToString());
+	UE_LOG(LogTemp, Warning, TEXT("AvarageChordLength: %f m." ), AvarageChordLength);
+	UE_LOG(LogTemp, Warning, TEXT("SurfaceArea: %f m²"), (SurfaceArea / 10000));
+	UE_LOG(LogTemp, Warning, TEXT("RelativePosition (CenterOfPressure - GlobalCenterOfMassInWorld): %s"), *RelativePosition.ToString());
+	UE_LOG(LogTemp, Warning, TEXT("RotationalVelocity (FVector::CrossProduct(AngularVelocity, RelativePosition)): %s"), *RotationalVelocity.ToString());
+
+	float AngleOfAttackDeg = CalculateAngleOfAttackDeg(WorldAirVelocity, AverageChordDirection);
+	float DynamicPressure = 0.5f * AirDensity * (Speed * Speed);
+
+	float LiftPower = CalculateLiftInNewtons(AngleOfAttackDeg, DynamicPressure);
+	float DragPower = CalculateDragInNewtons(AngleOfAttackDeg, DynamicPressure);
+	float TorquePower = CalculateTorqueInNewtons(AngleOfAttackDeg, DynamicPressure, AvarageChordLength);
+
+	FVector LiftForce = GetLiftDirection(WorldAirVelocity) * NewtonsToKiloCentimeter(LiftPower);
+	FVector DragForce = WorldAirVelocity.GetSafeNormal() * NewtonsToKiloCentimeter(DragPower);
+	FVector TorqueForce = -this->GetForwardVector() * NewtonsToKiloCentimeter(TorquePower);
+
+	UE_LOG(LogTemp, Warning, TEXT("LiftPower: %f N"), LiftPower);
+	UE_LOG(LogTemp, Warning, TEXT("DragPower: %f N"), DragPower);
+	UE_LOG(LogTemp, Warning, TEXT("TorquePower: %f N"), TorquePower);
+
+	UE_LOG(LogTemp, Warning, TEXT("LiftForce: %s kg⋅cm/s²"), *LiftForce.ToString());
+	UE_LOG(LogTemp, Warning, TEXT("DragForce: %s kg⋅cm/s²"), *DragForce.ToString());
+	UE_LOG(LogTemp, Warning, TEXT("TorqueForce: %s kg⋅cm/s²"), *TorqueForce.ToString());
+
+	AerodynamicForce Result = AerodynamicForce(LiftForce, DragForce, TorqueForce, RelativePosition);
+	FVector PositionalForce = Result.PositionalForce;
+	FVector RotationalForce = Result.RotationalForce;
+	//UE_LOG(LogTemp, Warning, TEXT("Surface Positional Force: %s"), *PositionalForce.ToString());
+	//UE_LOG(LogTemp, Warning, TEXT("Surface Rotational Force: %s"), *RotationalForce.ToString());
+
+	return Result;
+
+	/*DrawDebugDirectionalArrow(
+		GetWorld(),
+		CenterOfPressureInWorld,
+		CenterOfPressureInWorld + LiftForce * 200,
+		25.0f, FColor::Green, false, -1.f, 0, 5.0f);
+
+	//World Air Velocity Direction show
 	DrawDebugDirectionalArrow(
-		GetWorld(),          // Вказівник на світ
-		AerodynamicUtil::ConvertToWorldCoordinate(this, CenterOfPressure),          // Початкова точка
-		EndPoint,       // Кінцева точка
-		25.0f,          // Розмір наконечника стрілки
-		ArrowColor,     // Колір
-		false,          // Чи залишати лінію назавжди (persistent)
-		-1.f,           // Час життя (якщо не persistent), -1 = 1 кадр
-		0,              // Пріоритет глибини (зазвичай 0)
-		5.0f            // Товщина лінії
+		GetWorld(),
+		CenterOfPressureInWorld,
+		CenterOfPressureInWorld + WorldAirVelocity * 200,
+		25.0f, FColor::Green, false, -1.f, 0, 5.0f);
+
+	//Linear Velocity Direction show
+	DrawDebugDirectionalArrow(
+		GetWorld(),
+		CenterOfPressureInWorld,
+		CenterOfPressureInWorld + LinearVelocity * 200,
+		25.0f, FColor::Red, false, -1.f, 0, 5.0f);
+
+
+	//Chord Direction show
+	DrawDebugLine(
+		GetWorld(),
+		CenterOfPressureInWorld,
+		CenterOfPressureInWorld + AverageChordDirection * 200.0f,
+		FColor::Black, false, -1.f, 0, 5.0f
 	);
+
+	//Air Direction show
+	DrawDebugDirectionalArrow(
+		GetWorld(), 
+		CenterOfPressureInWorld,
+		CenterOfPressureInWorld + AirflowDirection * 200.0f,
+		25.0f, FColor::Cyan, false, -1.f, 0, 5.0f);*/
+}
+
+float USubAerodynamicSurfaceSC::CalculateAngleOfAttackDeg(FVector WorldAirVelocity, FVector AverageChordDirection)
+{
+	FVector SurfaceUp = this->GetUpVector();
+	float FlowAlongChord = FVector::DotProduct(WorldAirVelocity, AverageChordDirection);
+	float FlowNormalToChord = FVector::DotProduct(WorldAirVelocity, SurfaceUp);
+	float AngleOfAttackRad = FMath::Atan2(FlowNormalToChord, -FlowAlongChord);
+	return FMath::RadiansToDegrees(AngleOfAttackRad);
+}
+
+float USubAerodynamicSurfaceSC::ToSpeedInMetersPerSecond(FVector WorldAirVelocity) {
+	return WorldAirVelocity.Size() / 100.0f;
+}
+
+float USubAerodynamicSurfaceSC::CalculateLiftInNewtons(float AoA, float DynamicPressure) {
+	float Cl = ClVsAoA->GetFloatValue(AoA);
+	UE_LOG(LogTemp, Warning, TEXT("Cl: %f"), Cl);
+	return Cl * DynamicPressure * (SurfaceArea / 10000);
+}
+
+float USubAerodynamicSurfaceSC::CalculateDragInNewtons(float AoA, float DynamicPressure) {
+	float Cd = CdVsAoA->GetFloatValue(AoA);
+	UE_LOG(LogTemp, Warning, TEXT("Cd: %f"), Cd);
+	return Cd * DynamicPressure * (SurfaceArea / 10000);
+}
+
+float USubAerodynamicSurfaceSC::CalculateTorqueInNewtons(float AoA, float DynamicPressure, float ChordLength) {
+	float Cm = CmVsAoA->GetFloatValue(AoA);
+	UE_LOG(LogTemp, Warning, TEXT("Cm: %f"), Cm);
+	return Cm * DynamicPressure* (SurfaceArea / 10000) * ChordLength;
+}
+
+FVector USubAerodynamicSurfaceSC::GetLiftDirection(FVector WorldAirVelocity) {
+	FVector DragDirection = WorldAirVelocity.GetSafeNormal();
+	FVector SpanDirection = this->GetRightVector();
+	return FVector::CrossProduct(DragDirection, SpanDirection);
+}
+
+
+float USubAerodynamicSurfaceSC::NewtonsToKiloCentimeter(float Newtons) {
+	return Newtons * 100;
+}
+
+float USubAerodynamicSurfaceSC::CalculateAvarageChordLength(Chord FirstChord, Chord SecondChord) {
+	return ((FVector::Dist(FirstChord.StartPoint, FirstChord.EndPoint) / 100.0f) + (FVector::Dist(SecondChord.StartPoint, SecondChord.EndPoint) / 100.0f)) / 2.f;
 }

@@ -23,6 +23,9 @@ public:
 		UCurveFloat* ClVsAoA;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "Крива супротиву повітря до кута атаки"))
-		UCurveFloat* CdVsAoA;
+		UCurveFloat* CdVsAoA;	
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "Крива коефіцієнт моменту тангажу до кута атаки"))
+		UCurveFloat* CmVsAoA;
 
 };

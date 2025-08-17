@@ -122,3 +122,8 @@ FVector AerodynamicUtil::ConvertToWorldCoordinate(USceneComponent* Component, FV
     const FTransform& ComponentWorldTransform = Component->GetComponentTransform();
     return ComponentWorldTransform.TransformPosition(LocalCoordinate);
 }
+
+Chord AerodynamicUtil::ConvertChordToWorldCoordinate(USceneComponent* Component, Chord LocalChord)
+{
+    return Chord(ConvertToWorldCoordinate(Component, LocalChord.StartPoint), ConvertToWorldCoordinate(Component, LocalChord.EndPoint));
+}

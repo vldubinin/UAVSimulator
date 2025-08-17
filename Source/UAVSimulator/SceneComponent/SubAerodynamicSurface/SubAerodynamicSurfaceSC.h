@@ -7,8 +7,11 @@
 #include "Components/SplineComponent.h"
 #include "Components/SceneComponent.h"
 #include "UAVSimulator/Entity/Chord.h"
+#include "Curves/CurveFloat.h"
 #include "UAVSimulator/Util/AerodynamicUtil.h"
+#include "UAVSimulator/ProfileDataAsset/AerodynamicProfileDataAsset.h"
 #include "Runtime/Core/Public/Math/Vector.h"
+#include "UAVSimulator/Entity/AerodynamicForce.h"
 #include "SubAerodynamicSurfaceSC.generated.h"
 
 
@@ -27,18 +30,29 @@ private:
 	Chord StartChord;
 	Chord EndChord;
 
+	UCurveFloat* ClVsAoA;
+	UCurveFloat* CdVsAoA;
+	UCurveFloat* CmVsAoA;
+
+	const float AirDensity = 1.225f;
+	const FVector Wind = FVector();
+
 private:
 	FVector CenterOfPressure;
 	float SurfaceArea;
 	float DistanceToCenterOfMass;
 
-protected:
-	// Called when the game starts
-	virtual void BeginPlay() override;
-
 private:
 	FVector FindCenterOfPressure(float PercentageOffset);
 	float CalculateQuadSurfaceArea();
+	float CalculateAngleOfAttackDeg(FVector WorldAirVelocity, FVector AverageChordDirection);
+	float CalculateLiftInNewtons(float AoA, float DynamicPressure);
+	float CalculateDragInNewtons(float AoA, float DynamicPressure);
+	float CalculateTorqueInNewtons(float AoA, float DynamicPressure, float ChordLengt);
+	float CalculateAvarageChordLength(Chord FirstChord, Chord SecondChord);
+	float ToSpeedInMetersPerSecond(FVector WorldAirVelocity);
+	FVector GetLiftDirection(FVector WorldAirVelocity);
+	float NewtonsToKiloCentimeter(float Newtons);
 
 	void DrawSurface(FName SplineName);
 	void DrawSpline(TArray<FVector> Points, FName SplineName);
@@ -46,9 +60,6 @@ private:
 	void DrawText(FString Text, FVector Point, FVector Offset, FRotator Rotator, FColor Color, FName SplineName);
 
 public:	
-	// Called every frame
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-
-	void InitComponent(TArray<FVector> InStart3DProfile, TArray<FVector> InEnd3DProfile, FName SurfaceName, float CenterOfPressureOffset, FVector GlobalSurfaceCenterOfMass);
-	void CalculateEffectOfForcesOnSurface(FVector AirflowDirection);
+	void InitComponent(TArray<FVector> InStart3DProfile, TArray<FVector> InEnd3DProfile, FName SurfaceName, float CenterOfPressureOffset, FVector GlobalSurfaceCenterOfMass, UAerodynamicProfileDataAsset* AerodynamicProfile);
+	AerodynamicForce CalculateForcesOnSubSurface(FVector LinearVelocity, FVector AngularVelocity, FVector GlobalCenterOfMassInWorld, FVector AirflowDirection);
 };

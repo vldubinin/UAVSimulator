@@ -3,6 +3,7 @@
 
 #include "AerodynamicSurfaceSC.h"
 
+
 // Sets default values for this component's properties
 UAerodynamicSurfaceSC::UAerodynamicSurfaceSC()
 {
@@ -12,29 +13,7 @@ UAerodynamicSurfaceSC::UAerodynamicSurfaceSC()
 }
 
 
-// Called when the game starts
-void UAerodynamicSurfaceSC::BeginPlay()
-{
-	Super::BeginPlay();
-	OnConstruction();
-}
-
-
-// Called every frame
-void UAerodynamicSurfaceSC::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-{
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	const FVector AirflowDirection = FindAirflowDirection();
-
-	for (USubAerodynamicSurfaceSC* SubSurface : SubSurfaces)
-	{
-		SubSurface->CalculateEffectOfForcesOnSurface(AirflowDirection);
-	}
-}
-
-
-void UAerodynamicSurfaceSC::OnConstruction()
+void UAerodynamicSurfaceSC::OnConstruction(FVector CenterOfMass)
 {
 	if (!Enable) {
 		UE_LOG(LogTemp, Warning, TEXT("Surface is disabled."));
@@ -43,10 +22,23 @@ void UAerodynamicSurfaceSC::OnConstruction()
 
 	DestroySubsurfaces();
 
-	BuildSubsurfaces(1);
+	BuildSubsurfaces(CenterOfMass, 1);
 	if (Mirror) {
-		BuildSubsurfaces(-1);
+		BuildSubsurfaces(CenterOfMass, -1);
 	}
+
+}
+
+AerodynamicForce UAerodynamicSurfaceSC::CalculateForcesOnSurface(FVector CenterOfMass, FVector LinearVelocity, FVector AngularVelocity, FVector AirflowDirection)
+{
+	AerodynamicForce TotalAerodynamicForceForAllSubSurfaces;
+	for (USubAerodynamicSurfaceSC* SubSurface : SubSurfaces)
+	{
+		AerodynamicForce SubSurfaceForces = SubSurface->CalculateForcesOnSubSurface(LinearVelocity, AngularVelocity, CenterOfMass, AirflowDirection);
+		TotalAerodynamicForceForAllSubSurfaces.PositionalForce += SubSurfaceForces.PositionalForce;
+		TotalAerodynamicForceForAllSubSurfaces.RotationalForce += SubSurfaceForces.RotationalForce;
+	}
+	return TotalAerodynamicForceForAllSubSurfaces;
 }
 
 void UAerodynamicSurfaceSC::DestroySubsurfaces() {
@@ -57,8 +49,7 @@ void UAerodynamicSurfaceSC::DestroySubsurfaces() {
 	SubSurfaces.Empty();
 }
 
-
-void UAerodynamicSurfaceSC::BuildSubsurfaces(int32 Direction)
+void UAerodynamicSurfaceSC::BuildSubsurfaces(FVector CenterOfMass, int32 Direction)
 {
 	TArray<FAerodynamicProfileStructure> Points = AerodynamicUtil::NormalizePoints(GetPoints());
 	if (Points.Num() == 0) {
@@ -92,7 +83,7 @@ void UAerodynamicSurfaceSC::BuildSubsurfaces(int32 Direction)
 		{
 			SubAerodynamicSurface->AttachToComponent(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 			SubAerodynamicSurface->RegisterComponent();
-			SubAerodynamicSurface->InitComponent(Start3DProfile, End3DProfile, ComponentName, AerodynamicCenterOffsetPercent, GetCenterOfMass());
+			SubAerodynamicSurface->InitComponent(Start3DProfile, End3DProfile, ComponentName, AerodynamicCenterOffsetPercent, CenterOfMass, AerodynamicProfile);
 			SubSurfaces.Add(SubAerodynamicSurface);
 		}
 	}
@@ -123,35 +114,3 @@ TArray<FAerodynamicProfileStructure> UAerodynamicSurfaceSC::GetPoints()
 	return ResultPoints;
 }
 
-FVector UAerodynamicSurfaceSC::FindAirflowDirection() {
-	const AActor* OwningActor = this->GetOwner();
-	if (!OwningActor)
-	{
-		return FVector::ZeroVector;
-	}
-	const FVector ActorVelocity = OwningActor->GetVelocity();
-	if (ActorVelocity.IsNearlyZero())
-	{
-		return FVector();
-	}
-	return -ActorVelocity.GetSafeNormal();
-}
-
-FVector UAerodynamicSurfaceSC::GetCenterOfMass()
-{
-	const AActor* OwningActor = this->GetOwner();
-	if (!OwningActor)
-	{
-		return FVector::ZeroVector;
-	}
-
-	const UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(OwningActor->GetRootComponent());
-	if (PrimitiveComponent)
-	{
-		if (const FBodyInstance* BodyInstance = PrimitiveComponent->GetBodyInstance())
-		{
-			return BodyInstance->GetCOMPosition();
-		}
-	}
-	return OwningActor->GetActorLocation();
-}
