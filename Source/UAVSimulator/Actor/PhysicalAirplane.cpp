@@ -70,7 +70,7 @@ void APhysicalAirplane::Tick(float DeltaTime)
 		StaticMeshComponent->AddTorqueInRadians(TotalAerodynamicForce.RotationalForce);
 
 		if (ThrottlePercent > 0.0f) {
-			float MaxThrust = 5000000.f;
+			float MaxThrust = 1500000.f;
 			FVector ThrustDirection = GetActorForwardVector();
 			FVector ThrustForce = ThrustDirection * MaxThrust * ThrottlePercent;
 			StaticMeshComponent->AddForce(ThrustForce);
