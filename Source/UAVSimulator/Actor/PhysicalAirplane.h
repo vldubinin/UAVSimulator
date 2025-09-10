@@ -7,8 +7,9 @@
 #include "Components/SplineComponent.h"
 #include "UAVSimulator/SceneComponent/AerodynamicSurface/AerodynamicSurfaceSC.h"
 #include "Kismet/GameplayStatics.h"
-#include "UAVSimulator/Util/AerodynamicUtil.h"
+#include "UAVSimulator/Util/AerodynamicPhysicalCalculationUtil.h"
 #include "UAVSimulator/Entity/AerodynamicForce.h"
+
 #include "PhysicalAirplane.generated.h"
 
 UCLASS()
@@ -35,6 +36,9 @@ public:
 
 
 protected:
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Aerodynamic Physical Configutation"), Category = "Editor Tools")
+		void GenerateAerodynamicPhysicalConfigutation(UObject* ContextObject);
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Unreal", meta = (ToolTip = "Швидкість роботи симуляції. Значення '1' відповідає звичайній швидкості."))
 		float DebugSimulatorSpeed = 1.0f;
 

@@ -122,3 +122,8 @@ void APhysicalAirplane::UpdateThrottle(float Value)
 	float NewThrottle = ThrottlePercent + (Value * DeltaTime);
 	ThrottlePercent = FMath::Clamp(NewThrottle, 0.0f, 1.0f);
 }
+
+void APhysicalAirplane::GenerateAerodynamicPhysicalConfigutation(UObject* ContextObject)
+{
+	AerodynamicPhysicalCalculationUtil::GenerateAerodynamicPhysicalConfigutation(ContextObject, Surfaces);
+}

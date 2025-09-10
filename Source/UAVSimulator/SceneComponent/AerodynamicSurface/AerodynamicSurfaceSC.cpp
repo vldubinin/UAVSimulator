@@ -4,6 +4,7 @@
 #include "AerodynamicSurfaceSC.h"
 
 
+
 // Sets default values for this component's properties
 UAerodynamicSurfaceSC::UAerodynamicSurfaceSC()
 {
@@ -26,7 +27,6 @@ void UAerodynamicSurfaceSC::OnConstruction(FVector CenterOfMass)
 	if (Mirror) {
 		BuildSubsurfaces(CenterOfMass, -1);
 	}
-
 }
 
 AerodynamicForce UAerodynamicSurfaceSC::CalculateForcesOnSurface(FVector CenterOfMass, FVector LinearVelocity, FVector AngularVelocity, FVector AirflowDirection)
@@ -51,7 +51,7 @@ void UAerodynamicSurfaceSC::DestroySubsurfaces() {
 
 void UAerodynamicSurfaceSC::BuildSubsurfaces(FVector CenterOfMass, int32 Direction)
 {
-	TArray<FAerodynamicProfileStructure> Points = AerodynamicUtil::NormalizePoints(GetPoints());
+	TArray<FAirfoilPointData> Points = AerodynamicUtil::NormalizePoints(GetPoints());
 	if (Points.Num() == 0) {
 		UE_LOG(LogTemp, Warning, TEXT("Profile is missing."));
 		return;
@@ -89,14 +89,14 @@ void UAerodynamicSurfaceSC::BuildSubsurfaces(FVector CenterOfMass, int32 Directi
 	}
 }
 
-TArray<FAerodynamicProfileStructure> UAerodynamicSurfaceSC::GetPoints()
+TArray<FAirfoilPointData> UAerodynamicSurfaceSC::GetPoints()
 {
-	TArray<FAerodynamicProfileStructure> ResultPoints;
+	TArray<FAirfoilPointData> ResultPoints;
 	if (AerodynamicProfile == nullptr) {
 		UE_LOG(LogTemp, Error, TEXT("Missing Wing Profile."));
 		return ResultPoints;
 	}
-	TArray<FAerodynamicProfileStructure*> RowPoints;
+	TArray<FAirfoilPointData*> RowPoints;
 	UDataTable* Profile = AerodynamicProfile->Profile;
 	if (Profile == nullptr) {
 		UE_LOG(LogTemp, Error, TEXT("Missing Data table configuration for Wing Profile."));
@@ -104,7 +104,7 @@ TArray<FAerodynamicProfileStructure> UAerodynamicSurfaceSC::GetPoints()
 	}
 
 	Profile->GetAllRows("Get all profile points from Data Table.", RowPoints);
-	for (FAerodynamicProfileStructure* Point : RowPoints)
+	for (FAirfoilPointData* Point : RowPoints)
 	{
 		if (Point)
 		{

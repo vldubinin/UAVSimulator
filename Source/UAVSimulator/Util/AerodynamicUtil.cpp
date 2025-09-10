@@ -1,13 +1,13 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "UAVSimulator/Util/AerodynamicUtil.h"
-#include "Runtime/Core/Public/Math/Vector.h"
 
 
-Chord AerodynamicUtil::FindChord(TArray<FAerodynamicProfileStructure> Points, FVector Offset)
+
+Chord AerodynamicUtil::FindChord(TArray<FAirfoilPointData> Points, FVector Offset)
 {
-     FAerodynamicProfileStructure MinXPoint = Points[0];
-     FAerodynamicProfileStructure MaxXPoint = Points[0];
+    FAirfoilPointData MinXPoint = Points[0];
+    FAirfoilPointData MaxXPoint = Points[0];
 
      for (int32 i = 1; i < Points.Num(); ++i)
      {
@@ -46,9 +46,9 @@ Chord AerodynamicUtil::FindChord(TArray<FVector> Points) {
     return Chord(MaxXPoint, MinXPoint);
 }
 
-TArray<FAerodynamicProfileStructure> AerodynamicUtil::Scale(const TArray<FAerodynamicProfileStructure> Points, float ScaleFactor)
+TArray<FAirfoilPointData> AerodynamicUtil::Scale(const TArray<FAirfoilPointData> Points, float ScaleFactor)
 {
-    TArray<FAerodynamicProfileStructure> ScaledPoints;
+    TArray<FAirfoilPointData> ScaledPoints;
     ScaledPoints.Reserve(Points.Num());
 
     Chord ChordPosition = FindChord(Points);
@@ -58,7 +58,7 @@ TArray<FAerodynamicProfileStructure> AerodynamicUtil::Scale(const TArray<FAerody
         (ChordPosition.StartPoint.Z + ChordPosition.EndPoint.Z) / 2.0f
     );
 
-    for (const FAerodynamicProfileStructure& Point : Points)
+    for (const FAirfoilPointData& Point : Points)
     {
         float RelativeX = Point.X - Pivot.X;
         float RelativeZ = Point.Z - Pivot.Z;
@@ -66,7 +66,7 @@ TArray<FAerodynamicProfileStructure> AerodynamicUtil::Scale(const TArray<FAerody
         RelativeX *= ScaleFactor; 
         RelativeZ *= ScaleFactor; 
 
-        FAerodynamicProfileStructure ScaledPoint;
+        FAirfoilPointData ScaledPoint;
         ScaledPoint.X = Pivot.X + RelativeX;
         ScaledPoint.Z = Pivot.Z + RelativeZ;
 
@@ -76,11 +76,11 @@ TArray<FAerodynamicProfileStructure> AerodynamicUtil::Scale(const TArray<FAerody
     return ScaledPoints;
 }
 
-TArray<FAerodynamicProfileStructure> AerodynamicUtil::NormalizePoints(TArray<FAerodynamicProfileStructure> Points)
+TArray<FAirfoilPointData> AerodynamicUtil::NormalizePoints(TArray<FAirfoilPointData> Points)
 {
-    TArray<FAerodynamicProfileStructure> NormalizedPoints;
-    for (FAerodynamicProfileStructure Point : Points) {
-        FAerodynamicProfileStructure NormalizedPoint = FAerodynamicProfileStructure();
+    TArray<FAirfoilPointData> NormalizedPoints;
+    for (FAirfoilPointData Point : Points) {
+        FAirfoilPointData NormalizedPoint = FAirfoilPointData();
         NormalizedPoint.X = -Point.X;
         NormalizedPoint.Z = Point.Z;
         NormalizedPoints.Add(NormalizedPoint);
@@ -89,16 +89,16 @@ TArray<FAerodynamicProfileStructure> AerodynamicUtil::NormalizePoints(TArray<FAe
 }
 
 
-TArray<FVector> AerodynamicUtil::ConvertTo3DPoints(TArray<FAerodynamicProfileStructure> Profile, float ChordLength, float ExpectedChordLength, FVector Offset)
+TArray<FVector> AerodynamicUtil::ConvertTo3DPoints(TArray<FAirfoilPointData> Profile, float ChordLength, float ExpectedChordLength, FVector Offset)
 {
-    TArray<FAerodynamicProfileStructure> ScaledProfilePoints = AerodynamicUtil::Scale(Profile, ExpectedChordLength / ChordLength);
+    TArray<FAirfoilPointData> ScaledProfilePoints = AerodynamicUtil::Scale(Profile, ExpectedChordLength / ChordLength);
     return AdaptTo(ScaledProfilePoints, Offset);
 }
 
-TArray<FVector> AerodynamicUtil::AdaptTo(TArray<FAerodynamicProfileStructure> Points, FVector Offset)
+TArray<FVector> AerodynamicUtil::AdaptTo(TArray<FAirfoilPointData> Points, FVector Offset)
 {
     TArray<FVector> VectorsArray = TArray<FVector>();
-    for (FAerodynamicProfileStructure Point : Points) {
+    for (FAirfoilPointData Point : Points) {
         VectorsArray.Add(FVector(Point.X, 0.f, Point.Z) + Offset);
     }
     return VectorsArray;

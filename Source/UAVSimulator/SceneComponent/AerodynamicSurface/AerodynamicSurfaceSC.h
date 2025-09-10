@@ -4,17 +4,19 @@
 
 #include "CoreMinimal.h"
 #include "Components/SceneComponent.h"
+#include "Kismet/BlueprintFunctionLibrary.h"
 #include "Engine/DataTable.h"
 #include "Engine/DataAsset.h"
 #include "GameFramework/Actor.h"
 #include "UAVSimulator/ProfileDataAsset/AerodynamicProfileDataAsset.h"
-#include "UAVSimulator/Structure/AerodynamicProfileStructure.h"
 #include "UAVSimulator/Structure/AerodynamicSurfaceStructure.h"
 #include "UAVSimulator/Util/AerodynamicUtil.h"
 #include "UAVSimulator/Entity/SubSurface.h"
 #include "UAVSimulator/SceneComponent/SubAerodynamicSurface/SubAerodynamicSurfaceSC.h"
 #include "Runtime/Engine/Public/DrawDebugHelpers.h"
 #include "UAVSimulator/Entity/AerodynamicForce.h"
+#include "AirfoilData.h"
+
 #include "AerodynamicSurfaceSC.generated.h"
 
 
@@ -32,7 +34,7 @@ public:
 	AerodynamicForce CalculateForcesOnSurface(FVector CenterOfMass, FVector LinearVelocity, FVector AngularVelocity, FVector AirflowDirection);
 
 private:
-	TArray<FAerodynamicProfileStructure> GetPoints();
+	TArray<FAirfoilPointData> GetPoints();
 	void BuildSubsurfaces(FVector CenterOfMass, int32 Direction);
 	void DestroySubsurfaces();
 	
@@ -40,6 +42,7 @@ private:
 	TArray<USubAerodynamicSurfaceSC*> SubSurfaces;
 
 protected:
+public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = "Аеродинамічний профіль"))
 		UAerodynamicProfileDataAsset* AerodynamicProfile;
 

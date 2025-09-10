@@ -1,9 +1,14 @@
 from airfoilprep import Airfoil
 import os
+import sys
+
+if len(sys.argv) < 3:
+    print("Error: Missing arguments.")
+    sys.exit(1)
 
 # --- Налаштування ---
-input_filename = 'polar.dat' # Вкажіть ім'я вашого вхідного файлу
-output_filename = 'polar_result.dat' # Ім'я файлу для збереження результату
+input_filename = sys.argv[1] # Вкажіть ім'я вашого вхідного файлу
+output_filename = sys.argv[2] # Ім'я файлу для збереження результату
 cd_max = 1.25 # Ключовий параметр для методу Вітерни
 
 # Перевірка, чи існує вхідний файл
