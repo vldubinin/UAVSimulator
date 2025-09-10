@@ -46,6 +46,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = "Аеродинамічний профіль"))
 		UAerodynamicProfileDataAsset* AerodynamicProfile;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = "Зміщення закрилки від передньої кромки"))
+		float FlapPosition;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = "Максимальний кут закрилки"))
+		int MaxFlapAngle;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = "Форма поверхні"))
 		TArray<FAerodynamicSurfaceStructure> SurfaceForm;
 

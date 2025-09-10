@@ -10,48 +10,51 @@
 
 void AerodynamicPhysicalCalculationUtil::GenerateAerodynamicPhysicalConfigutation(UObject* ContextObject, TArray<UAerodynamicSurfaceSC*> Surfaces)
 {
-
 	if (!ContextObject)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Context is missing!"));
 		return;
 	}
 
-	TMap<float, PolarRow> Res = CalculatePolar(FPaths::ProjectContentDir() + TEXT("WingProfile/NACA_0009/naca0009.dat"), 0.8, -10);
+	UDataAssetFactory* Factory = NewObject<UDataAssetFactory>();
+	Factory->DataAssetClass = UAerodynamicProfileDataAsset::StaticClass();
+	FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
 
-
-	/*FString AirfoilDir = FPaths::ProjectDir() + "Tools/Airfoil";
 	FString AiroplaneFolderName = GetAiroplaneFolderName(ContextObject);
 
 	for (UAerodynamicSurfaceSC* Surface : Surfaces) {
-		FString AiroplaneSurfaceRelativePathName = AiroplaneFolderName + "/" + Surface->GetName();
-
-
-		FString AerodynamicPackage = "/Aerodynamic/" + Surface->GetName();
-		FString FullAerodynamicPackage = FPaths::ProjectContentDir() + FPackageName::GetLongPackagePath(AerodynamicPackage);
-
+		FString AiroplaneSurfaceFolderPath = FPaths::Combine(TEXT("/Game/Airplane"), AiroplaneFolderName, TEXT("Aerodynamic"), Surface->GetName());
 		FString PathToProfileFile = FindPathToProfile(Surface);
-		FString RelativePolarPath = CalculatePolarXFOIL(PathToProfileFile, AiroplaneSurfaceRelativePathName, 0.7, 10);
+		for (int FlapAngle = (Surface->MaxFlapAngle * -1); FlapAngle <= Surface->MaxFlapAngle; FlapAngle++) {
+			TMap<float, PolarRow> Res = CalculatePolar(PathToProfileFile, Surface->FlapPosition, FlapAngle);
 
-		UClass* ObjectClass = ContextObject->GetClass();
-		UPackage* AiroplanePackage = ObjectClass->GetPackage();
-		FString FullAiroplanePackageName = "/" + AiroplanePackage->GetName();
-		FullAiroplanePackageName.RemoveFromStart(TEXT("/Game/"));
-		FullAiroplanePackageName.RemoveFromEnd(TEXT("/Cessna_172"));
-		FullAiroplanePackageName = FullAiroplanePackageName + "/Aerodynamic/" + Surface->GetName();
-		FString AiroplanePackagePath = FPaths::ProjectContentDir() + FPackageName::GetLongPackagePath(FullAiroplanePackageName);
-
-		UDataAssetFactory* Factory = NewObject<UDataAssetFactory>();
-		Factory->DataAssetClass = UAerodynamicProfileDataAsset::StaticClass();
-
-		FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
-		for (int i = 0; i < 1; i++) {
-			UAerodynamicProfileDataAsset* NewDataAsset = Cast<UAerodynamicProfileDataAsset>(
-				AssetToolsModule.Get().CreateAsset(TEXT("Flap_") + i, FullAiroplanePackageName, UAerodynamicProfileDataAsset::StaticClass(), Factory)
+			FString PolarAssetName = FString::Printf(TEXT("PolarFlap_%d"), FlapAngle);
+			UAerodynamicProfileDataAsset* NewPolarAsset = Cast<UAerodynamicProfileDataAsset>(
+				AssetToolsModule.Get().CreateAsset(PolarAssetName, AiroplaneSurfaceFolderPath, UAerodynamicProfileDataAsset::StaticClass(), Factory)
 			);
-		}
-	}*/
+			if (NewPolarAsset)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Асет успішно створено за шляхом: %s"), *NewPolarAsset->GetPathName());
+				UPackage* Package = NewPolarAsset->GetOutermost();
+				Package->MarkPackageDirty();
 
+				FString PackageFileName = FPackageName::LongPackageNameToFilename(Package->GetName(), FPackageName::GetAssetPackageExtension());
+				bool bSaved = UPackage::SavePackage(Package, nullptr, RF_Public | RF_Standalone, *PackageFileName);
+				if (bSaved)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("Асет успішно збережено на диск."));
+				}
+				else
+				{
+					UE_LOG(LogTemp, Error, TEXT("Не вдалося зберегти асет на диск."));
+				}
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("Не вдалося створити асет."));
+			}
+		}
+	}
 }
 
 FString AerodynamicPhysicalCalculationUtil::FindPathToProfile(UAerodynamicSurfaceSC* Surface)
@@ -80,15 +83,7 @@ FString AerodynamicPhysicalCalculationUtil::FindPathToProfile(UAerodynamicSurfac
 		return FString();
 	}
 
-	FString PathBeforeLastSlash;
-	FString DirectoryName;
-	if (ProfilePath.Split(TEXT("/"), &PathBeforeLastSlash, &DirectoryName, ESearchCase::IgnoreCase, ESearchDir::FromEnd))
-	{
-		return "../../Content/WingProfile/" + DirectoryName + "/" + FoundFiles[0];
-	}
-
-	UE_LOG(LogTemp, Error, TEXT("Invalid profile direction: %s. Can't get .dat file."), *ProfilePath);
-	return FString();
+	return FPaths::Combine(ProfilePath, FoundFiles[0]);
 }
 
 TMap<float, PolarRow> AerodynamicPhysicalCalculationUtil::CalculatePolar(FString PathToProfile, float FlapPosition, int FlapAngle)

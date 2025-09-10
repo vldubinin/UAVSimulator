@@ -2,6 +2,8 @@ import subprocess
 import os
 import sys
 
+print("Run XFOIL.Py")
+
 if len(sys.argv) < 6:
     print("Error: Missing arguments.")
     sys.exit(1)
@@ -11,12 +13,6 @@ airfoil_file_path = sys.argv[2]
 output_polar_file = sys.argv[3]
 flap_position = sys.argv[4]
 flap_angle = sys.argv[5]
-
-print(xfoil_path)
-print(airfoil_file_path)
-print(output_polar_file)
-print(flap_position)
-print(flap_angle)
 
 commands = f"""
 LOAD {airfoil_file_path}
@@ -52,6 +48,8 @@ aseq
 
 quit
 """
+
+print(commands)
 
 process = subprocess.Popen(
     [xfoil_path],
