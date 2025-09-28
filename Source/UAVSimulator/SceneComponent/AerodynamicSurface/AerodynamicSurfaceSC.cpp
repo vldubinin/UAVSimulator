@@ -83,7 +83,7 @@ void UAerodynamicSurfaceSC::BuildSubsurfaces(FVector CenterOfMass, int32 Directi
 		{
 			SubAerodynamicSurface->AttachToComponent(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 			SubAerodynamicSurface->RegisterComponent();
-			SubAerodynamicSurface->InitComponent(Start3DProfile, End3DProfile, ComponentName, AerodynamicCenterOffsetPercent, CenterOfMass, AerodynamicProfile);
+			SubAerodynamicSurface->InitComponent(Start3DProfile, End3DProfile, ComponentName, AerodynamicCenterOffsetPercent, CenterOfMass, StartConfig.StartFlapPosition, StartConfig.EndFlapPosition, StartConfig.AerodynamicTable);
 			SubSurfaces.Add(SubAerodynamicSurface);
 		}
 	}
@@ -92,12 +92,7 @@ void UAerodynamicSurfaceSC::BuildSubsurfaces(FVector CenterOfMass, int32 Directi
 TArray<FAirfoilPointData> UAerodynamicSurfaceSC::GetPoints()
 {
 	TArray<FAirfoilPointData> ResultPoints;
-	if (AerodynamicProfile == nullptr) {
-		UE_LOG(LogTemp, Error, TEXT("Missing Wing Profile."));
-		return ResultPoints;
-	}
 	TArray<FAirfoilPointData*> RowPoints;
-	UDataTable* Profile = AerodynamicProfile->Profile;
 	if (Profile == nullptr) {
 		UE_LOG(LogTemp, Error, TEXT("Missing Data table configuration for Wing Profile."));
 		return ResultPoints;

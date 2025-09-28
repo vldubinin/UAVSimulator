@@ -16,4 +16,20 @@ struct FAerodynamicSurfaceStructure : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "Зміщення хорди"))
 		FVector Offset = FVector(0.f, 0.f, 0.f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "Початкове зміщення закрилки"))
+		float StartFlapPosition = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "Кінцеве зміщення закрилки"))
+		float EndFlapPosition = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "Максимальний кут закрилки"))
+		int MaxFlapAngle;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "Мінімальний кут закрилки"))
+		int MinFlapAngle;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Aerodynamics")
+		UDataTable* AerodynamicTable;
+
 };

@@ -8,7 +8,7 @@
 #include "Engine/DataTable.h"
 #include "Engine/DataAsset.h"
 #include "GameFramework/Actor.h"
-#include "UAVSimulator/ProfileDataAsset/AerodynamicProfileDataAsset.h"
+#include "UAVSimulator/DataAsset/AerodynamicProfileRow.h"
 #include "UAVSimulator/Structure/AerodynamicSurfaceStructure.h"
 #include "UAVSimulator/Util/AerodynamicUtil.h"
 #include "UAVSimulator/Entity/SubSurface.h"
@@ -43,14 +43,8 @@ private:
 
 protected:
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = "Аеродинамічний профіль"))
-		UAerodynamicProfileDataAsset* AerodynamicProfile;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = "Зміщення закрилки від передньої кромки"))
-		float FlapPosition;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = "Максимальний кут закрилки"))
-		int MaxFlapAngle;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "Аеродинамічний профіль"))
+		UDataTable* Profile;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = "Форма поверхні"))
 		TArray<FAerodynamicSurfaceStructure> SurfaceForm;

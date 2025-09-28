@@ -20,22 +20,23 @@ USubAerodynamicSurfaceSC::USubAerodynamicSurfaceSC()
 	DistanceToCenterOfMass = 0.f;
 }
 
-void USubAerodynamicSurfaceSC::InitComponent(TArray<FVector> InStart3DProfile, TArray<FVector> InEnd3DProfile, FName SurfaceName, float CenterOfPressureOffset, FVector GlobalSurfaceCenterOfMass, UAerodynamicProfileDataAsset* AerodynamicProfile)
+void USubAerodynamicSurfaceSC::InitComponent(TArray<FVector> InStart3DProfile, TArray<FVector> InEnd3DProfile, FName SurfaceName, float CenterOfPressureOffset, FVector GlobalSurfaceCenterOfMass, float InStartFlopPosition, float InEndFlopPosition, UDataTable* ProfileAerodynamicTable)
 {
 	Start3DProfile = InStart3DProfile;
 	End3DProfile = InEnd3DProfile;
 	StartChord = AerodynamicUtil::FindChord(Start3DProfile);
 	EndChord = AerodynamicUtil::FindChord(End3DProfile);
 
-	ClVsAoA = AerodynamicProfile->ClVsAoA;
-	CdVsAoA = AerodynamicProfile->CdVsAoA;
-	CmVsAoA = AerodynamicProfile->CmVsAoA;
+	AerodynamicTable = ProfileAerodynamicTable;
 
 	CenterOfPressure = FindCenterOfPressure(CenterOfPressureOffset);
 	SurfaceArea = CalculateQuadSurfaceArea();
 	DistanceToCenterOfMass = FVector::Dist(GlobalSurfaceCenterOfMass, AerodynamicUtil::ConvertToWorldCoordinate(this, CenterOfPressure));
+	StartFlopPosition = InStartFlopPosition;
+	EndFlopPosition = InEndFlopPosition;
 
 	DrawSurface(SurfaceName);
+	DrawFlop(SurfaceName);
 	DrawSplineCrosshairs(CenterOfPressure, SurfaceName);
 	DrawText(FString::Printf(TEXT("Area: %f sm²"), SurfaceArea), CenterOfPressure, FVector(0.f, 0.f, 50.f), FRotator(90.f, 180.f, 0.f), FColor::Red, FName(FString::Printf(TEXT("Area_%s"), *SurfaceName.ToString())));
 	DrawText(FString::Printf(TEXT("Dist to CoM: %f"), DistanceToCenterOfMass), CenterOfPressure, FVector(-20.f, 0.f, 50.f), FRotator(90.f, 180.f, 0.f), FColor::Red, FName(FString::Printf(TEXT("Distance_%s"), *SurfaceName.ToString())));
@@ -44,6 +45,7 @@ void USubAerodynamicSurfaceSC::InitComponent(TArray<FVector> InStart3DProfile, T
 
 void USubAerodynamicSurfaceSC::DrawSurface(FName SplineName)
 {
+
 	DrawSpline(Start3DProfile, FName(*FString::Printf(TEXT("Start_Spline_%s"), *SplineName.ToString())));
 	DrawSpline(End3DProfile, FName(*FString::Printf(TEXT("End_Spline_%s"), *SplineName.ToString())));
 	TArray<FVector> TopBorder = TArray<FVector>();
@@ -55,6 +57,18 @@ void USubAerodynamicSurfaceSC::DrawSurface(FName SplineName)
 	BottomBorder.Add(StartChord.EndPoint);
 	BottomBorder.Add(EndChord.EndPoint);
 	DrawSpline(BottomBorder, FName(*FString::Printf(TEXT("Bottom_Border_Spline_%s"), *SplineName.ToString())));
+}
+
+void USubAerodynamicSurfaceSC::DrawFlop(FName SplineName)
+{
+	if (StartFlopPosition == 0.f || EndFlopPosition == 0.f) {
+		return;
+	}
+	TArray<FVector> FlopPoints = TArray<FVector>();
+	FlopPoints.Add(GetPointOnLineAtPercentage(StartChord.StartPoint, StartChord.EndPoint, StartFlopPosition / 100));
+	FlopPoints.Add(GetPointOnLineAtPercentage(EndChord.StartPoint, EndChord.EndPoint, EndFlopPosition / 100));
+
+	DrawSpline(FlopPoints, FName(*FString::Printf(TEXT("Flop_%s"), *SplineName.ToString())));
 }
 
 void USubAerodynamicSurfaceSC::DrawText(FString Text, FVector Point, FVector Offset, FRotator Rotator, FColor Color, FName SplineName)
@@ -122,6 +136,12 @@ float USubAerodynamicSurfaceSC::CalculateQuadSurfaceArea()
 	const float Area2 = FVector::CrossProduct(Edge2, Edge3).Size() * 0.5f;
 
 	return Area1 + Area2;
+}
+
+FVector USubAerodynamicSurfaceSC::GetPointOnLineAtPercentage(FVector StartPoint, FVector EndPoint, float Alpha)
+{
+	const float ClampedAlpha = FMath::Clamp(Alpha, 0.f, 1.f);
+	return FMath::Lerp(StartPoint, EndPoint, ClampedAlpha);
 }
 
 AerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(FVector LinearVelocity, FVector AngularVelocity, FVector GlobalCenterOfMassInWorld, FVector AirflowDirection)
@@ -226,19 +246,25 @@ float USubAerodynamicSurfaceSC::ToSpeedInMetersPerSecond(FVector WorldAirVelocit
 }
 
 float USubAerodynamicSurfaceSC::CalculateLiftInNewtons(float AoA, float DynamicPressure) {
-	float Cl = ClVsAoA->GetFloatValue(AoA);
+	//TODO
+	float Cl = 0.f;
+	//float Cl = ClVsAoA->GetFloatValue(AoA);
 	UE_LOG(LogTemp, Warning, TEXT("Cl: %f"), Cl);
 	return Cl * DynamicPressure * (SurfaceArea / 10000);
 }
 
 float USubAerodynamicSurfaceSC::CalculateDragInNewtons(float AoA, float DynamicPressure) {
-	float Cd = CdVsAoA->GetFloatValue(AoA);
+	//TODO
+	float Cd = 0.f;
+	//float Cd = CdVsAoA->GetFloatValue(AoA);
 	UE_LOG(LogTemp, Warning, TEXT("Cd: %f"), Cd);
 	return Cd * DynamicPressure * (SurfaceArea / 10000);
 }
 
 float USubAerodynamicSurfaceSC::CalculateTorqueInNewtons(float AoA, float DynamicPressure, float ChordLength) {
-	float Cm = CmVsAoA->GetFloatValue(AoA);
+	//TODO
+	float Cm = 0.f;
+	//float Cm = CmVsAoA->GetFloatValue(AoA);
 	UE_LOG(LogTemp, Warning, TEXT("Cm: %f"), Cm);
 	return Cm * DynamicPressure* (SurfaceArea / 10000) * ChordLength;
 }

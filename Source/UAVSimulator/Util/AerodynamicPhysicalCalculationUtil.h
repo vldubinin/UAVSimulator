@@ -10,12 +10,16 @@
 #include "HAL/PlatformProcess.h"
 #include "UAVSimulator/Entity/PolarRow.h"
 #include "UAVSimulator/SceneComponent/AerodynamicSurface/AerodynamicSurfaceSC.h"
+#include "UAVSimulator/DataAsset/AerodynamicProfileAndFlapRow.h"
+#include <UAVSimulator/DataAsset/AerodynamicProfileAndFlapRow.h>
 
 /**
  *
  */
 class AerodynamicPhysicalCalculationUtil
 {
+public:
+	FAerodynamicProfileAndFlapRow* T;
 
 public:
 	static void GenerateAerodynamicPhysicalConfigutation(UObject* ContextObject, TArray<UAerodynamicSurfaceSC*> Surfaces);

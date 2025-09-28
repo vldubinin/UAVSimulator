@@ -9,9 +9,10 @@
 #include "UAVSimulator/Entity/Chord.h"
 #include "Curves/CurveFloat.h"
 #include "UAVSimulator/Util/AerodynamicUtil.h"
-#include "UAVSimulator/ProfileDataAsset/AerodynamicProfileDataAsset.h"
+#include "UAVSimulator/DataAsset/AerodynamicProfileRow.h"
 #include "Runtime/Core/Public/Math/Vector.h"
 #include "UAVSimulator/Entity/AerodynamicForce.h"
+#include "Engine/DataTable.h"
 #include "SubAerodynamicSurfaceSC.generated.h"
 
 
@@ -29,10 +30,10 @@ private:
 	TArray<FVector> End3DProfile;
 	Chord StartChord;
 	Chord EndChord;
+	float StartFlopPosition;
+	float EndFlopPosition;
 
-	UCurveFloat* ClVsAoA;
-	UCurveFloat* CdVsAoA;
-	UCurveFloat* CmVsAoA;
+	UDataTable* AerodynamicTable;
 
 	const float AirDensity = 1.225f;
 	const FVector Wind = FVector();
@@ -53,13 +54,15 @@ private:
 	float ToSpeedInMetersPerSecond(FVector WorldAirVelocity);
 	FVector GetLiftDirection(FVector WorldAirVelocity);
 	float NewtonsToKiloCentimeter(float Newtons);
+	FVector GetPointOnLineAtPercentage(FVector StartPoint, FVector EndPoint, float Alpha);
 
 	void DrawSurface(FName SplineName);
 	void DrawSpline(TArray<FVector> Points, FName SplineName);
+	void DrawFlop(FName SplineName);
 	void DrawSplineCrosshairs(FVector Point, FName SplineName);
 	void DrawText(FString Text, FVector Point, FVector Offset, FRotator Rotator, FColor Color, FName SplineName);
 
 public:	
-	void InitComponent(TArray<FVector> InStart3DProfile, TArray<FVector> InEnd3DProfile, FName SurfaceName, float CenterOfPressureOffset, FVector GlobalSurfaceCenterOfMass, UAerodynamicProfileDataAsset* AerodynamicProfile);
+	void InitComponent(TArray<FVector> InStart3DProfile, TArray<FVector> InEnd3DProfile, FName SurfaceName, float CenterOfPressureOffset, FVector GlobalSurfaceCenterOfMass, float InStartFlopPosition, float InEndFlopPosition, UDataTable* ProfileAerodynamicTable);
 	AerodynamicForce CalculateForcesOnSubSurface(FVector LinearVelocity, FVector AngularVelocity, FVector GlobalCenterOfMassInWorld, FVector AirflowDirection);
 };

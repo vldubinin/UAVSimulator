@@ -2,8 +2,12 @@
 #include "Misc/Paths.h"
 #include "IPythonScriptPlugin.h"
 #include "HAL/PlatformFileManager.h"
-#include "PythonScriptTypes.h" // Потрібно для EPythonLogOutputType
+#include "PythonScriptTypes.h"
 #include "Misc/FileHelper.h"
+#include "AssetToolsModule.h"
+#include "Factories/DataTableFactory.h"
+#include "Engine/DataTable.h"
+#include "UAVSimulator/Structure/AerodynamicSurfaceStructure.h"
 #include <Runtime/Core/Public/Internationalization/Regex.h>
 #include <Runtime/Core/Public/Internationalization/Regex.h>
 
@@ -15,51 +19,84 @@ void AerodynamicPhysicalCalculationUtil::GenerateAerodynamicPhysicalConfigutatio
 		UE_LOG(LogTemp, Error, TEXT("Context is missing!"));
 		return;
 	}
+	FString PathToProfileFile;
+	CalculatePolar(PathToProfileFile, 0.f, 0.f);
+	/*FString AiroplaneFolderName = GetAiroplaneFolderName(ContextObject);
 
-	UDataAssetFactory* Factory = NewObject<UDataAssetFactory>();
-	Factory->DataAssetClass = UAerodynamicProfileDataAsset::StaticClass();
-	FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
-
-	FString AiroplaneFolderName = GetAiroplaneFolderName(ContextObject);
-
-	for (UAerodynamicSurfaceSC* Surface : Surfaces) {
-		FString AiroplaneSurfaceFolderPath = FPaths::Combine(TEXT("/Game/Airplane"), AiroplaneFolderName, TEXT("Aerodynamic"), Surface->GetName());
+	for (UAerodynamicSurfaceSC* Surface : Surfaces)
+	{
+		FString SanitizedSurfaceName = Surface->GetName().Replace(TEXT(" "), TEXT("_"));
+		FString AiroplaneSurfaceFolderPath = FPaths::Combine(TEXT("/Game/Airplane"), AiroplaneFolderName, TEXT("Aerodynamic"), SanitizedSurfaceName);
 		FString PathToProfileFile = FindPathToProfile(Surface);
-		for (int FlapAngle = (Surface->MaxFlapAngle * -1); FlapAngle <= Surface->MaxFlapAngle; FlapAngle++) {
-			TMap<float, PolarRow> Res = CalculatePolar(PathToProfileFile, Surface->FlapPosition, FlapAngle);
+	
+		FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+		
+		TArray<FAerodynamicSurfaceStructure> SubSurfaces = Surface->SurfaceForm;
+		for (int i = 0; i < SubSurfaces.Num(); i++) {
+			FAerodynamicSurfaceStructure SubSurface = SubSurfaces[i];
+			FString AssetName = FString::Printf(TEXT("SubSurface_%d_ProfileAndFlap"), i);
 
-			FString PolarAssetName = FString::Printf(TEXT("PolarFlap_%d"), FlapAngle);
-			UAerodynamicProfileDataAsset* NewPolarAsset = Cast<UAerodynamicProfileDataAsset>(
-				AssetToolsModule.Get().CreateAsset(PolarAssetName, AiroplaneSurfaceFolderPath, UAerodynamicProfileDataAsset::StaticClass(), Factory)
+			UScriptStruct* RowStruct = FTableRowBase::StaticStruct();
+			UDataTableFactory* DataTableFactory = NewObject<UDataTableFactory>();
+			DataTableFactory->Struct = RowStruct;
+
+			UObject* DataTableAsset = AssetToolsModule.Get().CreateAsset(
+				AssetName,
+				AiroplaneSurfaceFolderPath,
+				UDataTable::StaticClass(),
+				DataTableFactory
 			);
-			if (NewPolarAsset)
-			{
-				UE_LOG(LogTemp, Warning, TEXT("Асет успішно створено за шляхом: %s"), *NewPolarAsset->GetPathName());
-				UPackage* Package = NewPolarAsset->GetOutermost();
-				Package->MarkPackageDirty();
 
-				FString PackageFileName = FPackageName::LongPackageNameToFilename(Package->GetName(), FPackageName::GetAssetPackageExtension());
-				bool bSaved = UPackage::SavePackage(Package, nullptr, RF_Public | RF_Standalone, *PackageFileName);
-				if (bSaved)
+			UDataTable* ProfileAndFlapAsset = Cast<UDataTable>(DataTableAsset);
+			if (!ProfileAndFlapAsset) {
+				UE_LOG(LogTemp, Error, TEXT("Не вдалося створити UDataTable асет '%s' у шляху '%s'."), *AssetName, *AiroplaneSurfaceFolderPath);
+				continue;
+			}
+
+			ProfileAndFlapAsset->RowStruct = FAerodynamicProfileRow::StaticStruct();
+
+			for (int FlapAngle = SubSurface.MinFlapAngle; FlapAngle <= SubSurface.MaxFlapAngle; FlapAngle++)
+			{
+				FAerodynamicProfileRow ProfileForFlapConfig;
+				TMap<float, PolarRow> Polar = CalculatePolar(PathToProfileFile, SubSurface.FlapPosition, FlapAngle);
+				TMap<float, PolarRow> Polar;
+				ProfileForFlapConfig.FlapAngle = FlapAngle;
+
+				for (const TPair<float, PolarRow>& PolarConfig : Polar)
 				{
-					UE_LOG(LogTemp, Warning, TEXT("Асет успішно збережено на диск."));
+					float Angle = PolarConfig.Key;
+					const PolarRow& RowData = PolarConfig.Value;
+					ProfileForFlapConfig.ClVsAoA.GetRichCurve()->AddKey(Angle, RowData.CL);
+					ProfileForFlapConfig.CdVsAoA.GetRichCurve()->AddKey(Angle, RowData.CD);
+					ProfileForFlapConfig.CmVsAoA.GetRichCurve()->AddKey(Angle, RowData.CM);
 				}
-				else
-				{
-					UE_LOG(LogTemp, Error, TEXT("Не вдалося зберегти асет на диск."));
-				}
+
+				FName RowName = FName(*FString::Printf(TEXT("FlapAngle_%d"), FlapAngle));
+				ProfileAndFlapAsset->AddRow(RowName, ProfileForFlapConfig);
+			}
+
+			UPackage* AssetPackage = ProfileAndFlapAsset->GetOutermost();
+			AssetPackage->MarkPackageDirty();
+			FString PackageFileName = FPackageName::LongPackageNameToFilename(AssetPackage->GetName(), FPackageName::GetAssetPackageExtension());
+			bool bSaved = UPackage::SavePackage(AssetPackage, nullptr, RF_Public | RF_Standalone, *PackageFileName);
+
+			if (bSaved)
+			{
+				UE_LOG(LogTemp, Log, TEXT("Асет '%s' успішно збережено."), *ProfileAndFlapAsset->GetPathName());
 			}
 			else
 			{
-				UE_LOG(LogTemp, Error, TEXT("Не вдалося створити асет."));
+				UE_LOG(LogTemp, Error, TEXT("Не вдалося зберегти асет '%s' на диск."), *ProfileAndFlapAsset->GetPathName());
 			}
 		}
-	}
+	}*/
 }
+
+
 
 FString AerodynamicPhysicalCalculationUtil::FindPathToProfile(UAerodynamicSurfaceSC* Surface)
 {
-	FString ProfilePath = Surface->AerodynamicProfile->Profile->GetPathName();
+	FString ProfilePath = Surface->Profile->GetPathName();
 	ProfilePath.RemoveFromStart("/Game/");
 	ProfilePath = TextUtil::RemoveAfterSymbol(ProfilePath, '/');
 
@@ -88,7 +125,16 @@ FString AerodynamicPhysicalCalculationUtil::FindPathToProfile(UAerodynamicSurfac
 
 TMap<float, PolarRow> AerodynamicPhysicalCalculationUtil::CalculatePolar(FString PathToProfile, float FlapPosition, int FlapAngle)
 {
-	const FString AirfoilScriptPath = FPaths::ProjectDir() + TEXT("Tools/Airfoil/airfoil.py");
+	const FString OpenVSPScriptPath = FPaths::ProjectDir() + TEXT("Tools/OpenVSP/openvsp_vspaero.py");
+	
+	const FString OpenVSPCommand = FString::Printf(
+		TEXT("\"%s\""),
+		*OpenVSPScriptPath
+	);
+
+	ExecutePythonScript(OpenVSPCommand);
+
+	/*const FString AirfoilScriptPath = FPaths::ProjectDir() + TEXT("Tools/Airfoil/airfoil.py");
 	const FString XFoilScriptPath = FPaths::ProjectDir() + TEXT("Tools/XFoil/xfoil.py");
 
 	const FString TmpDirPath = GetOrCreateTempWorkDirectory();
@@ -124,8 +170,9 @@ TMap<float, PolarRow> AerodynamicPhysicalCalculationUtil::CalculatePolar(FString
 
 	TMap<float, PolarRow> ExtrapolatedPolar = ReadPolarFile(ExtrapolatedPolarPath, 0, 1, 2, 3);
 
-	CleanTempWorkDirectory();
+	CleanTempWorkDirectory();*/
 
+	TMap<float, PolarRow> ExtrapolatedPolar;
 	return ExtrapolatedPolar;
 }
 
