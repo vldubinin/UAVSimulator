@@ -30,3 +30,34 @@ aseq
 0.5
 
 quit
+
+
+
+#BETTER WAY
+LOAD {airfoil_file_path}
+GDES
+FLAP
+{flap_position}
+999
+0.5
+{flap_angle}
+EXEC
+
+PANE
+PPAR
+N
+200
+
+
+OPER
+v
+300000
+ITER
+150
+PACC
+{output_polar_file}
+
+ASEQ 0 20 0.5
+ASEQ 0 -13 -0.5
+
+QUIT
