@@ -4,13 +4,13 @@ import os
 output_dir = r"C:\Users\PC\Documents\Unreal Projects\UAVSimulator\Tools\OpenVSP\result"
 os.makedirs(output_dir, exist_ok=True)
 
-alpha_start_val = -8.0
-alpha_end_val = 10.0
-deflection_angle_start_val = -45
-deflection_angle_end_val = 45
-deflection_angle_step_val = 5
-alpha_npts_val = 19.0
-wake_num_iter_val = 3
+alpha_start_val = -8.0  #початковий AoA
+alpha_end_val = 10.0 #кінцевий AoA
+deflection_angle_start_val = -45 #початковий flap angle
+deflection_angle_end_val = 45 #кінцевий flap angle
+deflection_angle_step_val = 5 #крок flap angle
+alpha_npts_val = 19.0 #кількість значення AoA в полярі.
+wake_num_iter_val = 3 #точність, мінімум 3
 
 vsp.VSPCheckSetup()
 
