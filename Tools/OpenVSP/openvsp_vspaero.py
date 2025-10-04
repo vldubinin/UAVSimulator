@@ -4,12 +4,12 @@ import os
 output_dir = r"C:\Users\PC\Documents\Unreal Projects\UAVSimulator\Tools\OpenVSP\result"
 os.makedirs(output_dir, exist_ok=True)
 
-alpha_start_val = 1.0
+alpha_start_val = -8.0
 alpha_end_val = 10.0
 deflection_angle_start_val = -45
 deflection_angle_end_val = 45
 deflection_angle_step_val = 5
-alpha_npts_val = 10.0
+alpha_npts_val = 19.0
 wake_num_iter_val = 3
 
 vsp.VSPCheckSetup()
@@ -18,8 +18,8 @@ def calculate(alpha_start, alpha_end, deflection_angle, alpha_npts, wake_num_ite
     print(f"Початок розрахунку для alpha_start:{alpha_start}, alpha_end:{alpha_end}, deflection_angle:{deflection_angle}")
 
     results_geo_path = os.path.join(output_dir, "geo_res.vsp3")
-    vsp.ClearVSPModel()
 
+    vsp.ClearVSPModel()
     print("Створення геометрії")
     wing_id = vsp.AddGeom('WING', '')
     vsp.SetParmVal( vsp.FindParm( wing_id, "Sym_Planar_Flag", "Sym"), 0.0 )
