@@ -55,6 +55,7 @@ private:
 	FVector GetLiftDirection(FVector WorldAirVelocity);
 	float NewtonsToKiloCentimeter(float Newtons);
 	FVector GetPointOnLineAtPercentage(FVector StartPoint, FVector EndPoint, float Alpha);
+	FAerodynamicProfileRow* GetProfile(int FlapAngle);
 
 	void DrawSurface(FName SplineName);
 	void DrawSpline(TArray<FVector> Points, FName SplineName);

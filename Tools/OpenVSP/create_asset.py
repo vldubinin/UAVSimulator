@@ -9,7 +9,7 @@ ASSET_PATH = "/Game/DataTables/"
 ASSET_NAME = "DT_AerodynamicProfile"
 # --------------------
 
-def create_aerodynamic_profile_datatable():
+def create_aerodynamic_profile_datatable(rows_data):
     """
     Створює та наповнює DataTable для аеродинамічних профілів.
     При кожному запуску видаляє старий ассет і створює новий для гарантії чистоти даних.
@@ -81,8 +81,29 @@ def create_aerodynamic_profile_datatable():
             "ExternalCurve": "" # Використовуємо None для нульового вказівника
         }
 
-    # Визначаємо дані для рядків у вигляді списку словників
-    rows_data = [
+    # Конвертуємо Python об'єкт у JSON рядок
+    json_data_string = json.dumps(rows_data, indent=4)
+    unreal.log("Згенеровано JSON з Python об'єктів.")
+
+    # --- Крок 5: Імпорт даних та збереження ассету ---
+    try:
+        # Використовуємо unreal.DataTableFunctionLibrary.fill_data_table_from_json_string
+        result = unreal.DataTableFunctionLibrary.fill_data_table_from_json_string(data_table, json_data_string)
+        
+        if not result:
+            unreal.log_error(f"Не вдалося імпортувати дані в {ASSET_NAME}. Перевірте структуру даних та логи.")
+            return
+
+        unreal.log(f"Дані успішно імпортовано в {ASSET_NAME}.")
+        
+        unreal.EditorAssetLibrary.save_loaded_asset(data_table)
+        unreal.log(f"Ассет {ASSET_NAME} успішно збережено.")
+    except Exception as e:
+        unreal.log_error(f"Сталася помилка під час імпорту або збереження: {e}")
+
+
+# Визначаємо дані для рядків у вигляді списку словників
+rows_data = [
         {
             "Name": "Flap_0_Deg",
             "FlapAngle": 0.0,
@@ -122,26 +143,5 @@ def create_aerodynamic_profile_datatable():
             ])
         }
     ]
-
-    # Конвертуємо Python об'єкт у JSON рядок
-    json_data_string = json.dumps(rows_data, indent=4)
-    unreal.log("Згенеровано JSON з Python об'єктів.")
-
-    # --- Крок 5: Імпорт даних та збереження ассету ---
-    try:
-        # Використовуємо unreal.DataTableFunctionLibrary.fill_data_table_from_json_string
-        result = unreal.DataTableFunctionLibrary.fill_data_table_from_json_string(data_table, json_data_string)
-        
-        if not result:
-            unreal.log_error(f"Не вдалося імпортувати дані в {ASSET_NAME}. Перевірте структуру даних та логи.")
-            return
-
-        unreal.log(f"Дані успішно імпортовано в {ASSET_NAME}.")
-        
-        unreal.EditorAssetLibrary.save_loaded_asset(data_table)
-        unreal.log(f"Ассет {ASSET_NAME} успішно збережено.")
-    except Exception as e:
-        unreal.log_error(f"Сталася помилка під час імпорту або збереження: {e}")
-
 # Запуск функції
-create_aerodynamic_profile_datatable()
+create_aerodynamic_profile_datatable(rows_data)

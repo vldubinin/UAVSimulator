@@ -16,11 +16,27 @@ void AerodynamicPhysicalCalculationUtil::GenerateAerodynamicPhysicalConfigutatio
 {
 	if (!ContextObject)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Context is missing!"));
+		//UE_LOG(LogTemp, Error, TEXT("Context is missing!"));
 		return;
 	}
-	FString PathToProfileFile;
-	CalculatePolar(PathToProfileFile, 0.f, 0.f);
+	for (UAerodynamicSurfaceSC* Surface : Surfaces)
+	{
+		FString PathToProfileFile = FindPathToProfile(Surface);
+		Surface->Profile->GetPackage();
+		TArray<FAerodynamicSurfaceStructure> SubSurfaces = Surface->SurfaceForm;
+		for (int i = 0; i < SubSurfaces.Num() - 1 && SubSurfaces.Num() > 1; i++) {
+			FAerodynamicSurfaceStructure RootSurface = SubSurfaces[i];
+			int DeflectionAngleStart = RootSurface.MinFlapAngle;
+			int DeflectionAngleEnd = RootSurface.MaxFlapAngle;
+			int RootChord = RootSurface.ChordSize;
+			int Sweep = 0; // наклон
+			FAerodynamicSurfaceStructure TipSurface = SubSurfaces[i + 1];
+			int TipChord = TipSurface.ChordSize;
+			int Span = TipSurface.Offset.Y;
+			CalculatePolar(PathToProfileFile, RootChord, TipChord, Span, DeflectionAngleStart, DeflectionAngleEnd, Sweep, *Surface->GetName(), i);
+		}
+	}
+
 	/*FString AiroplaneFolderName = GetAiroplaneFolderName(ContextObject);
 
 	for (UAerodynamicSurfaceSC* Surface : Surfaces)
@@ -110,26 +126,36 @@ FString AerodynamicPhysicalCalculationUtil::FindPathToProfile(UAerodynamicSurfac
 
 	if (FoundFiles.Num() == 0)
 	{
-		UE_LOG(LogTemp, Error, TEXT("No .dat file associated with profile. Directory: %s"), *ProfilePath);
+		//UE_LOG(LogTemp, Error, TEXT("No .dat file associated with profile. Directory: %s"), *ProfilePath);
 		return FString();
 	}
 
 	if (FoundFiles.Num() > 1)
 	{
-		UE_LOG(LogTemp, Error, TEXT("More than one .dat file associated with profile. Directory: %s"), *ProfilePath);
+		//UE_LOG(LogTemp, Error, TEXT("More than one .dat file associated with profile. Directory: %s"), *ProfilePath);
 		return FString();
 	}
 
-	return FPaths::Combine(ProfilePath, FoundFiles[0]);
+	FString RelativePathToProfile = FPaths::Combine(ProfilePath, FoundFiles[0]);
+	return IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*RelativePathToProfile);
 }
 
-TMap<float, PolarRow> AerodynamicPhysicalCalculationUtil::CalculatePolar(FString PathToProfile, float FlapPosition, int FlapAngle)
+TMap<float, PolarRow> AerodynamicPhysicalCalculationUtil::CalculatePolar(FString PathToProfile, int RootChord, int TipChord, int Span, int DeflectionAngleStart, int DeflectionAngleEnd, int Sweep, FString SurfaceName, int SubSurfaceIndex)
 {
 	const FString OpenVSPScriptPath = FPaths::ProjectDir() + TEXT("Tools/OpenVSP/openvsp_vspaero.py");
-	
+
 	const FString OpenVSPCommand = FString::Printf(
-		TEXT("\"%s\""),
-		*OpenVSPScriptPath
+		TEXT("\"%s\" \"%d\" \"%d\" \"%d\" \"%d\" \"%d\" \"%d\" \"%s\" \"%d\" \"%s\""),
+		*OpenVSPScriptPath,
+		RootChord,
+		TipChord,
+		Span,
+		DeflectionAngleStart,
+		DeflectionAngleEnd,
+		Sweep,
+		*SurfaceName,
+		SubSurfaceIndex,
+		*PathToProfile
 	);
 
 	ExecutePythonScript(OpenVSPCommand);
@@ -279,11 +305,11 @@ bool AerodynamicPhysicalCalculationUtil::ExecutePythonScript(FString Command)
 	{
 		for (const FPythonLogOutputEntry& LogEntry : PythonCommand.LogOutput) {
 			if (LogEntry.Type == EPythonLogOutputType::Error) {
-				UE_LOG(LogTemp, Error, TEXT("[Python ERROR] %s"), *LogEntry.Output);
+				//UE_LOG(LogTemp, Error, TEXT("[Python ERROR] %s"), *LogEntry.Output);
 			}
 			else
 			{
-				UE_LOG(LogTemp, Log, TEXT("[Python INFO] %s"), *LogEntry.Output);
+				//UE_LOG(LogTemp, Log, TEXT("[Python INFO] %s"), *LogEntry.Output);
 			}
 		}
 	}

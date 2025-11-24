@@ -31,9 +31,6 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
-	// Called to bind functionality to input
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-
 
 protected:
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Aerodynamic Physical Configutation"), Category = "Editor Tools")
@@ -42,12 +39,35 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Unreal", meta = (ToolTip = "Швидкість роботи симуляції. Значення '1' відповідає звичайній швидкості."))
 		float DebugSimulatorSpeed = 1.0f;
 
+public:
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "UpdateW"), Category = "Control")
+	void UpdateW(float Value);
+
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "UpdateS"), Category = "Control")
+	void UpdateS(float Value);
+
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "UpdateA"), Category = "Control")
+	void UpdateA(float Value);
+
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "UpdateD"), Category = "Control")
+	void UpdateD(float Value);
+
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "UpdateUp"), Category = "Control")
+	void UpdateUp(float Value);
+
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "UpdateDown"), Category = "Control")
+	void UpdateDown(float Value);
+
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "UpdateLeft"), Category = "Control")
+	void UpdateLeft(float Value);
+
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "UpdateRight"), Category = "Control")
+	void UpdateRight(float Value);
+
 
 private:
 	void CalculateParameters();
 
-private:
-	void UpdateThrottle(float Value);
 
 private:
 	TArray<UAerodynamicSurfaceSC*> Surfaces;

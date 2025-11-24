@@ -64,8 +64,8 @@ void APhysicalAirplane::Tick(float DeltaTime)
 			TotalAerodynamicForce.PositionalForce += SurfaceAerodynamicForce.PositionalForce;
 			TotalAerodynamicForce.RotationalForce += SurfaceAerodynamicForce.RotationalForce;
 		}
-		UE_LOG(LogTemp, Warning, TEXT("Surface Positional Force: %s"), *TotalAerodynamicForce.PositionalForce.ToString());
-		UE_LOG(LogTemp, Warning, TEXT("Surface Rotational Force: %s"), *TotalAerodynamicForce.RotationalForce.ToString());
+		//UE_LOG(LogTemp, Warning, TEXT("Surface Positional Force: %s"), *TotalAerodynamicForce.PositionalForce.ToString());
+		//UE_LOG(LogTemp, Warning, TEXT("Surface Rotational Force: %s"), *TotalAerodynamicForce.RotationalForce.ToString());
 		StaticMeshComponent->AddForce(TotalAerodynamicForce.PositionalForce);
 		StaticMeshComponent->AddTorqueInRadians(TotalAerodynamicForce.RotationalForce);
 
@@ -107,20 +107,48 @@ void  APhysicalAirplane::CalculateParameters()
 
 }
 
-// Called to bind functionality to input
-void APhysicalAirplane::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
-{
-	Super::SetupPlayerInputComponent(PlayerInputComponent);
-	check(PlayerInputComponent);
 
-	PlayerInputComponent->BindAxis("Thrust", this, &APhysicalAirplane::UpdateThrottle);
-}
-
-void APhysicalAirplane::UpdateThrottle(float Value)
+void APhysicalAirplane::UpdateW(float Value)
 {
 	float DeltaTime = GetWorld()->GetDeltaSeconds();
 	float NewThrottle = ThrottlePercent + (Value * DeltaTime);
 	ThrottlePercent = FMath::Clamp(NewThrottle, 0.0f, 1.0f);
+	UE_LOG(LogTemp, Warning, TEXT("W: %f"), Value);
+}
+
+void APhysicalAirplane::UpdateS(float Value)
+{
+	UE_LOG(LogTemp, Warning, TEXT("S: %f"), Value);
+}
+
+void APhysicalAirplane::UpdateA(float Value)
+{
+	UE_LOG(LogTemp, Warning, TEXT("A: %f"), Value);
+}
+
+void APhysicalAirplane::UpdateD(float Value)
+{
+	UE_LOG(LogTemp, Warning, TEXT("D: %f"), Value);
+}
+
+void APhysicalAirplane::UpdateUp(float Value)
+{
+	UE_LOG(LogTemp, Warning, TEXT("Up: %f"), Value);
+}
+
+void APhysicalAirplane::UpdateDown(float Value)
+{
+	UE_LOG(LogTemp, Warning, TEXT("Down: %f"), Value);
+}
+
+void APhysicalAirplane::UpdateLeft(float Value)
+{
+	UE_LOG(LogTemp, Warning, TEXT("Left: %f"), Value);
+}
+
+void APhysicalAirplane::UpdateRight(float Value)
+{
+	UE_LOG(LogTemp, Warning, TEXT("Right: %f"), Value);
 }
 
 void APhysicalAirplane::GenerateAerodynamicPhysicalConfigutation(UObject* ContextObject)

@@ -23,7 +23,7 @@ public:
 
 public:
 	static void GenerateAerodynamicPhysicalConfigutation(UObject* ContextObject, TArray<UAerodynamicSurfaceSC*> Surfaces);
-	static TMap<float, PolarRow> CalculatePolar(FString PathToProfile, float FlapPosition, int FlapAngle);
+	static TMap<float, PolarRow> CalculatePolar(FString PathToProfile, int RootChord, int TipChord, int Span, int DeflectionAngleStart, int DeflectionAngleEnd, int Sweep, FString SurfaceName, int SubSurfaceIndex);
 	static FString FindPathToProfile(UAerodynamicSurfaceSC* Surface);
 	static FString GetAiroplaneFolderName(UObject* ContextObject);
 	static FString GetOrCreateTempWorkDirectory();

@@ -146,7 +146,7 @@ FVector USubAerodynamicSurfaceSC::GetPointOnLineAtPercentage(FVector StartPoint,
 
 AerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(FVector LinearVelocity, FVector AngularVelocity, FVector GlobalCenterOfMassInWorld, FVector AirflowDirection)
 {
-	UE_LOG(LogTemp, Warning, TEXT("###############################################"));
+	//UE_LOG(LogTemp, Warning, TEXT("###############################################"));
 	Chord StartChordInWorld = AerodynamicUtil::ConvertChordToWorldCoordinate(this, StartChord);
 	Chord EndChordInWorld = AerodynamicUtil::ConvertChordToWorldCoordinate(this, EndChord);
 
@@ -161,12 +161,12 @@ AerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(FVector L
 	FVector WorldAirVelocity = -LinearVelocity + Wind - RotationalVelocity;
 	float Speed = ToSpeedInMetersPerSecond(WorldAirVelocity);
 
-	UE_LOG(LogTemp, Warning, TEXT("Speed: %f m/sec"), Speed);
-	UE_LOG(LogTemp, Warning, TEXT("WorldAirVelocity: %s"), *WorldAirVelocity.ToString());
-	UE_LOG(LogTemp, Warning, TEXT("AvarageChordLength: %f m." ), AvarageChordLength);
-	UE_LOG(LogTemp, Warning, TEXT("SurfaceArea: %f m²"), (SurfaceArea / 10000));
-	UE_LOG(LogTemp, Warning, TEXT("RelativePosition (CenterOfPressure - GlobalCenterOfMassInWorld): %s"), *RelativePosition.ToString());
-	UE_LOG(LogTemp, Warning, TEXT("RotationalVelocity (FVector::CrossProduct(AngularVelocity, RelativePosition)): %s"), *RotationalVelocity.ToString());
+	//UE_LOG(LogTemp, Warning, TEXT("Speed: %f m/sec"), Speed);
+	//UE_LOG(LogTemp, Warning, TEXT("WorldAirVelocity: %s"), *WorldAirVelocity.ToString());
+	//UE_LOG(LogTemp, Warning, TEXT("AvarageChordLength: %f m." ), AvarageChordLength);
+	//UE_LOG(LogTemp, Warning, TEXT("SurfaceArea: %f m²"), (SurfaceArea / 10000));
+	//UE_LOG(LogTemp, Warning, TEXT("RelativePosition (CenterOfPressure - GlobalCenterOfMassInWorld): %s"), *RelativePosition.ToString());
+	//UE_LOG(LogTemp, Warning, TEXT("RotationalVelocity (FVector::CrossProduct(AngularVelocity, RelativePosition)): %s"), *RotationalVelocity.ToString());
 
 	float AngleOfAttackDeg = CalculateAngleOfAttackDeg(WorldAirVelocity, AverageChordDirection);
 	float DynamicPressure = 0.5f * AirDensity * (Speed * Speed);
@@ -179,13 +179,13 @@ AerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(FVector L
 	FVector DragForce = WorldAirVelocity.GetSafeNormal() * NewtonsToKiloCentimeter(DragPower);
 	FVector TorqueForce = -this->GetForwardVector() * NewtonsToKiloCentimeter(TorquePower);
 
-	UE_LOG(LogTemp, Warning, TEXT("LiftPower: %f N"), LiftPower);
-	UE_LOG(LogTemp, Warning, TEXT("DragPower: %f N"), DragPower);
-	UE_LOG(LogTemp, Warning, TEXT("TorquePower: %f N"), TorquePower);
+	//UE_LOG(LogTemp, Warning, TEXT("LiftPower: %f N"), LiftPower);
+	//UE_LOG(LogTemp, Warning, TEXT("DragPower: %f N"), DragPower);
+	//UE_LOG(LogTemp, Warning, TEXT("TorquePower: %f N"), TorquePower);
 
-	UE_LOG(LogTemp, Warning, TEXT("LiftForce: %s kg⋅cm/s²"), *LiftForce.ToString());
-	UE_LOG(LogTemp, Warning, TEXT("DragForce: %s kg⋅cm/s²"), *DragForce.ToString());
-	UE_LOG(LogTemp, Warning, TEXT("TorqueForce: %s kg⋅cm/s²"), *TorqueForce.ToString());
+	//UE_LOG(LogTemp, Warning, TEXT("LiftForce: %s kg⋅cm/s²"), *LiftForce.ToString());
+	//UE_LOG(LogTemp, Warning, TEXT("DragForce: %s kg⋅cm/s²"), *DragForce.ToString());
+	//UE_LOG(LogTemp, Warning, TEXT("TorqueForce: %s kg⋅cm/s²"), *TorqueForce.ToString());
 
 	AerodynamicForce Result = AerodynamicForce(LiftForce, DragForce, TorqueForce, RelativePosition);
 	FVector PositionalForce = Result.PositionalForce;
@@ -247,26 +247,45 @@ float USubAerodynamicSurfaceSC::ToSpeedInMetersPerSecond(FVector WorldAirVelocit
 
 float USubAerodynamicSurfaceSC::CalculateLiftInNewtons(float AoA, float DynamicPressure) {
 	//TODO
-	float Cl = 0.f;
+	int FlapAngle = 0;
+	FAerodynamicProfileRow* Profile = GetProfile(FlapAngle);
+	float Cl = Profile->ClVsAoA.GetRichCurve()->Eval(AoA);
+
 	//float Cl = ClVsAoA->GetFloatValue(AoA);
-	UE_LOG(LogTemp, Warning, TEXT("Cl: %f"), Cl);
+	//UE_LOG(LogTemp, Warning, TEXT("Cl: %f"), Cl);
 	return Cl * DynamicPressure * (SurfaceArea / 10000);
 }
 
 float USubAerodynamicSurfaceSC::CalculateDragInNewtons(float AoA, float DynamicPressure) {
 	//TODO
-	float Cd = 0.f;
+	int FlapAngle = 0;
+	FAerodynamicProfileRow* Profile = GetProfile(FlapAngle);
+	float Cd = Profile->CdVsAoA.GetRichCurve()->Eval(AoA);
 	//float Cd = CdVsAoA->GetFloatValue(AoA);
-	UE_LOG(LogTemp, Warning, TEXT("Cd: %f"), Cd);
+	//UE_LOG(LogTemp, Warning, TEXT("Cd: %f"), Cd);
 	return Cd * DynamicPressure * (SurfaceArea / 10000);
 }
 
 float USubAerodynamicSurfaceSC::CalculateTorqueInNewtons(float AoA, float DynamicPressure, float ChordLength) {
 	//TODO
-	float Cm = 0.f;
+	int FlapAngle = 0;
+	FAerodynamicProfileRow* Profile = GetProfile(FlapAngle);
+	float Cm = Profile->CmVsAoA.GetRichCurve()->Eval(AoA);
 	//float Cm = CmVsAoA->GetFloatValue(AoA);
-	UE_LOG(LogTemp, Warning, TEXT("Cm: %f"), Cm);
+	//UE_LOG(LogTemp, Warning, TEXT("Cm: %f"), Cm);
 	return Cm * DynamicPressure* (SurfaceArea / 10000) * ChordLength;
+}
+
+FAerodynamicProfileRow* USubAerodynamicSurfaceSC::GetProfile(int FlapAngle)
+{
+	if (!AerodynamicTable)
+	{
+		//UE_LOG(LogTemp, Warning, TEXT("Aerodynamic table not set!"));
+		return nullptr;
+	}
+	FName RowName = FName(*FString::Printf(TEXT("FLAP_%d_Deg"), FlapAngle));
+
+	return AerodynamicTable->FindRow<FAerodynamicProfileRow>(RowName, TEXT("Looking up profile"));
 }
 
 FVector USubAerodynamicSurfaceSC::GetLiftDirection(FVector WorldAirVelocity) {
