@@ -29,12 +29,12 @@ void UAerodynamicSurfaceSC::OnConstruction(FVector CenterOfMass)
 	}
 }
 
-AerodynamicForce UAerodynamicSurfaceSC::CalculateForcesOnSurface(FVector CenterOfMass, FVector LinearVelocity, FVector AngularVelocity, FVector AirflowDirection)
+AerodynamicForce UAerodynamicSurfaceSC::CalculateForcesOnSurface(FVector CenterOfMass, FVector LinearVelocity, FVector AngularVelocity, FVector AirflowDirection, ControlInputState ControlState)
 {
 	AerodynamicForce TotalAerodynamicForceForAllSubSurfaces;
 	for (USubAerodynamicSurfaceSC* SubSurface : SubSurfaces)
 	{
-		AerodynamicForce SubSurfaceForces = SubSurface->CalculateForcesOnSubSurface(LinearVelocity, AngularVelocity, CenterOfMass, AirflowDirection);
+		AerodynamicForce SubSurfaceForces = SubSurface->CalculateForcesOnSubSurface(LinearVelocity, AngularVelocity, CenterOfMass, AirflowDirection, ControlState);
 		TotalAerodynamicForceForAllSubSurfaces.PositionalForce += SubSurfaceForces.PositionalForce;
 		TotalAerodynamicForceForAllSubSurfaces.RotationalForce += SubSurfaceForces.RotationalForce;
 	}
@@ -51,6 +51,7 @@ void UAerodynamicSurfaceSC::DestroySubsurfaces() {
 
 void UAerodynamicSurfaceSC::BuildSubsurfaces(FVector CenterOfMass, int32 Direction)
 {
+	bool IsMirror = Direction < 0;
 	TArray<FAirfoilPointData> Points = AerodynamicUtil::NormalizePoints(GetPoints());
 	if (Points.Num() == 0) {
 		//UE_LOG(LogTemp, Warning, TEXT("Profile is missing."));
@@ -83,7 +84,7 @@ void UAerodynamicSurfaceSC::BuildSubsurfaces(FVector CenterOfMass, int32 Directi
 		{
 			SubAerodynamicSurface->AttachToComponent(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 			SubAerodynamicSurface->RegisterComponent();
-			SubAerodynamicSurface->InitComponent(Start3DProfile, End3DProfile, ComponentName, AerodynamicCenterOffsetPercent, CenterOfMass, StartConfig.StartFlapPosition, StartConfig.EndFlapPosition, StartConfig.AerodynamicTable);
+			SubAerodynamicSurface->InitComponent(Start3DProfile, End3DProfile, ComponentName, AerodynamicCenterOffsetPercent, CenterOfMass, StartConfig.MinFlapAngle, StartConfig.MaxFlapAngle, StartConfig.AerodynamicTable, IsMirror, StartConfig.FlapType);
 			SubSurfaces.Add(SubAerodynamicSurface);
 		}
 		else {

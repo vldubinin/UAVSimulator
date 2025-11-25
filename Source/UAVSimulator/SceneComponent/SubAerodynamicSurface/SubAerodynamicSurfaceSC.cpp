@@ -20,7 +20,9 @@ USubAerodynamicSurfaceSC::USubAerodynamicSurfaceSC()
 	DistanceToCenterOfMass = 0.f;
 }
 
-void USubAerodynamicSurfaceSC::InitComponent(TArray<FVector> InStart3DProfile, TArray<FVector> InEnd3DProfile, FName SurfaceName, float CenterOfPressureOffset, FVector GlobalSurfaceCenterOfMass, float InStartFlopPosition, float InEndFlopPosition, UDataTable* ProfileAerodynamicTable)
+void USubAerodynamicSurfaceSC::InitComponent(TArray<FVector> InStart3DProfile, TArray<FVector> InEnd3DProfile, 
+	FName SurfaceName, float CenterOfPressureOffset, FVector GlobalSurfaceCenterOfMass, float InStartFlopPosition, 
+	float InEndFlopPosition, UDataTable* ProfileAerodynamicTable, bool IsMirrorSurface, EFlapType SurfaceFlapType)
 {
 	Start3DProfile = InStart3DProfile;
 	End3DProfile = InEnd3DProfile;
@@ -34,6 +36,9 @@ void USubAerodynamicSurfaceSC::InitComponent(TArray<FVector> InStart3DProfile, T
 	DistanceToCenterOfMass = FVector::Dist(GlobalSurfaceCenterOfMass, AerodynamicUtil::ConvertToWorldCoordinate(this, CenterOfPressure));
 	StartFlopPosition = InStartFlopPosition;
 	EndFlopPosition = InEndFlopPosition;
+
+	IsMirror = IsMirrorSurface;
+	FlapType = SurfaceFlapType;
 
 	DrawSurface(SurfaceName);
 	DrawFlop(SurfaceName);
@@ -144,7 +149,45 @@ FVector USubAerodynamicSurfaceSC::GetPointOnLineAtPercentage(FVector StartPoint,
 	return FMath::Lerp(StartPoint, EndPoint, ClampedAlpha);
 }
 
-AerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(FVector LinearVelocity, FVector AngularVelocity, FVector GlobalCenterOfMassInWorld, FVector AirflowDirection)
+float USubAerodynamicSurfaceSC::CalculateFlapAngel(float StartFlopValue, float EndFlopValue, float InputSignal)
+{
+	float Mid = (StartFlopValue + EndFlopValue) * 0.5f;
+	return (InputSignal < 0.0f)
+		? FMath::Lerp(Mid, StartFlopValue, -InputSignal)
+		: FMath::Lerp(Mid, EndFlopValue, InputSignal);
+}
+
+float USubAerodynamicSurfaceSC::GetFlapAngel(ControlInputState ControlState)
+{
+	if (FlapType == EFlapType::None)
+	{
+		return 0;
+	}
+
+	if (FlapType == EFlapType::Aileron)
+	{
+		if (IsMirror) {
+			return CalculateFlapAngel(StartFlopPosition, EndFlopPosition, ControlState.RightAileronAngle);
+		}
+		return CalculateFlapAngel(StartFlopPosition, EndFlopPosition, ControlState.LeftAileronAngle);
+	}
+
+	if (FlapType == EFlapType::Elevator)
+	{
+		if (IsMirror) {
+			return CalculateFlapAngel(StartFlopPosition, EndFlopPosition, ControlState.RightElevatorAngle);
+		}
+		return CalculateFlapAngel(StartFlopPosition, EndFlopPosition, ControlState.LeftElevatorAngle);
+	}
+
+	if (FlapType == EFlapType::Rudder)
+	{
+		return CalculateFlapAngel(StartFlopPosition, EndFlopPosition, ControlState.RudderAngle);
+	}
+	return 0;
+}
+
+AerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(FVector LinearVelocity, FVector AngularVelocity, FVector GlobalCenterOfMassInWorld, FVector AirflowDirection, ControlInputState ControlState)
 {
 	//UE_LOG(LogTemp, Warning, TEXT("###############################################"));
 	Chord StartChordInWorld = AerodynamicUtil::ConvertChordToWorldCoordinate(this, StartChord);
@@ -171,9 +214,15 @@ AerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(FVector L
 	float AngleOfAttackDeg = CalculateAngleOfAttackDeg(WorldAirVelocity, AverageChordDirection);
 	float DynamicPressure = 0.5f * AirDensity * (Speed * Speed);
 
-	float LiftPower = CalculateLiftInNewtons(AngleOfAttackDeg, DynamicPressure);
-	float DragPower = CalculateDragInNewtons(AngleOfAttackDeg, DynamicPressure);
-	float TorquePower = CalculateTorqueInNewtons(AngleOfAttackDeg, DynamicPressure, AvarageChordLength);
+	int FlapAngle = GetFlapAngel(ControlState);
+	UE_LOG(LogTemp, Warning, TEXT("FlapType: %s %s. Value: %d"),
+		IsMirror ? TEXT("Right") : TEXT("Left"),
+		*UEnum::GetValueAsString(FlapType),
+		FlapAngle);
+
+	float LiftPower = CalculateLiftInNewtons(AngleOfAttackDeg, FlapAngle, DynamicPressure);
+	float DragPower = CalculateDragInNewtons(AngleOfAttackDeg, FlapAngle, DynamicPressure);
+	float TorquePower = CalculateTorqueInNewtons(AngleOfAttackDeg, FlapAngle, DynamicPressure, AvarageChordLength);
 
 	FVector LiftForce = GetLiftDirection(WorldAirVelocity) * NewtonsToKiloCentimeter(LiftPower);
 	FVector DragForce = WorldAirVelocity.GetSafeNormal() * NewtonsToKiloCentimeter(DragPower);
@@ -245,9 +294,7 @@ float USubAerodynamicSurfaceSC::ToSpeedInMetersPerSecond(FVector WorldAirVelocit
 	return WorldAirVelocity.Size() / 100.0f;
 }
 
-float USubAerodynamicSurfaceSC::CalculateLiftInNewtons(float AoA, float DynamicPressure) {
-	//TODO
-	int FlapAngle = 0;
+float USubAerodynamicSurfaceSC::CalculateLiftInNewtons(float AoA, int FlapAngle, float DynamicPressure) {
 	FAerodynamicProfileRow* Profile = GetProfile(FlapAngle);
 	float Cl = Profile->ClVsAoA.GetRichCurve()->Eval(AoA);
 
@@ -256,9 +303,7 @@ float USubAerodynamicSurfaceSC::CalculateLiftInNewtons(float AoA, float DynamicP
 	return Cl * DynamicPressure * (SurfaceArea / 10000);
 }
 
-float USubAerodynamicSurfaceSC::CalculateDragInNewtons(float AoA, float DynamicPressure) {
-	//TODO
-	int FlapAngle = 0;
+float USubAerodynamicSurfaceSC::CalculateDragInNewtons(float AoA, int FlapAngle, float DynamicPressure) {
 	FAerodynamicProfileRow* Profile = GetProfile(FlapAngle);
 	float Cd = Profile->CdVsAoA.GetRichCurve()->Eval(AoA);
 	//float Cd = CdVsAoA->GetFloatValue(AoA);
@@ -266,9 +311,7 @@ float USubAerodynamicSurfaceSC::CalculateDragInNewtons(float AoA, float DynamicP
 	return Cd * DynamicPressure * (SurfaceArea / 10000);
 }
 
-float USubAerodynamicSurfaceSC::CalculateTorqueInNewtons(float AoA, float DynamicPressure, float ChordLength) {
-	//TODO
-	int FlapAngle = 0;
+float USubAerodynamicSurfaceSC::CalculateTorqueInNewtons(float AoA, int FlapAngle, float DynamicPressure, float ChordLength) {
 	FAerodynamicProfileRow* Profile = GetProfile(FlapAngle);
 	float Cm = Profile->CmVsAoA.GetRichCurve()->Eval(AoA);
 	//float Cm = CmVsAoA->GetFloatValue(AoA);

@@ -13,6 +13,9 @@
 #include "Runtime/Core/Public/Math/Vector.h"
 #include "UAVSimulator/Entity/AerodynamicForce.h"
 #include "Engine/DataTable.h"
+#include "UAVSimulator/Entity/ControlInputState.h"
+#include "UAVSimulator/Entity/FlapType.h"
+
 #include "SubAerodynamicSurfaceSC.generated.h"
 
 
@@ -37,6 +40,8 @@ private:
 
 	const float AirDensity = 1.225f;
 	const FVector Wind = FVector();
+	bool IsMirror = false;
+	EFlapType FlapType;
 
 private:
 	FVector CenterOfPressure;
@@ -44,12 +49,14 @@ private:
 	float DistanceToCenterOfMass;
 
 private:
+	float CalculateFlapAngel(float StartFlopValue, float EndFlopValue, float InputSignal);
+	float GetFlapAngel(ControlInputState ControlState);
 	FVector FindCenterOfPressure(float PercentageOffset);
 	float CalculateQuadSurfaceArea();
 	float CalculateAngleOfAttackDeg(FVector WorldAirVelocity, FVector AverageChordDirection);
-	float CalculateLiftInNewtons(float AoA, float DynamicPressure);
-	float CalculateDragInNewtons(float AoA, float DynamicPressure);
-	float CalculateTorqueInNewtons(float AoA, float DynamicPressure, float ChordLengt);
+	float CalculateLiftInNewtons(float AoA, int FlapAngle, float DynamicPressure);
+	float CalculateDragInNewtons(float AoA, int FlapAngle, float DynamicPressure);
+	float CalculateTorqueInNewtons(float AoA, int FlapAngle, float DynamicPressure, float ChordLengt);
 	float CalculateAvarageChordLength(Chord FirstChord, Chord SecondChord);
 	float ToSpeedInMetersPerSecond(FVector WorldAirVelocity);
 	FVector GetLiftDirection(FVector WorldAirVelocity);
@@ -64,6 +71,8 @@ private:
 	void DrawText(FString Text, FVector Point, FVector Offset, FRotator Rotator, FColor Color, FName SplineName);
 
 public:	
-	void InitComponent(TArray<FVector> InStart3DProfile, TArray<FVector> InEnd3DProfile, FName SurfaceName, float CenterOfPressureOffset, FVector GlobalSurfaceCenterOfMass, float InStartFlopPosition, float InEndFlopPosition, UDataTable* ProfileAerodynamicTable);
-	AerodynamicForce CalculateForcesOnSubSurface(FVector LinearVelocity, FVector AngularVelocity, FVector GlobalCenterOfMassInWorld, FVector AirflowDirection);
+	void InitComponent(TArray<FVector> InStart3DProfile, TArray<FVector> InEnd3DProfile, 
+		FName SurfaceName, float CenterOfPressureOffset, FVector GlobalSurfaceCenterOfMass, 
+		float InStartFlopPosition, float InEndFlopPosition, UDataTable* ProfileAerodynamicTable, bool IsMirrorSurface, EFlapType FlapType);
+	AerodynamicForce CalculateForcesOnSubSurface(FVector LinearVelocity, FVector AngularVelocity, FVector GlobalCenterOfMassInWorld, FVector AirflowDirection, ControlInputState ControlState);
 };

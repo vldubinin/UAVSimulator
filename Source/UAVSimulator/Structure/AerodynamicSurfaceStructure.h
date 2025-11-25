@@ -3,7 +3,11 @@
 #include "CoreMinimal.h" 
 #include "Engine/DataTable.h"
 #include "Runtime/Core/Public/Math/Vector.h"
+#include "UAVSimulator/Entity/FlapType.h"
+
+
 #include "AerodynamicSurfaceStructure.generated.h" 
+
 
 USTRUCT(BlueprintType)
 struct FAerodynamicSurfaceStructure : public FTableRowBase
@@ -31,5 +35,8 @@ struct FAerodynamicSurfaceStructure : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Aerodynamics")
 		UDataTable* AerodynamicTable;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = "Тип керуючої поверхні"))
+		EFlapType FlapType;
 
 };

@@ -17,7 +17,7 @@ void APhysicalAirplane::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
 	CalculateParameters();
-
+	ControlState = ControlInputState();
 	GetComponents<UAerodynamicSurfaceSC>(Surfaces);
 	for (UAerodynamicSurfaceSC* Surface : Surfaces) {
 		Surface->OnConstruction(CenterOfMassInWorld);
@@ -28,6 +28,7 @@ void APhysicalAirplane::OnConstruction(const FTransform& Transform)
 void APhysicalAirplane::BeginPlay()
 {
 	Super::BeginPlay();
+	ControlState = ControlInputState();
 	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), DebugSimulatorSpeed);
 	GetComponents<UAerodynamicSurfaceSC>(Surfaces);
 	for (UAerodynamicSurfaceSC* Surface : Surfaces) {
@@ -60,7 +61,7 @@ void APhysicalAirplane::Tick(float DeltaTime)
 
 		AerodynamicForce TotalAerodynamicForce;
 		for (UAerodynamicSurfaceSC* Surface : Surfaces) {
-			AerodynamicForce SurfaceAerodynamicForce = Surface->CalculateForcesOnSurface(CenterOfMassInWorld, LinearVelocity, AngularVelocity, AirflowDirection);
+			AerodynamicForce SurfaceAerodynamicForce = Surface->CalculateForcesOnSurface(CenterOfMassInWorld, LinearVelocity, AngularVelocity, AirflowDirection, ControlState);
 			TotalAerodynamicForce.PositionalForce += SurfaceAerodynamicForce.PositionalForce;
 			TotalAerodynamicForce.RotationalForce += SurfaceAerodynamicForce.RotationalForce;
 		}
@@ -76,6 +77,7 @@ void APhysicalAirplane::Tick(float DeltaTime)
 			StaticMeshComponent->AddForce(ThrustForce);
 		}
 	}
+	ControlState = ControlInputState();
 }
 
 void  APhysicalAirplane::CalculateParameters()
@@ -104,52 +106,26 @@ void  APhysicalAirplane::CalculateParameters()
 	else {
 		AirflowDirection = -ActorVelocity.GetSafeNormal();
 	}
-
 }
 
-
-void APhysicalAirplane::UpdateW(float Value)
+void APhysicalAirplane::UpdateAileronControl(float LeftAileronAngleValue, float RightAileronAngleValue)
 {
-	float DeltaTime = GetWorld()->GetDeltaSeconds();
-	float NewThrottle = ThrottlePercent + (Value * DeltaTime);
-	ThrottlePercent = FMath::Clamp(NewThrottle, 0.0f, 1.0f);
-	UE_LOG(LogTemp, Warning, TEXT("W: %f"), Value);
+	ControlState.LeftAileronAngle = LeftAileronAngleValue;
+	ControlState.RightAileronAngle = RightAileronAngleValue;
 }
 
-void APhysicalAirplane::UpdateS(float Value)
+void APhysicalAirplane::UpdateElevatorControl(float LeftElevatorAngleValue, float RightElevatorAngleValue)
 {
-	UE_LOG(LogTemp, Warning, TEXT("S: %f"), Value);
+	ControlState.LeftElevatorAngle = LeftElevatorAngleValue;
+	ControlState.RightElevatorAngle = RightElevatorAngleValue;
 }
 
-void APhysicalAirplane::UpdateA(float Value)
+void APhysicalAirplane::UpdateRudderControl(float RudderAngleValue)
 {
-	UE_LOG(LogTemp, Warning, TEXT("A: %f"), Value);
+	ControlState.RudderAngle = RudderAngleValue;
 }
 
-void APhysicalAirplane::UpdateD(float Value)
-{
-	UE_LOG(LogTemp, Warning, TEXT("D: %f"), Value);
-}
 
-void APhysicalAirplane::UpdateUp(float Value)
-{
-	UE_LOG(LogTemp, Warning, TEXT("Up: %f"), Value);
-}
-
-void APhysicalAirplane::UpdateDown(float Value)
-{
-	UE_LOG(LogTemp, Warning, TEXT("Down: %f"), Value);
-}
-
-void APhysicalAirplane::UpdateLeft(float Value)
-{
-	UE_LOG(LogTemp, Warning, TEXT("Left: %f"), Value);
-}
-
-void APhysicalAirplane::UpdateRight(float Value)
-{
-	UE_LOG(LogTemp, Warning, TEXT("Right: %f"), Value);
-}
 
 void APhysicalAirplane::GenerateAerodynamicPhysicalConfigutation(UObject* ContextObject)
 {

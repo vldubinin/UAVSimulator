@@ -14,8 +14,8 @@ PROJECT_NAME = "UAVSimulator"
 results_geo_path = r"C:\Users\PC\Documents\Unreal Projects\UAVSimulator\Tools\OpenVSP\result\sub_surface"
 output_file = r"C:\Users\PC\Documents\Unreal Projects\UAVSimulator\Tools\OpenVSP\result\output.json"
 
-alpha_start_val = -8.0  # початковий AoA
-alpha_end_val = 10.0  # кінцевий AoA
+alpha_start_val = -8  # початковий AoA
+alpha_end_val = 10  # кінцевий AoA
 alpha_npts_val = 19.0  # кількість значення AoA в полярі.
 deflection_angle_step_val = 1  # крок flap angle
 wake_num_iter_val = 3  # точність, мінімум 3
@@ -33,6 +33,17 @@ flap = (deflection_angle_start_val != 0) & (deflection_angle_end_val != 0)
 surface_name = sys.argv[7]
 sub_surface_index = sys.argv[8]
 airfoil_path = sys.argv[9]
+
+#root_chord = 10
+#tip_chord = 10
+#span = 10
+#deflection_angle_start_val = -45 # початковий flap angle
+#deflection_angle_end_val = 45
+#sweep = 0
+#flap = True
+#surface_name = "surface"
+#sub_surface_index = 1
+#airfoil_path = r"C:\Users\PC\Documents\Unreal Projects\UAVSimulator\Content\WingProfile\NACA_2412\naca2412.dat"
 print(airfoil_path)
 
 print(f"############# Початок розрахунку для {surface_name}. Sub surface: {sub_surface_index} #############")
@@ -46,10 +57,7 @@ print(surface_form)
 
 vsp.VSPCheckSetup()
 
-def calculate(alpha_start, alpha_end, deflection_angle, alpha_npts, wake_num_iter, surface_geometry):
-    print(
-        f"Початок розрахунку для alpha_start:{alpha_start}, alpha_end:{alpha_end}, deflection_angle:{deflection_angle}")
-
+def calculate(alpha, deflection_angle, wake_num_iter, surface_geometry):
     vsp.ClearVSPModel()
     print("Створення геометрії")
     wing_id = vsp.AddGeom('WING', '')
@@ -100,13 +108,10 @@ def calculate(alpha_start, alpha_end, deflection_angle, alpha_npts, wake_num_ite
         vsp.SetParmValUpdate(deflection_angle_id, deflection_angle)
 
     alpha_npts_id = vsp.FindParm(control_group_settings_container_id, "AlphaNpts", "VSPAERO")
-    vsp.SetParmValUpdate(alpha_npts_id, alpha_npts)
+    vsp.SetParmValUpdate(alpha_npts_id, 1)
 
     alpha_start_id = vsp.FindParm(control_group_settings_container_id, "AlphaStart", "VSPAERO")
-    vsp.SetParmValUpdate(alpha_start_id, alpha_start)
-
-    alpha_end_id = vsp.FindParm(control_group_settings_container_id, "AlphaEnd", "VSPAERO")
-    vsp.SetParmValUpdate(alpha_end_id, alpha_end)
+    vsp.SetParmValUpdate(alpha_start_id, alpha)
 
     wake_num_iter_id = vsp.FindParm(control_group_settings_container_id, "WakeNumIter", "VSPAERO")
     vsp.SetParmValUpdate(wake_num_iter_id, wake_num_iter)
@@ -133,7 +138,7 @@ def calculate(alpha_start, alpha_end, deflection_angle, alpha_npts, wake_num_ite
     print("Аналіз завершено")
 
     print(vsp.GetStringResults(rid, 'ResultsVec'))
-    result = vsp.GetStringResults(rid, 'ResultsVec')[int(alpha_npts)]
+    result = vsp.GetStringResults(rid, 'ResultsVec')[int(1)]
     aoa_vec = vsp.GetDoubleResults(result, 'Alpha')
     cl_vec = vsp.GetDoubleResults(result, 'CLtot')
     cd_vec = vsp.GetDoubleResults(result, 'CDtot')
@@ -237,18 +242,17 @@ def create_aerodynamic_profile_datatable(rows_data):
 
 results = []
 for current_deflection_angle in range(int(deflection_angle_start_val), int(deflection_angle_end_val + 1), int(deflection_angle_step_val)):
-    aoa_vec_for_flap, cl_vec_for_flap, cd_vec_for_flap, cm_vec_for_flap = calculate(alpha_start_val, alpha_end_val,
-                                                                                    current_deflection_angle,
-                                                                                    alpha_npts_val, wake_num_iter_val,
-                                                                                    surface_form)
-
     short_polar_for_angle = {'re': re, 'alpha': [], 'cl': [], 'cd': [], 'cm': []}
-
-    for index, aoa in enumerate(aoa_vec_for_flap):
-        short_polar_for_angle['alpha'].append(aoa)
-        short_polar_for_angle['cl'].append(cl_vec_for_flap[index])
-        short_polar_for_angle['cd'].append(cd_vec_for_flap[index])
-        short_polar_for_angle['cm'].append(cm_vec_for_flap[index])
+    for alpha_val in range(alpha_start_val, alpha_end_val):
+        print(f"Розрахунку для {surface_name}-{sub_surface_index} alpha:{alpha_val} [{alpha_end_val}], flap:{current_deflection_angle} [{deflection_angle_end_val}].")
+        aoa_vec_for_flap, cl_vec_for_flap, cd_vec_for_flap, cm_vec_for_flap = calculate(alpha_val,
+                                                                                        current_deflection_angle,
+                                                                                        wake_num_iter_val,
+                                                                                        surface_form)
+        short_polar_for_angle['alpha'].append(alpha_val)
+        short_polar_for_angle['cl'].append(cl_vec_for_flap[0])
+        short_polar_for_angle['cd'].append(cd_vec_for_flap[0])
+        short_polar_for_angle['cm'].append(cm_vec_for_flap[0])
 
     airfoil = Airfoil([Polar(short_polar_for_angle['re'], short_polar_for_angle['alpha'], short_polar_for_angle['cl'],
                              short_polar_for_angle['cd'], short_polar_for_angle['cm'])])

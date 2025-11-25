@@ -16,8 +16,11 @@
 #include "Runtime/Engine/Public/DrawDebugHelpers.h"
 #include "UAVSimulator/Entity/AerodynamicForce.h"
 #include "AirfoilData.h"
+#include "UAVSimulator/Entity/ControlInputState.h"
 
 #include "AerodynamicSurfaceSC.generated.h"
+
+
 
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
@@ -31,7 +34,7 @@ public:
 
 public:	
 	void OnConstruction(FVector CenterOfMass);
-	AerodynamicForce CalculateForcesOnSurface(FVector CenterOfMass, FVector LinearVelocity, FVector AngularVelocity, FVector AirflowDirection);
+	AerodynamicForce CalculateForcesOnSurface(FVector CenterOfMass, FVector LinearVelocity, FVector AngularVelocity, FVector AirflowDirection, ControlInputState ControlState);
 
 private:
 	TArray<FAirfoilPointData> GetPoints();
