@@ -56,6 +56,7 @@ private:
 
 private:
 	TArray<UAerodynamicSurfaceSC*> Surfaces;
+	TArray<UControlSurfaceSC*> ControlSurfaces;
 	FVector LinearVelocity;
 	FVector AngularVelocity;
 	FVector CenterOfMassInWorld;

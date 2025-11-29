@@ -20,7 +20,7 @@ void APhysicalAirplane::OnConstruction(const FTransform& Transform)
 	ControlState = ControlInputState();
 	GetComponents<UAerodynamicSurfaceSC>(Surfaces);
 	for (UAerodynamicSurfaceSC* Surface : Surfaces) {
-		Surface->OnConstruction(CenterOfMassInWorld);
+		Surface->OnConstruction(CenterOfMassInWorld, ControlSurfaces);
 	}
 }
 
@@ -30,9 +30,11 @@ void APhysicalAirplane::BeginPlay()
 	Super::BeginPlay();
 	ControlState = ControlInputState();
 	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), DebugSimulatorSpeed);
+
+	GetComponents<UControlSurfaceSC>(ControlSurfaces);
 	GetComponents<UAerodynamicSurfaceSC>(Surfaces);
 	for (UAerodynamicSurfaceSC* Surface : Surfaces) {
-		Surface->OnConstruction(CenterOfMassInWorld);
+		Surface->OnConstruction(CenterOfMassInWorld, ControlSurfaces);
 	}
 }
 

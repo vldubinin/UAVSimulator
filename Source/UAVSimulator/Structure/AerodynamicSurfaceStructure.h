@@ -38,5 +38,4 @@ struct FAerodynamicSurfaceStructure : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = "Тип керуючої поверхні"))
 		EFlapType FlapType;
-
 };

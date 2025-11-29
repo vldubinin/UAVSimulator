@@ -33,18 +33,22 @@ public:
 	UAerodynamicSurfaceSC();
 
 public:	
-	void OnConstruction(FVector CenterOfMass);
+	void OnConstruction(FVector CenterOfMass, TArray<UControlSurfaceSC*> ControlSur);
 	AerodynamicForce CalculateForcesOnSurface(FVector CenterOfMass, FVector LinearVelocity, FVector AngularVelocity, FVector AirflowDirection, ControlInputState ControlState);
 
 private:
 	TArray<FAirfoilPointData> GetPoints();
 	void BuildSubsurfaces(FVector CenterOfMass, int32 Direction);
 	void DestroySubsurfaces();
+	UControlSurfaceSC* FindControlSurface(EFlapType Type, bool bMirror);
 	
 private:
 	TArray<USubAerodynamicSurfaceSC*> SubSurfaces;
+	TArray<UControlSurfaceSC*> ControlSurfaces;
 
 protected:
+
+
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "Аеродинамічний профіль"))
 		UDataTable* Profile;
