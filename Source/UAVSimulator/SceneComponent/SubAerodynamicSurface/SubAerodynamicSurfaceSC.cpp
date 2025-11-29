@@ -167,22 +167,32 @@ float USubAerodynamicSurfaceSC::GetFlapAngel(ControlInputState ControlState)
 	if (FlapType == EFlapType::Aileron)
 	{
 		if (IsMirror) {
-			return CalculateFlapAngel(StartFlopPosition, EndFlopPosition, ControlState.RightAileronAngle);
+			float FlapAngel = CalculateFlapAngel(StartFlopPosition, EndFlopPosition, ControlState.RightAileronAngle);
+			//UE_LOG(LogTemp, Warning, TEXT("Aileron R Angel: %f"), FlapAngel);
+			return FlapAngel;
 		}
-		return CalculateFlapAngel(StartFlopPosition, EndFlopPosition, ControlState.LeftAileronAngle);
+		float FlapAngel = CalculateFlapAngel(StartFlopPosition, EndFlopPosition, ControlState.LeftAileronAngle);
+		//UE_LOG(LogTemp, Warning, TEXT("Aileron L Angel: %f"), FlapAngel);
+		return FlapAngel;
 	}
 
 	if (FlapType == EFlapType::Elevator)
 	{
 		if (IsMirror) {
-			return CalculateFlapAngel(StartFlopPosition, EndFlopPosition, ControlState.RightElevatorAngle);
+			float FlapAngel = CalculateFlapAngel(StartFlopPosition, EndFlopPosition, ControlState.RightElevatorAngle);
+			//UE_LOG(LogTemp, Warning, TEXT("Elevator R Angel: %f"), FlapAngel);
+			return FlapAngel;
 		}
-		return CalculateFlapAngel(StartFlopPosition, EndFlopPosition, ControlState.LeftElevatorAngle);
+		float FlapAngel = CalculateFlapAngel(StartFlopPosition, EndFlopPosition, ControlState.LeftElevatorAngle);
+		//UE_LOG(LogTemp, Warning, TEXT("Elevator L Angel: %f"), FlapAngel);
+		return FlapAngel;
 	}
 
 	if (FlapType == EFlapType::Rudder)
 	{
-		return CalculateFlapAngel(StartFlopPosition, EndFlopPosition, ControlState.RudderAngle);
+		float FlapAngel = CalculateFlapAngel(StartFlopPosition, EndFlopPosition, ControlState.RudderAngle);
+		UE_LOG(LogTemp, Warning, TEXT("Rudder Angel: %f"), FlapAngel);
+		return FlapAngel;
 	}
 	return 0;
 }
@@ -215,10 +225,6 @@ AerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(FVector L
 	float DynamicPressure = 0.5f * AirDensity * (Speed * Speed);
 
 	int FlapAngle = GetFlapAngel(ControlState);
-	UE_LOG(LogTemp, Warning, TEXT("FlapType: %s %s. Value: %d"),
-		IsMirror ? TEXT("Right") : TEXT("Left"),
-		*UEnum::GetValueAsString(FlapType),
-		FlapAngle);
 
 	float LiftPower = CalculateLiftInNewtons(AngleOfAttackDeg, FlapAngle, DynamicPressure);
 	float DragPower = CalculateDragInNewtons(AngleOfAttackDeg, FlapAngle, DynamicPressure);
@@ -242,26 +248,58 @@ AerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(FVector L
 	//UE_LOG(LogTemp, Warning, TEXT("Surface Positional Force: %s"), *PositionalForce.ToString());
 	//UE_LOG(LogTemp, Warning, TEXT("Surface Rotational Force: %s"), *RotationalForce.ToString());
 
-	return Result;
+	// Початкова точка: Центр тиску
+	FVector StartLocation = CenterOfPressureInWorld;
+	// Кінцева точка: Початкова точка + Вектор сили
+	FVector EndLocation = StartLocation + PositionalForce;
+
+	DrawDebugDirectionalArrow(
+		GetWorld(),
+		StartLocation,
+		EndLocation,
+		// Розмір наконечника: 25.0f
+		25.0f,
+		FColor::Green,
+		false, // bPersistentLines: false
+		-1.f,  // LifeTime: -1 (один кадр)
+		0,     // DepthPriority: 0
+		// Товщина стрілки: 5.0f. Можливо, варто використовувати меншу товщину, наприклад, 3.0f.
+		5.0f);
+
+	FVector StartLocationRotational = CenterOfPressureInWorld; // Трохи зміщуємо вгору
+	// Кінцева точка: Початкова точка + Вектор сили
+	FVector EndLocationRotational = StartLocationRotational + RotationalForce;
+
+	DrawDebugDirectionalArrow(
+		GetWorld(),
+		StartLocationRotational,
+		EndLocationRotational,
+		25.0f,
+		FColor::Blue, // Використовуємо інший колір (наприклад, червоний)
+		false,
+		-1.f,
+		0,
+		5.0f);
 
 	/*DrawDebugDirectionalArrow(
 		GetWorld(),
 		CenterOfPressureInWorld,
-		CenterOfPressureInWorld + LiftForce * 200,
+		CenterOfPressureInWorld + (LiftForce / 100)
+		,
 		25.0f, FColor::Green, false, -1.f, 0, 5.0f);
-
+	
 	//World Air Velocity Direction show
 	DrawDebugDirectionalArrow(
 		GetWorld(),
 		CenterOfPressureInWorld,
-		CenterOfPressureInWorld + WorldAirVelocity * 200,
+		CenterOfPressureInWorld + WorldAirVelocity * 20,
 		25.0f, FColor::Green, false, -1.f, 0, 5.0f);
 
 	//Linear Velocity Direction show
 	DrawDebugDirectionalArrow(
 		GetWorld(),
 		CenterOfPressureInWorld,
-		CenterOfPressureInWorld + LinearVelocity * 200,
+		CenterOfPressureInWorld + LinearVelocity * 20,
 		25.0f, FColor::Red, false, -1.f, 0, 5.0f);
 
 
@@ -269,7 +307,7 @@ AerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(FVector L
 	DrawDebugLine(
 		GetWorld(),
 		CenterOfPressureInWorld,
-		CenterOfPressureInWorld + AverageChordDirection * 200.0f,
+		CenterOfPressureInWorld + AverageChordDirection * 20.0f,
 		FColor::Black, false, -1.f, 0, 5.0f
 	);
 
@@ -277,8 +315,10 @@ AerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(FVector L
 	DrawDebugDirectionalArrow(
 		GetWorld(), 
 		CenterOfPressureInWorld,
-		CenterOfPressureInWorld + AirflowDirection * 200.0f,
-		25.0f, FColor::Cyan, false, -1.f, 0, 5.0f);*/
+		CenterOfPressureInWorld + AirflowDirection * 20.0f,
+		25.0f, FColor::Cyan, false, -1.f, 0, 5.0f);
+	*/
+	return Result;
 }
 
 float USubAerodynamicSurfaceSC::CalculateAngleOfAttackDeg(FVector WorldAirVelocity, FVector AverageChordDirection)
@@ -298,7 +338,6 @@ float USubAerodynamicSurfaceSC::CalculateLiftInNewtons(float AoA, int FlapAngle,
 	FAerodynamicProfileRow* Profile = GetProfile(FlapAngle);
 	float Cl = Profile->ClVsAoA.GetRichCurve()->Eval(AoA);
 
-	//float Cl = ClVsAoA->GetFloatValue(AoA);
 	//UE_LOG(LogTemp, Warning, TEXT("Cl: %f"), Cl);
 	return Cl * DynamicPressure * (SurfaceArea / 10000);
 }
@@ -306,7 +345,7 @@ float USubAerodynamicSurfaceSC::CalculateLiftInNewtons(float AoA, int FlapAngle,
 float USubAerodynamicSurfaceSC::CalculateDragInNewtons(float AoA, int FlapAngle, float DynamicPressure) {
 	FAerodynamicProfileRow* Profile = GetProfile(FlapAngle);
 	float Cd = Profile->CdVsAoA.GetRichCurve()->Eval(AoA);
-	//float Cd = CdVsAoA->GetFloatValue(AoA);
+
 	//UE_LOG(LogTemp, Warning, TEXT("Cd: %f"), Cd);
 	return Cd * DynamicPressure * (SurfaceArea / 10000);
 }
@@ -314,7 +353,7 @@ float USubAerodynamicSurfaceSC::CalculateDragInNewtons(float AoA, int FlapAngle,
 float USubAerodynamicSurfaceSC::CalculateTorqueInNewtons(float AoA, int FlapAngle, float DynamicPressure, float ChordLength) {
 	FAerodynamicProfileRow* Profile = GetProfile(FlapAngle);
 	float Cm = Profile->CmVsAoA.GetRichCurve()->Eval(AoA);
-	//float Cm = CmVsAoA->GetFloatValue(AoA);
+
 	//UE_LOG(LogTemp, Warning, TEXT("Cm: %f"), Cm);
 	return Cm * DynamicPressure* (SurfaceArea / 10000) * ChordLength;
 }
@@ -323,7 +362,7 @@ FAerodynamicProfileRow* USubAerodynamicSurfaceSC::GetProfile(int FlapAngle)
 {
 	if (!AerodynamicTable)
 	{
-		//UE_LOG(LogTemp, Warning, TEXT("Aerodynamic table not set!"));
+		UE_LOG(LogTemp, Warning, TEXT("Aerodynamic table not set!"));
 		return nullptr;
 	}
 	FName RowName = FName(*FString::Printf(TEXT("FLAP_%d_Deg"), FlapAngle));

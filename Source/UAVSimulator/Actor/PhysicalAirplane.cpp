@@ -45,7 +45,7 @@ void APhysicalAirplane::Tick(float DeltaTime)
 	UStaticMeshComponent* StaticMeshComponent = this->FindComponentByClass<UStaticMeshComponent>();
 	if (StaticMeshComponent && StaticMeshComponent->IsSimulatingPhysics())
 	{
-		/*DrawDebugDirectionalArrow(
+		DrawDebugDirectionalArrow(
 			GetWorld(),
 			CenterOfMassInWorld,
 			CenterOfMassInWorld + LinearVelocity * 200,
@@ -56,7 +56,7 @@ void APhysicalAirplane::Tick(float DeltaTime)
 			CenterOfMassInWorld,
 			CenterOfMassInWorld + AirflowDirection * 200,
 			25.0f, FColor::Cyan, false, -1.f, 0, 5.0f);
-		*/
+		
 		DrawDebugCrosshairs(GetWorld(), CenterOfMassInWorld, FRotator::ZeroRotator, 250, FColor::Red, false, -1, 0);
 
 		AerodynamicForce TotalAerodynamicForce;
@@ -65,8 +65,7 @@ void APhysicalAirplane::Tick(float DeltaTime)
 			TotalAerodynamicForce.PositionalForce += SurfaceAerodynamicForce.PositionalForce;
 			TotalAerodynamicForce.RotationalForce += SurfaceAerodynamicForce.RotationalForce;
 		}
-		//UE_LOG(LogTemp, Warning, TEXT("Surface Positional Force: %s"), *TotalAerodynamicForce.PositionalForce.ToString());
-		//UE_LOG(LogTemp, Warning, TEXT("Surface Rotational Force: %s"), *TotalAerodynamicForce.RotationalForce.ToString());
+	
 		StaticMeshComponent->AddForce(TotalAerodynamicForce.PositionalForce);
 		StaticMeshComponent->AddTorqueInRadians(TotalAerodynamicForce.RotationalForce);
 
@@ -76,6 +75,20 @@ void APhysicalAirplane::Tick(float DeltaTime)
 			FVector ThrustForce = ThrustDirection * MaxThrust * ThrottlePercent;
 			StaticMeshComponent->AddForce(ThrustForce);
 		}
+
+		FVector CurrentLocation = GetActorLocation();
+
+		// 2. Format the log string
+		FString LogString = FString::Printf(
+			TEXT("%s Location: %s"),
+			*GetName(),
+			*CurrentLocation.ToString()
+		);
+
+		// 3. Log the message to the Unreal Output Log (Ctrl+Shift+Z to view)
+		// We use the custom LogPositionLogger category defined in the header.
+		UE_LOG(LogTemp, Log, TEXT("%s"), *LogString);
+
 	}
 	ControlState = ControlInputState();
 }
