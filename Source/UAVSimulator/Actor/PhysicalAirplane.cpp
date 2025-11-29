@@ -40,6 +40,7 @@ void APhysicalAirplane::BeginPlay()
 void APhysicalAirplane::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	UE_LOG(LogTemp, Warning, TEXT("### TICK ###"));
 	CalculateParameters(); 
 
 	UStaticMeshComponent* StaticMeshComponent = this->FindComponentByClass<UStaticMeshComponent>();
