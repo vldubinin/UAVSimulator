@@ -15,6 +15,7 @@
 #include "Engine/DataTable.h"
 #include "UAVSimulator/Entity/ControlInputState.h"
 #include "UAVSimulator/Entity/FlapType.h"
+#include "UAVSimulator/SceneComponent/ControlSurface/ControlSurfaceSC.h"
 
 #include "SubAerodynamicSurfaceSC.generated.h"
 
@@ -42,6 +43,7 @@ private:
 	const FVector Wind = FVector();
 	bool IsMirror = false;
 	EFlapType FlapType;
+	UControlSurfaceSC* ControlSurface;
 
 private:
 	FVector CenterOfPressure;
@@ -73,6 +75,6 @@ private:
 public:	
 	void InitComponent(TArray<FVector> InStart3DProfile, TArray<FVector> InEnd3DProfile, 
 		FName SurfaceName, float CenterOfPressureOffset, FVector GlobalSurfaceCenterOfMass, 
-		float InStartFlopPosition, float InEndFlopPosition, UDataTable* ProfileAerodynamicTable, bool IsMirrorSurface, EFlapType FlapType);
+		float InStartFlopPosition, float InEndFlopPosition, UDataTable* ProfileAerodynamicTable, bool IsMirrorSurface, EFlapType FlapType, UControlSurfaceSC* ControlSurfaceSC);
 	AerodynamicForce CalculateForcesOnSubSurface(FVector LinearVelocity, FVector AngularVelocity, FVector GlobalCenterOfMassInWorld, FVector AirflowDirection, ControlInputState ControlState);
 };

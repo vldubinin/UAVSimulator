@@ -14,12 +14,13 @@ UAerodynamicSurfaceSC::UAerodynamicSurfaceSC()
 }
 
 
-void UAerodynamicSurfaceSC::OnConstruction(FVector CenterOfMass)
+void UAerodynamicSurfaceSC::OnConstruction(FVector CenterOfMass, TArray<UControlSurfaceSC*> ControlSur)
 {
 	if (!Enable) {
 		//UE_LOG(LogTemp, Warning, TEXT("Surface is disabled."));
 		return;
 	}
+	ControlSurfaces = ControlSur;
 
 	DestroySubsurfaces();
 
@@ -69,6 +70,8 @@ void UAerodynamicSurfaceSC::BuildSubsurfaces(FVector CenterOfMass, int32 Directi
 		return;
 	}
 
+
+
 	FVector GlobalOffset = FVector::ZeroVector;
 	for (int32 i = 0; i < SurfaceForm.Num() - 1; i++)
 	{
@@ -84,7 +87,10 @@ void UAerodynamicSurfaceSC::BuildSubsurfaces(FVector CenterOfMass, int32 Directi
 		{
 			SubAerodynamicSurface->AttachToComponent(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 			SubAerodynamicSurface->RegisterComponent();
-			SubAerodynamicSurface->InitComponent(Start3DProfile, End3DProfile, ComponentName, AerodynamicCenterOffsetPercent, CenterOfMass, StartConfig.MinFlapAngle, StartConfig.MaxFlapAngle, StartConfig.AerodynamicTable, IsMirror, StartConfig.FlapType);
+
+			UControlSurfaceSC* ControlSurface = FindControlSurface(StartConfig.FlapType, IsMirror);
+
+			SubAerodynamicSurface->InitComponent(Start3DProfile, End3DProfile, ComponentName, AerodynamicCenterOffsetPercent, CenterOfMass, StartConfig.MinFlapAngle, StartConfig.MaxFlapAngle, StartConfig.AerodynamicTable, IsMirror, StartConfig.FlapType, ControlSurface);
 			SubSurfaces.Add(SubAerodynamicSurface);
 		}
 		else {
@@ -113,3 +119,17 @@ TArray<FAirfoilPointData> UAerodynamicSurfaceSC::GetPoints()
 	return ResultPoints;
 }
 
+UControlSurfaceSC* UAerodynamicSurfaceSC::FindControlSurface(EFlapType Type, bool bMirror)
+{
+	for (UControlSurfaceSC* Surface : ControlSurfaces)
+	{
+		if (Surface &&
+			Surface->FlapType == Type &&
+			Surface->IsMirror == bMirror)
+		{
+			return Surface;
+		}
+	}
+
+	return nullptr;
+}

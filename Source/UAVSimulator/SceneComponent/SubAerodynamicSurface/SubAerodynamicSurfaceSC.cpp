@@ -4,6 +4,7 @@
 #include "SubAerodynamicSurfaceSC.h"
 
 
+
 // Sets default values for this component's properties
 USubAerodynamicSurfaceSC::USubAerodynamicSurfaceSC()
 {
@@ -22,7 +23,8 @@ USubAerodynamicSurfaceSC::USubAerodynamicSurfaceSC()
 
 void USubAerodynamicSurfaceSC::InitComponent(TArray<FVector> InStart3DProfile, TArray<FVector> InEnd3DProfile, 
 	FName SurfaceName, float CenterOfPressureOffset, FVector GlobalSurfaceCenterOfMass, float InStartFlopPosition, 
-	float InEndFlopPosition, UDataTable* ProfileAerodynamicTable, bool IsMirrorSurface, EFlapType SurfaceFlapType)
+	float InEndFlopPosition, UDataTable* ProfileAerodynamicTable, bool IsMirrorSurface, EFlapType SurfaceFlapType, 
+	UControlSurfaceSC* ControlSurfaceSC)
 {
 	Start3DProfile = InStart3DProfile;
 	End3DProfile = InEnd3DProfile;
@@ -39,6 +41,7 @@ void USubAerodynamicSurfaceSC::InitComponent(TArray<FVector> InStart3DProfile, T
 
 	IsMirror = IsMirrorSurface;
 	FlapType = SurfaceFlapType;
+	ControlSurface = ControlSurfaceSC;
 
 	DrawSurface(SurfaceName);
 	DrawFlop(SurfaceName);
@@ -161,6 +164,7 @@ float USubAerodynamicSurfaceSC::GetFlapAngel(ControlInputState ControlState)
 {
 	if (FlapType == EFlapType::None)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("None"));
 		return 0;
 	}
 
@@ -168,10 +172,12 @@ float USubAerodynamicSurfaceSC::GetFlapAngel(ControlInputState ControlState)
 	{
 		if (IsMirror) {
 			float FlapAngel = CalculateFlapAngel(StartFlopPosition, EndFlopPosition, ControlState.RightAileronAngle);
+			//UE_LOG(LogTemp, Warning, TEXT("Aileron R"));
 			//UE_LOG(LogTemp, Warning, TEXT("Aileron R Angel: %f"), FlapAngel);
 			return FlapAngel;
 		}
 		float FlapAngel = CalculateFlapAngel(StartFlopPosition, EndFlopPosition, ControlState.LeftAileronAngle);
+		//UE_LOG(LogTemp, Warning, TEXT("Aileron L"));
 		//UE_LOG(LogTemp, Warning, TEXT("Aileron L Angel: %f"), FlapAngel);
 		return FlapAngel;
 	}
@@ -180,10 +186,12 @@ float USubAerodynamicSurfaceSC::GetFlapAngel(ControlInputState ControlState)
 	{
 		if (IsMirror) {
 			float FlapAngel = CalculateFlapAngel(StartFlopPosition, EndFlopPosition, ControlState.RightElevatorAngle);
+			//UE_LOG(LogTemp, Warning, TEXT("Elevator R"));
 			//UE_LOG(LogTemp, Warning, TEXT("Elevator R Angel: %f"), FlapAngel);
 			return FlapAngel;
 		}
 		float FlapAngel = CalculateFlapAngel(StartFlopPosition, EndFlopPosition, ControlState.LeftElevatorAngle);
+		//UE_LOG(LogTemp, Warning, TEXT("Elevator L"));
 		//UE_LOG(LogTemp, Warning, TEXT("Elevator L Angel: %f"), FlapAngel);
 		return FlapAngel;
 	}
@@ -191,7 +199,8 @@ float USubAerodynamicSurfaceSC::GetFlapAngel(ControlInputState ControlState)
 	if (FlapType == EFlapType::Rudder)
 	{
 		float FlapAngel = CalculateFlapAngel(StartFlopPosition, EndFlopPosition, ControlState.RudderAngle);
-		UE_LOG(LogTemp, Warning, TEXT("Rudder Angel: %f"), FlapAngel);
+		//UE_LOG(LogTemp, Warning, TEXT("Rudder"));
+		//UE_LOG(LogTemp, Warning, TEXT("Rudder Angel: %f"), FlapAngel);
 		return FlapAngel;
 	}
 	return 0;
@@ -226,17 +235,23 @@ AerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(FVector L
 
 	int FlapAngle = GetFlapAngel(ControlState);
 
+	if (ControlSurface != nullptr) {
+		ControlSurface->Move(FlapAngle);
+	}
+
 	float LiftPower = CalculateLiftInNewtons(AngleOfAttackDeg, FlapAngle, DynamicPressure);
 	float DragPower = CalculateDragInNewtons(AngleOfAttackDeg, FlapAngle, DynamicPressure);
 	float TorquePower = CalculateTorqueInNewtons(AngleOfAttackDeg, FlapAngle, DynamicPressure, AvarageChordLength);
 
 	FVector LiftForce = GetLiftDirection(WorldAirVelocity) * NewtonsToKiloCentimeter(LiftPower);
 	FVector DragForce = WorldAirVelocity.GetSafeNormal() * NewtonsToKiloCentimeter(DragPower);
-	FVector TorqueForce = -this->GetForwardVector() * NewtonsToKiloCentimeter(TorquePower);
+	FVector TorqueForce = this->GetRightVector() * (TorquePower * 10000.0f);
 
 	//UE_LOG(LogTemp, Warning, TEXT("LiftPower: %f N"), LiftPower);
 	//UE_LOG(LogTemp, Warning, TEXT("DragPower: %f N"), DragPower);
 	//UE_LOG(LogTemp, Warning, TEXT("TorquePower: %f N"), TorquePower);
+
+	//UE_LOG(LogTemp, Warning, TEXT("[DEBUG] Speed: %f m/s, AoA: %f deg, Flap: %d"), Speed, AngleOfAttackDeg, FlapAngle);
 
 	//UE_LOG(LogTemp, Warning, TEXT("LiftForce: %s kg⋅cm/s²"), *LiftForce.ToString());
 	//UE_LOG(LogTemp, Warning, TEXT("DragForce: %s kg⋅cm/s²"), *DragForce.ToString());
@@ -336,25 +351,22 @@ float USubAerodynamicSurfaceSC::ToSpeedInMetersPerSecond(FVector WorldAirVelocit
 
 float USubAerodynamicSurfaceSC::CalculateLiftInNewtons(float AoA, int FlapAngle, float DynamicPressure) {
 	FAerodynamicProfileRow* Profile = GetProfile(FlapAngle);
-	float Cl = Profile->ClVsAoA.GetRichCurve()->Eval(AoA);
-
-	//UE_LOG(LogTemp, Warning, TEXT("Cl: %f"), Cl);
+	float Cl = Profile->ClVsAoA.GetRichCurve()->Eval(AoA) / 100;
+	UE_LOG(LogTemp, Warning, TEXT("Cl: %f"), Cl);
 	return Cl * DynamicPressure * (SurfaceArea / 10000);
 }
 
 float USubAerodynamicSurfaceSC::CalculateDragInNewtons(float AoA, int FlapAngle, float DynamicPressure) {
 	FAerodynamicProfileRow* Profile = GetProfile(FlapAngle);
-	float Cd = Profile->CdVsAoA.GetRichCurve()->Eval(AoA);
-
-	//UE_LOG(LogTemp, Warning, TEXT("Cd: %f"), Cd);
+	float Cd = Profile->CdVsAoA.GetRichCurve()->Eval(AoA) / 100;
+	UE_LOG(LogTemp, Warning, TEXT("Cd: %f"), Cd);
 	return Cd * DynamicPressure * (SurfaceArea / 10000);
 }
 
 float USubAerodynamicSurfaceSC::CalculateTorqueInNewtons(float AoA, int FlapAngle, float DynamicPressure, float ChordLength) {
 	FAerodynamicProfileRow* Profile = GetProfile(FlapAngle);
-	float Cm = Profile->CmVsAoA.GetRichCurve()->Eval(AoA);
-
-	//UE_LOG(LogTemp, Warning, TEXT("Cm: %f"), Cm);
+	float Cm = Profile->CmVsAoA.GetRichCurve()->Eval(AoA) / 10000;
+	UE_LOG(LogTemp, Warning, TEXT("Cm: %f"), Cm);
 	return Cm * DynamicPressure* (SurfaceArea / 10000) * ChordLength;
 }
 
@@ -373,7 +385,7 @@ FAerodynamicProfileRow* USubAerodynamicSurfaceSC::GetProfile(int FlapAngle)
 FVector USubAerodynamicSurfaceSC::GetLiftDirection(FVector WorldAirVelocity) {
 	FVector DragDirection = WorldAirVelocity.GetSafeNormal();
 	FVector SpanDirection = this->GetRightVector();
-	return FVector::CrossProduct(DragDirection, SpanDirection);
+	return FVector::CrossProduct(SpanDirection, DragDirection);
 }
 
 
