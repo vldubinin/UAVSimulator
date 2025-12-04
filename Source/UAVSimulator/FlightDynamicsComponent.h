@@ -18,6 +18,7 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
+	void ApplyEngineForce();
 	void ApplyWingForceForSide(int32 Side);
 	void ApplyTailForceForSide(int32 Side);
 
@@ -34,7 +35,7 @@ private:
 
 
 	void LogMsg(FString Text);
-	void DrawVectorAsArrow(const UWorld* World, FVector StartLocation, FVector Direction, FColor Color = FColor::Red, float Multiplier = 1.0f,  float ArrowSize = 1.0f, float Duration = -1.0f, float Thickness = 0.5f);
+	void DrawVectorAsArrow(const UWorld* World, FVector StartLocation, FVector Direction, FColor Color = FColor::Red, float Multiplier = 1.0f,  float ArrowSize = 1.0f, float Thickness = 0.5f, float Duration = -1.0f);
 
 private:
 	// Кешовані посилання для оптимізації
@@ -44,16 +45,9 @@ private:
 	UPROPERTY()
 		UPrimitiveComponent* Root;
 
-	float LastLogTimestamp = 0.0f;
-	FVector PrevLocation = FVector::ZeroVector;
-	float PrevTime = 0.0f;
-	FVector PrevVelocity = FVector::ZeroVector;
+	int32 TickNumber = 0;
 
 public:
-
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Unreal", meta = (ToolTip = "Вмикає прогрів Unreal Engine перед початком симуляції."))
-		bool WarmUpEngine = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Unreal", meta = (ToolTip = "Швидкість роботи симуляції. Значення '1' відповідає звичайній швидкості."))
 		float DebugSimulatorSpeed = 1.0f;
@@ -94,6 +88,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Aerodynamics", meta = (ToolTip = "Щільність повітря в кг/м³"))
 		float AirDensity = 1.225f;
 
+
 	// ~~~ РОЗТАШУВАННЯ ПОВЕРХОНЬ КРИЛ ~~~
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Surfaces", meta = (ToolTip = "Зміщення аеродинамічного центру крила відносно центру мас."))
 		FVector WingForcePointOffset = FVector(-2.0f, 20.0f, 0.0f);
@@ -106,8 +101,6 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Surfaces", meta = (ToolTip = "Загальна площа крила в м²"))
 		float WingArea = 0.14f;
-
-	
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Surfaces", meta = (ToolTip = "Зміщення аеродинамічного центру хвоста відносно центру мас."))
 		FVector TailForcePointOffset = FVector(-35.0f, 10.0f, 0.0f);
@@ -131,6 +124,12 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення відображення візуальних маркерів."))
 		bool bDrawDebugMarkers = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Розмір маркерів."))
+		float bDebugMarkersSize = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Розмір векторів сили."))
+		float bDebugForceVectorSize = 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення відображення векторів для крил."))
 		bool DebugDrawWingsInfo = false;

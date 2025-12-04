@@ -1,0 +1,63 @@
+LOAD {airfoil_file_path}
+ppar
+n
+200
+
+
+GDES
+FLAP
+{flap_position}
+999
+0.5
+{flap_angle}
+exec
+
+oper
+v
+300000
+pacc
+{output_polar_file}
+
+iter
+150
+aseq 
+0
+20
+0.5
+aseq 
+0
+-13
+0.5
+
+quit
+
+
+
+#BETTER WAY
+LOAD {airfoil_file_path}
+GDES
+FLAP
+{flap_position}
+999
+0.5
+{flap_angle}
+EXEC
+
+PANE
+PPAR
+N
+200
+
+
+OPER
+v
+300000
+ITER
+150
+PACC
+{output_polar_file}
+
+ASEQ 0 20 0.5
+ASEQ 0 -13 -0.5
+
+QUIT

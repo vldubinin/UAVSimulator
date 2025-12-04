@@ -41,6 +41,9 @@
 *.VC.db
 *.VC.opendb
 
+# Idea
+.idea
+
 # Precompiled Assets
 SourceArt/**/*.png
 SourceArt/**/*.tga
@@ -75,3 +78,6 @@ DerivedDataCache/*
 
 # Save data
 SavedData/*
+
+# Save data
+Tools/OpenVSP/OpenVSP-3.45.4-win64/*
