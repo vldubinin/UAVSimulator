@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "UAVSimulator/Entity/AxisType.h"
 #include "Components/SceneComponent.h"
 #include "UAVSimulator/Entity/FlapType.h"
 
@@ -25,6 +26,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = "Тип керуючої поверхні"))
 		EFlapType FlapType;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = "Вісь обертання"))
+		EAxisType AxisType;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = "Симетрія"))
 		bool IsMirror;
+
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = "Зворотній напрямок"))
+		bool IsReverseDirection;
 };
