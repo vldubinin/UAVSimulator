@@ -11,6 +11,15 @@
 #include "UAVSimulator/Entity/AerodynamicForce.h"
 #include "UAVSimulator/Entity/ControlInputState.h"
 
+#include "Components/SceneCaptureComponent2D.h"
+#include "Engine/TextureRenderTarget2D.h"
+#include "PreOpenCVHeaders.h"
+#include "OpenCVHelper.h"
+#include <opencv2/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/core.hpp>
+#include "PostOpenCVHeaders.h"
+
 #include "PhysicalAirplane.generated.h"
 
 UCLASS()
@@ -49,6 +58,33 @@ public:
 
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "UpdateRudderControl"), Category = "Control")
 	void UpdateRudderControl(float RudderAngle);
+
+protected:
+	UPROPERTY(BlueprintReadOnly, Category = "Computer Vision")
+	USceneCaptureComponent2D* CVCaptureComponent;
+
+	// Текстура для рендеру (створимо динамічно в C++)
+	UPROPERTY()
+	UTextureRenderTarget2D* CVRenderTarget;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Computer Vision")
+	UTexture2D* OutputTexture;
+
+	// Регіон оновлення (технічна змінна для оптимізації)
+	FUpdateTextureRegion2D* VideoUpdateTextureRegion;
+
+	// Параметри камери
+	const int32 CVWidth = 640;
+	const int32 CVHeight = 480;
+
+public:
+	// Функція для отримання та обробки кадру (викликайте в Tick)
+	void ProcessCameraFrame();
+
+	void UpdateTexture();
+
+	// Змінна для збереження обробленого зображення між кадрами (щоб не втратити дані до оновлення)
+	cv::Mat ProcessedFrameBuffer;
 
 private:
 	void CalculateParameters();
