@@ -16,9 +16,19 @@ UControlSurfaceSC::UControlSurfaceSC()
 
 void UControlSurfaceSC::Move(float Angle)
 {
-	UE_LOG(LogTemp, Warning, TEXT("Control Angel: %f"), Angle);
+	Angle = IsReverseDirection ? Angle * -1 : Angle;
+	UE_LOG(LogTemp, Warning, TEXT("%s Control Angle: %f"), *UEnum::GetValueAsString(FlapType), Angle);
+	FRotator NewRotation;
 
+	if (AxisType == EAxisType::X) {
+		NewRotation = FRotator(0.f, 0.f, Angle);
+	}
+	else if (AxisType == EAxisType::Y) {
+		NewRotation = FRotator(Angle, 0.f, 0.f);
+	}
+	else {
+		NewRotation = FRotator(0.f, Angle, 0.f);
+	}
 
-	FRotator NewRotation = FRotator(Angle, 0.f, 0.f);
 	SetRelativeRotation(NewRotation);
 }

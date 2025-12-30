@@ -285,7 +285,7 @@ AerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(FVector L
 	// Кінцева точка: Початкова точка + Вектор сили
 	FVector EndLocationRotational = StartLocationRotational + RotationalForce;
 
-	DrawDebugDirectionalArrow(
+	/*DrawDebugDirectionalArrow(
 		GetWorld(),
 		StartLocationRotational,
 		EndLocationRotational,
@@ -294,7 +294,7 @@ AerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(FVector L
 		false,
 		-1.f,
 		0,
-		5.0f);
+		5.0f);*/
 
 	/*DrawDebugDirectionalArrow(
 		GetWorld(),
