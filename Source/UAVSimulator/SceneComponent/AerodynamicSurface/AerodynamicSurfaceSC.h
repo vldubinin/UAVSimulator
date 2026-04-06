@@ -11,7 +11,6 @@
 #include "UAVSimulator/DataAsset/AerodynamicProfileRow.h"
 #include "UAVSimulator/Structure/AerodynamicSurfaceStructure.h"
 #include "UAVSimulator/Util/AerodynamicUtil.h"
-#include "UAVSimulator/Entity/SubSurface.h"
 #include "UAVSimulator/SceneComponent/SubAerodynamicSurface/SubAerodynamicSurfaceSC.h"
 #include "Runtime/Engine/Public/DrawDebugHelpers.h"
 #include "UAVSimulator/Entity/AerodynamicForce.h"

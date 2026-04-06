@@ -22,28 +22,41 @@ protected:
 	void ApplyWingForceForSide(int32 Side);
 	void ApplyTailForceForSide(int32 Side);
 
-
 private:
+	/** Parameters describing a single aerodynamic surface side. */
+	struct FSurfaceForceParams
+	{
+		FVector ForcePointOffset;
+		FVector LeadingEdgeOffset;
+		FVector TrailingEdgeOffset;
+		float   Area;
+		UCurveFloat* CurveCl;
+		UCurveFloat* CurveCd;
+		float   LiftMultiplier;
+		float   DragMultiplier;
+		/** If true, lift direction is negated (used for tail surfaces). */
+		bool    bInvertLift;
+	};
+
+	/** Unified force application used by both ApplyWingForceForSide and ApplyTailForceForSide. */
+	void ApplyAerodynamicForceForSide(int32 Side, const FSurfaceForceParams& Params, bool bLog);
+
 	FVector FindChordDirection(FVector ForcePoint, FVector LeadingEdgeOffset, FVector TrailingEdgeOffset, int32 Side);
 	FVector FindAirflowDirection(FVector WorldOffset);
 	FVector FindLiftDirection(FVector WorldOffset, FVector AirflowDirection);
-	float GetSpeedInMetersPerSecond();
-	float CalculateDragInNewtons(UCurveFloat* CurveCd, float Area, float AoA);
-	float CalculateLiftInNewtons(UCurveFloat* CurveCl, float Area, float AoA);
-	float CalculateAoA(FVector AirflowDirection, FVector WingChordDirection);
-	float NewtonsToKiloCentimeter(float Newtons);
-
+	float   GetSpeedInMetersPerSecond();
+	float   CalculateDragInNewtons(UCurveFloat* CurveCd, float Area, float AoA);
+	float   CalculateLiftInNewtons(UCurveFloat* CurveCl, float Area, float AoA);
+	float   CalculateAoA(FVector AirflowDirection, FVector WingChordDirection);
 
 	void LogMsg(FString Text);
-	void DrawVectorAsArrow(const UWorld* World, FVector StartLocation, FVector Direction, FColor Color = FColor::Red, float Multiplier = 1.0f,  float ArrowSize = 1.0f, float Thickness = 0.5f, float Duration = -1.0f);
 
 private:
-	// Кешовані посилання для оптимізації
 	UPROPERTY()
-		AActor* Owner;
+	AActor* Owner;
 
 	UPROPERTY()
-		UPrimitiveComponent* Root;
+	UPrimitiveComponent* Root;
 
 	int32 TickNumber = 0;
 
@@ -52,14 +65,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Unreal", meta = (ToolTip = "Швидкість роботи симуляції. Значення '1' відповідає звичайній швидкості."))
 		float DebugSimulatorSpeed = 1.0f;
 
-	// ДОДАНО: Параметр для тяги двигуна
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Engine", meta = (ToolTip = "Максимальна сила тяги двигуна в Ньютонах"))
 		float ThrustForce = 1350.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Engine", meta = (ToolTip = "Зміщення точки прикладання сил двигуна відносно центру мас."))
 		FVector EngineForcePointOffset = FVector(-40.0f, 0.0f, 0.0f);
 
-	// ~~~ Вхідні дані керування (поки не використовуються) ~~~
+	// ~~~ Вхідні дані керування ~~~
 	UPROPERTY(BlueprintReadWrite, Category = "Aircraft | Control Inputs", meta = (ToolTip = "Газ [0, 1]"))
 		float ThrottleInput = 0.0f;
 
@@ -88,7 +100,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Aerodynamics", meta = (ToolTip = "Щільність повітря в кг/м³"))
 		float AirDensity = 1.225f;
 
-
 	// ~~~ РОЗТАШУВАННЯ ПОВЕРХОНЬ КРИЛ ~~~
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Surfaces", meta = (ToolTip = "Зміщення аеродинамічного центру крила відносно центру мас."))
 		FVector WingForcePointOffset = FVector(-2.0f, 20.0f, 0.0f);
@@ -115,7 +126,6 @@ public:
 		float TailArea = 0.025f;
 
 	// ~~~ НАЛАГОДЖЕННЯ ~~~
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення відображення логів в консолі."))
 		bool DebugConsoleLogs = true;
 
@@ -137,24 +147,24 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення відображення векторів для хвоста."))
 		bool DebugDrawTailInfo = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення відображення логів в консолі."))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Множник підйомної сили крила."))
 		float LiftWingForseMultiplier = 1.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення відображення логів в консолі."))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Множник підйомної сили хвоста."))
 		float LiftTailForseMultiplier = 1.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення підйомної сили."))
 		bool DisableLiftForse = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення відображення логів в консолі."))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Множник сили опору крила."))
 		float DragWingForseMultiplier = 1.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення відображення логів в консолі."))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Множник сили опору хвоста."))
 		float DragTailForseMultiplier = 1.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Debug", meta = (ToolTip = "Виключення супротиву повітря."))
 		bool DisableDragForse = false;
-	
+
 	UPROPERTY(EditAnywhere, Category = "Aircraft | Debug", meta = (ToolTip = "Початкова швидкість у м/с."))
 		float InitialSpeed = 0.0f;
 };
