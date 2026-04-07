@@ -1,24 +1,16 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
-#include "Components/SplineComponent.h"
 #include "UAVSimulator/SceneComponent/AerodynamicSurface/AerodynamicSurfaceSC.h"
-#include "Kismet/GameplayStatics.h"
+#include "UAVSimulator/SceneComponent/ControlSurface/ControlSurfaceSC.h"
 #include "UAVSimulator/Util/AerodynamicPhysicalCalculationUtil.h"
 #include "UAVSimulator/Entity/AerodynamicForce.h"
 #include "UAVSimulator/Entity/ControlInputState.h"
-
-#include "Components/SceneCaptureComponent2D.h"
-#include "Engine/TextureRenderTarget2D.h"
-#include "PreOpenCVHeaders.h"
-#include "OpenCVHelper.h"
-#include <opencv2/imgproc.hpp>
-#include <opencv2/highgui/highgui.hpp>
-#include <opencv2/core.hpp>
-#include "PostOpenCVHeaders.h"
+#include "UAVSimulator/Components/UAVCameraComponent.h"
+#include "UAVSimulator/Components/UAVPhysicsStateComponent.h"
 
 #include "PhysicalAirplane.generated.h"
 
@@ -28,77 +20,45 @@ class UAVSIMULATOR_API APhysicalAirplane : public APawn
 	GENERATED_BODY()
 
 public:
-	// Sets default values for this pawn's properties
 	APhysicalAirplane();
 
 protected:
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
-
 	virtual void OnConstruction(const FTransform& Transform) override;
 
-public:	
-	// Called every frame
+public:
 	virtual void Tick(float DeltaTime) override;
 
+	UFUNCTION(BlueprintCallable, CallInEditor, meta = (DisplayName = "Розрахувати поляри для ЛА"), Category = "Автоматизація")
+	void GenerateAerodynamicPhysicalConfigutation();
 
-protected:
-	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Aerodynamic Physical Configutation"), Category = "Editor Tools")
-		void GenerateAerodynamicPhysicalConfigutation(UObject* ContextObject);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Налаштування симуляції",
+		meta = (ToolTip = "Значення '1' відповідає звичайній швидкості.", DisplayName = "Швидкість роботи симуляції"))
+	float DebugSimulatorSpeed = 1.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aircraft | Unreal", meta = (ToolTip = "Швидкість роботи симуляції. Значення '1' відповідає звичайній швидкості."))
-		float DebugSimulatorSpeed = 1.0f;
-
-public:
-	UFUNCTION(BlueprintCallable, meta = (DisplayName = "UpdateAileronControl"), Category = "Control")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "UpdateAileronControl"),  Category = "Control")
 	void UpdateAileronControl(float LeftAileronAngle, float RightAileronAngle);
 
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "UpdateElevatorControl"), Category = "Control")
 	void UpdateElevatorControl(float LeftElevatorAngle, float RightElevatorAngle);
 
-	UFUNCTION(BlueprintCallable, meta = (DisplayName = "UpdateRudderControl"), Category = "Control")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "UpdateRudderControl"),   Category = "Control")
 	void UpdateRudderControl(float RudderAngle);
 
-protected:
-	UPROPERTY(BlueprintReadOnly, Category = "Computer Vision")
-	USceneCaptureComponent2D* CVCaptureComponent;
+	/** Returns the processed camera output texture. Use this instead of the old Output Texture property. */
+	UFUNCTION(BlueprintPure, Category = "Computer Vision")
+	UTexture2D* GetCameraOutputTexture() const;
 
-	// Текстура для рендеру (створимо динамічно в C++)
+private:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Computer Vision", meta = (AllowPrivateAccess = "true"))
+	UUAVCameraComponent* CameraComp;
+
 	UPROPERTY()
-	UTextureRenderTarget2D* CVRenderTarget;
+	UUAVPhysicsStateComponent* PhysicsState;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Computer Vision")
-	UTexture2D* OutputTexture;
-
-	// Регіон оновлення (технічна змінна для оптимізації)
-	FUpdateTextureRegion2D* VideoUpdateTextureRegion;
-
-	// Параметри камери
-	const int32 CVWidth = 640;
-	const int32 CVHeight = 480;
-
-public:
-	// Функція для отримання та обробки кадру (викликайте в Tick)
-	void ProcessCameraFrame();
-
-	void UpdateTexture();
-
-	// Змінна для збереження обробленого зображення між кадрами (щоб не втратити дані до оновлення)
-	cv::Mat ProcessedFrameBuffer;
-
-private:
-	void CalculateParameters();
-
-
-private:
-	TArray<UAerodynamicSurfaceSC*> Surfaces;
-	TArray<UControlSurfaceSC*> ControlSurfaces;
-	FVector LinearVelocity;
-	FVector AngularVelocity;
-	FVector CenterOfMassInWorld;
-	FVector AirflowDirection;
+	TArray<UAerodynamicSurfaceSC*>  Surfaces;
+	TArray<UControlSurfaceSC*>      ControlSurfaces;
 
 	float ThrottlePercent = 1.f;
-
-	ControlInputState ControlState;
+	FControlInputState ControlState;
 };

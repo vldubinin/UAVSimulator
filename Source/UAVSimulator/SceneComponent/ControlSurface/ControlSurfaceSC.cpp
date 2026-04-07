@@ -2,6 +2,7 @@
 
 
 #include "ControlSurfaceSC.h"
+#include "UAVSimulator/UAVSimulator.h"
 
 // Sets default values for this component's properties
 UControlSurfaceSC::UControlSurfaceSC()
@@ -17,7 +18,7 @@ UControlSurfaceSC::UControlSurfaceSC()
 void UControlSurfaceSC::Move(float Angle)
 {
 	Angle = IsReverseDirection ? Angle * -1 : Angle;
-	UE_LOG(LogTemp, Warning, TEXT("%s Control Angle: %f"), *UEnum::GetValueAsString(FlapType), Angle);
+	UE_LOG(LogUAV, Warning, TEXT("%s Control Angle: %f"), *UEnum::GetValueAsString(FlapType), Angle);
 	FRotator NewRotation;
 
 	if (AxisType == EAxisType::X) {

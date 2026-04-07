@@ -2,6 +2,7 @@
 
 
 #include "AerodynamicSurfaceSC.h"
+#include "UAVSimulator/UAVSimulator.h"
 
 
 
@@ -17,7 +18,7 @@ UAerodynamicSurfaceSC::UAerodynamicSurfaceSC()
 void UAerodynamicSurfaceSC::OnConstruction(FVector CenterOfMass, TArray<UControlSurfaceSC*> ControlSur)
 {
 	if (!Enable) {
-		//UE_LOG(LogTemp, Warning, TEXT("Surface is disabled."));
+		//UE_LOG(LogUAV, Warning, TEXT("Surface is disabled."));
 		return;
 	}
 	ControlSurfaces = ControlSur;
@@ -55,13 +56,13 @@ void UAerodynamicSurfaceSC::BuildSubsurfaces(FVector CenterOfMass, int32 Directi
 	bool IsMirror = Direction < 0;
 	TArray<FAirfoilPointData> Points = AerodynamicUtil::NormalizePoints(GetPoints());
 	if (Points.Num() == 0) {
-		//UE_LOG(LogTemp, Warning, TEXT("Profile is missing."));
+		//UE_LOG(LogUAV, Warning, TEXT("Profile is missing."));
 		return;
 	}
 	Chord ProfileChord = AerodynamicUtil::FindChord(Points);
 	if (FMath::IsNearlyZero(ProfileChord.Length))
 	{
-		//UE_LOG(LogTemp, Warning, TEXT("ScaleProfileByChord: Current distance is zero, cannot scale."));
+		//UE_LOG(LogUAV, Warning, TEXT("ScaleProfileByChord: Current distance is zero, cannot scale."));
 		return;
 	}
 
@@ -83,18 +84,18 @@ void UAerodynamicSurfaceSC::BuildSubsurfaces(FVector CenterOfMass, int32 Directi
 
 		FName ComponentName = FName(*FString::Printf(TEXT("Sub_%s__%d_dir_%d"), *this->GetName(), i, Direction));
 		USubAerodynamicSurfaceSC* SubAerodynamicSurface = NewObject<USubAerodynamicSurfaceSC>(this, ComponentName);
-		if (SubAerodynamicSurface && StartConfig.AerodynamicTable)
+		if (SubAerodynamicSurface)
 		{
 			SubAerodynamicSurface->AttachToComponent(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 			SubAerodynamicSurface->RegisterComponent();
 
 			UControlSurfaceSC* ControlSurface = FindControlSurface(StartConfig.FlapType, IsMirror);
 
-			SubAerodynamicSurface->InitComponent(Start3DProfile, End3DProfile, ComponentName, AerodynamicCenterOffsetPercent, CenterOfMass, StartConfig.MinFlapAngle, StartConfig.MaxFlapAngle, StartConfig.AerodynamicTable, IsMirror, StartConfig.FlapType, ControlSurface);
+			SubAerodynamicSurface->InitComponent(Start3DProfile, End3DProfile, ComponentName, AerodynamicCenterOffsetPercent, CenterOfMass, StartConfig.MinFlapAngle, StartConfig.MaxFlapAngle, StartConfig.StartFlapPosition, StartConfig.EndFlapPosition, StartConfig.AerodynamicTable, IsMirror, StartConfig.FlapType, ControlSurface);
 			SubSurfaces.Add(SubAerodynamicSurface);
 		}
 		else {
-			//UE_LOG(LogTemp, Error, TEXT("Skip sub surface for component: %s."), *ComponentName.ToString());
+			//UE_LOG(LogUAV, Error, TEXT("Skip sub surface for component: %s."), *ComponentName.ToString());
 		}
 	}
 }
@@ -104,7 +105,7 @@ TArray<FAirfoilPointData> UAerodynamicSurfaceSC::GetPoints()
 	TArray<FAirfoilPointData> ResultPoints;
 	TArray<FAirfoilPointData*> RowPoints;
 	if (Profile == nullptr) {
-		//UE_LOG(LogTemp, Error, TEXT("Missing Data table configuration for Wing Profile."));
+		//UE_LOG(LogUAV, Error, TEXT("Missing Data table configuration for Wing Profile."));
 		return ResultPoints;
 	}
 

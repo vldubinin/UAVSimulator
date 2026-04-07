@@ -1,37 +1,26 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "AssetToolsModule.h"
-#include "Factories/DataAssetFactory.h"
-#include "HAL/FileManager.h"
-#include "Misc/FileHelper.h"
-#include "Misc/Paths.h"
-#include "UAVSimulator/Util/TextUtil.h"
-#include "HAL/PlatformProcess.h"
-#include "UAVSimulator/Entity/PolarRow.h"
 #include "UAVSimulator/SceneComponent/AerodynamicSurface/AerodynamicSurfaceSC.h"
 #include "UAVSimulator/DataAsset/AerodynamicProfileAndFlapRow.h"
-#include <UAVSimulator/DataAsset/AerodynamicProfileAndFlapRow.h>
+#include "UAVSimulator/Entity/PolarRow.h"
 
 /**
- *
+ * Orchestrates aerodynamic polar generation for aircraft surfaces.
+ * File I/O, process execution, and polar parsing are delegated to AerodynamicToolRunner.
  */
-class AerodynamicPhysicalCalculationUtil
+class UAVSIMULATOR_API AerodynamicPhysicalCalculationUtil
 {
 public:
-	FAerodynamicProfileAndFlapRow* T;
+	/** Generate aerodynamic polars for all surfaces and store the results as DataTable assets. */
+	static void GenerateAerodynamicPhysicalConfigutation(TArray<UAerodynamicSurfaceSC*> Surfaces);
 
-public:
-	static void GenerateAerodynamicPhysicalConfigutation(UObject* ContextObject, TArray<UAerodynamicSurfaceSC*> Surfaces);
-	static TMap<float, PolarRow> CalculatePolar(FString PathToProfile, int RootChord, int TipChord, int Span, int DeflectionAngleStart, int DeflectionAngleEnd, int Sweep, FString SurfaceName, int SubSurfaceIndex);
+	/** Run the OpenVSP/XFoil pipeline for a single surface segment and return the polar map. */
+	static TMap<float, FPolarRow> CalculatePolar(FString PathToProfile,
+		int32 RootChord, int32 TipChord, int32 Span,
+		int32 DeflectionAngleStart, int32 DeflectionAngleEnd,
+		int32 Sweep, FString SurfaceName, int32 SubSurfaceIndex);
+
+	/** Find the .dat profile file associated with a surface's DataTable asset. */
 	static FString FindPathToProfile(UAerodynamicSurfaceSC* Surface);
-	static FString GetAiroplaneFolderName(UObject* ContextObject);
-	static FString GetOrCreateTempWorkDirectory();
-	static FString ToAbsolutePath(FString Path);
-	static FString CopyToTempWorkDirectory(FString SourcePath, FString Name);
-	static TMap<float, PolarRow> ReadPolarFile(FString Path, int AoAIndex, int ClIndex, int CdIndex, int CmIndex);
-	static bool CleanTempWorkDirectory();
-	static FString SavePolarForAirfoil(TMap<float, PolarRow> Polar);
-	static bool ExecutePythonScript(FString Command);
 };
-

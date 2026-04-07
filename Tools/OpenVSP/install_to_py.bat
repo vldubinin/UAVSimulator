@@ -2,7 +2,7 @@
 setlocal
 
 :: Встановлюємо змінні для шляхів
-set "PYTHON_DIR=C:\Program Files\Epic Games\UE_5.6\Engine\Binaries\ThirdParty\Python3\Win64"
+set "PYTHON_DIR=C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\ThirdParty\Python3\Win64"
 set "PYTHON_EXE=%PYTHON_DIR%\python.exe"
 set "OPENVSP_PYTHON_ROOT=%~dp0\OpenVSP-3.45.4-win64\python"
 

@@ -1,20 +1,29 @@
 #pragma once
 
-#include "Runtime/Core/Public/Math/Vector.h"
+#include "CoreMinimal.h"
+#include "AerodynamicForce.generated.h"
 
-struct AerodynamicForce
+USTRUCT(BlueprintType)
+struct UAVSIMULATOR_API FAerodynamicForce
 {
-    FVector PositionalForce;
-    FVector RotationalForce;
+	GENERATED_BODY()
 
-    AerodynamicForce()
-        : PositionalForce(FVector::ZeroVector)
-        , RotationalForce(FVector::ZeroVector)
-    {}
+	UPROPERTY(BlueprintReadOnly)
+	FVector PositionalForce;
 
-    AerodynamicForce(const FVector LiftForce, const FVector DragForce, const FVector TorqueForce, FVector RelativePosition)
-        : PositionalForce(LiftForce + DragForce)
-        , RotationalForce(TorqueForce + FVector::CrossProduct(RelativePosition, LiftForce + DragForce))
-    {}
+	UPROPERTY(BlueprintReadOnly)
+	FVector RotationalForce;
 
+	FAerodynamicForce()
+		: PositionalForce(FVector::ZeroVector)
+		, RotationalForce(FVector::ZeroVector)
+	{}
+
+	FAerodynamicForce(const FVector LiftForce, const FVector DragForce, const FVector TorqueForce, FVector RelativePosition)
+		: PositionalForce(LiftForce + DragForce)
+		, RotationalForce(TorqueForce + FVector::CrossProduct(RelativePosition, LiftForce + DragForce))
+	{}
 };
+
+// Compatibility alias — remove once all call sites use FAerodynamicForce
+using AerodynamicForce = FAerodynamicForce;

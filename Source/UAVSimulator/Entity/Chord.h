@@ -1,22 +1,34 @@
 #pragma once
 
-#include "Runtime/Core/Public/Math/Vector.h"
+#include "CoreMinimal.h"
+#include "Chord.generated.h"
 
-struct Chord
+USTRUCT(BlueprintType)
+struct UAVSIMULATOR_API FChord
 {
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly)
 	FVector StartPoint;
-    FVector EndPoint;
-    float Length;
 
-    Chord()
-        : StartPoint(FVector::ZeroVector)
-        , EndPoint(FVector::ZeroVector)
-        , Length(0.f)
-    {}
+	UPROPERTY(BlueprintReadOnly)
+	FVector EndPoint;
 
-    Chord(const FVector InStartPoint, const FVector InEndPoint)
-        : StartPoint(InStartPoint)
-        , EndPoint(InEndPoint)
-        , Length(InEndPoint.X - InStartPoint.X)
-    {}
+	UPROPERTY(BlueprintReadOnly)
+	float Length;
+
+	FChord()
+		: StartPoint(FVector::ZeroVector)
+		, EndPoint(FVector::ZeroVector)
+		, Length(0.f)
+	{}
+
+	FChord(const FVector InStartPoint, const FVector InEndPoint)
+		: StartPoint(InStartPoint)
+		, EndPoint(InEndPoint)
+		, Length(InEndPoint.X - InStartPoint.X)
+	{}
 };
+
+// Compatibility alias — remove once all call sites use FChord
+using Chord = FChord;

@@ -81,3 +81,6 @@ SavedData/*
 
 # Save data
 Tools/OpenVSP/OpenVSP-3.45.4-win64/*
+
+# Cesium cache
+*.sqlite
