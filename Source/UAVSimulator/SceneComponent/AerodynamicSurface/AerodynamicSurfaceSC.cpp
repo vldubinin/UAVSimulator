@@ -84,7 +84,7 @@ void UAerodynamicSurfaceSC::BuildSubsurfaces(FVector CenterOfMass, int32 Directi
 
 		FName ComponentName = FName(*FString::Printf(TEXT("Sub_%s__%d_dir_%d"), *this->GetName(), i, Direction));
 		USubAerodynamicSurfaceSC* SubAerodynamicSurface = NewObject<USubAerodynamicSurfaceSC>(this, ComponentName);
-		if (SubAerodynamicSurface && StartConfig.AerodynamicTable)
+		if (SubAerodynamicSurface)
 		{
 			SubAerodynamicSurface->AttachToComponent(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 			SubAerodynamicSurface->RegisterComponent();

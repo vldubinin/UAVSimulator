@@ -50,20 +50,33 @@ Each sub-surface reads its airfoil polar from a DataTable, computes angle of att
 4. Import `.dat` files into Unreal via the custom **AirfoilImporter** plugin → becomes a `DataTable` of `FAerodynamicProfileRow` (CL/CD/Cm curves keyed by flap angle)
 
 ### Computer Vision
-`PhysicalAirplane` hosts a `USceneCaptureComponent2D` (640×480, B8G8R8A8). Each frame the render target is read, passed to OpenCV (`OpenCVHelper` plugin) for flip and text overlay, then written to a dynamic texture.
+`UUAVCameraComponent` (in `Components/`) manages the onboard camera: it owns the `USceneCaptureComponent2D` (640×480, B8G8R8A8), runs OpenCV processing each frame (flip + text overlay), and exposes a `UTexture2D* OutputTexture` to bind in widgets or materials.
+
+### Utility Class Responsibilities
+The `Util/` directory has been refactored into single-responsibility helpers:
+
+| Class | Role |
+|-------|------|
+| `AerodynamicPhysicsLibrary` | Stateless aerodynamics math (BlueprintFunctionLibrary): AoA, lift, drag, torque, unit conversions |
+| `AerodynamicProfileLookup` | DataTable row lookup; row naming convention: `FLAP_{angle}_Deg` |
+| `AerodynamicToolRunner` | Low-level I/O + external process execution (Python/XFoil/OpenVSP), polar file parsing |
+| `ControlInputMapper` | Maps normalized input [-1,1] to flap deflection angles; resolves per-`EFlapType` with mirror support |
+| `CoordinateTransformUtil` | Local-to-world coordinate conversion for positions and `FChord` objects |
+| `AerodynamicDebugRenderer` | Viewport visualizations: surface outlines, splines, flap hinges, force arrows, labels |
 
 ### Key Files
 | File | Role |
 |------|------|
-| `Actor/PhysicalAirplane.h/cpp` | Main aircraft pawn; control inputs, camera/CV, physics kick-off |
+| `Actor/PhysicalAirplane.h/cpp` | Main aircraft pawn; control inputs, physics kick-off |
+| `Components/UAVCameraComponent.h/cpp` | Onboard camera + OpenCV processing component |
+| `Components/UAVPhysicsStateComponent.h/cpp` | Per-tick physics state cache (velocity, CoM, airflow); call `Update()` before reading |
 | `FlightDynamicsComponent.h/cpp` | Simple tick-based physics component |
 | `SceneComponent/AerodynamicSurface/AerodynamicSurfaceSC.h/cpp` | Per-surface lift/drag computation |
 | `SceneComponent/SubAerodynamicSurface/SubAerodynamicSurfaceSC.h/cpp` | Per-segment forces, reads DataTable |
 | `SceneComponent/ControlSurface/ControlSurfaceSC.h/cpp` | Deflectable control surfaces |
-| `Util/AerodynamicPhysicalCalculationUtil.h/cpp` | Integration with XFoil/OpenVSP tools |
-| `Util/AerodynamicUtil.h/cpp` | Chord/airfoil coordinate utilities |
+| `Structure/AerodynamicSurfaceStructure.h` | `FAerodynamicSurfaceStructure` USTRUCT: chord size, offsets, flap range, DataTable ref, `EFlapType` |
 | `DataAsset/` | Unreal DataAsset wrappers for aerodynamic profiles |
-| `Entity/` | Plain C++ structs (POD): `AerodynamicForce`, `Chord`, `PolarRow`, etc. |
+| `Entity/` | Plain C++ structs (POD): `AerodynamicForce`, `Chord`, `PolarRow`, `ControlInputState`, etc. |
 | `Plugins/AirfoilImporter/` | Custom editor plugin: `.dat` → DataTable factory |
 
 ## Physics Configuration
