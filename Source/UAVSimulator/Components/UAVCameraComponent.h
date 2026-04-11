@@ -24,20 +24,33 @@ class UAVSIMULATOR_API UUAVCameraComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:
+	/** Ініціалізує внутрішні вказівники нулями; фактична ініціалізація відбувається у BeginPlay. */
 	UUAVCameraComponent();
 
-	/** Capture the current frame, run OpenCV processing, and update OutputTexture. */
+	/**
+	 * Захоплює поточний кадр з рендер-таргету, виконує обробку OpenCV
+	 * (дзеркальне відображення, накладення тексту "VIRTUAL CAM") та оновлює OutputTexture.
+	 * Безпечно викликати щотіку; повертається одразу якщо камера не ініціалізована.
+	 */
 	void ProcessFrame();
 
 protected:
+	/**
+	 * Знаходить USceneCaptureComponent2D на власнику, створює UTextureRenderTarget2D
+	 * (640×480, PF_B8G8R8A8) та вихідну UTexture2D для прив'язки в Blueprint.
+	 */
 	virtual void BeginPlay() override;
 
 public:
-	/** The processed output texture — bind this in a widget or material. */
+	/** Оброблена вихідна текстура — прив'яжіть у віджеті або матеріалі. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Computer Vision")
 	UTexture2D* OutputTexture;
 
 private:
+	/**
+	 * Копіює дані з ProcessedFrameBuffer у mip-рівень OutputTexture та викликає UpdateResource.
+	 * Викликається лише з ProcessFrame після успішної обробки кадру.
+	 */
 	void UploadToTexture();
 
 	UPROPERTY()

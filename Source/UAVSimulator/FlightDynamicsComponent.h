@@ -12,18 +12,43 @@ class UAVSIMULATOR_API UFlightDynamicsComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:
+	/** Налаштовує тік у групі TG_DuringPhysics для синхронізації з фізичним рушієм. */
 	UFlightDynamicsComponent();
+
+	/**
+	 * Головний тік компонента: перевіряє наявність усіх кривих, застосовує тягу двигуна,
+	 * аеродинамічні сили крила та хвоста для обох сторін (+1 і −1).
+	 * @param DeltaTime — час кадру в секундах.
+	 * @param TickType  — тип тіку (ігнорується).
+	 * @param ThisTickFunction — функція тіку (передається до Super).
+	 */
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 protected:
+	/**
+	 * Ініціалізує Owner і Root, встановлює дилатацію часу,
+	 * задає початкову швидкість якщо InitialSpeed > 0.
+	 */
 	virtual void BeginPlay() override;
 
+	/** Застосовує силу тяги двигуна в напрямку вперед у точці EngineForcePointOffset. */
 	void ApplyEngineForce();
+
+	/**
+	 * Збирає параметри крила та делегує обчислення до ApplyAerodynamicForceForSide.
+	 * @param Side — +1 для лівого крила, −1 для правого (дзеркального).
+	 */
 	void ApplyWingForceForSide(int32 Side);
+
+	/**
+	 * Збирає параметри хвоста та делегує обчислення до ApplyAerodynamicForceForSide.
+	 * Підйомна сила хвоста інвертована (bInvertLift = true).
+	 * @param Side — +1 для лівої сторони, −1 для правої.
+	 */
 	void ApplyTailForceForSide(int32 Side);
 
 private:
-	/** Parameters describing a single aerodynamic surface side. */
+	/** Параметри для опису однієї сторони аеродинамічної поверхні. */
 	struct FSurfaceForceParams
 	{
 		FVector ForcePointOffset;
@@ -38,17 +63,77 @@ private:
 		bool    bInvertLift;
 	};
 
-	/** Unified force application used by both ApplyWingForceForSide and ApplyTailForceForSide. */
+	/**
+	 * Єдина функція застосування аеродинамічних сил, спільна для крила та хвоста.
+	 * Обчислює точку прикладання, напрямок хорди, кут атаки, підйомну силу та опір,
+	 * застосовує їх до Root і за потреби малює відлагоджувальну візуалізацію.
+	 * @param Side   — +1 або −1 (дзеркало по Y).
+	 * @param Params — параметри поверхні (зміщення, площа, криві, множники).
+	 * @param bLog   — true якщо потрібно вивести лог у консоль.
+	 */
 	void ApplyAerodynamicForceForSide(int32 Side, const FSurfaceForceParams& Params, bool bLog);
 
+	/**
+	 * Обчислює нормалізований вектор хорди від задньої до передньої кромки у світовому просторі.
+	 * @param ForcePoint          — точка прикладання сили у світових координатах.
+	 * @param LeadingEdgeOffset   — зміщення передньої кромки відносно ForcePoint (локальний простір).
+	 * @param TrailingEdgeOffset  — зміщення задньої кромки відносно ForcePoint (локальний простір).
+	 * @param Side                — знак симетрії по Y (+1 або −1).
+	 * @return Нормалізований вектор хорди.
+	 */
 	FVector FindChordDirection(FVector ForcePoint, FVector LeadingEdgeOffset, FVector TrailingEdgeOffset, int32 Side);
+
+	/**
+	 * Повертає нормалізований вектор набігаючого потоку (протилежний до вектора швидкості актора).
+	 * @param WorldOffset — не використовується (зарезервовано для майбутнього локального вітру).
+	 * @return Нормалізований вектор або нульовий якщо ЛА стоїть на місці.
+	 */
 	FVector FindAirflowDirection(FVector WorldOffset);
+
+	/**
+	 * Обчислює напрямок підйомної сили як векторний добуток набігаючого потоку та правого вектора крила.
+	 * @param WorldOffset      — не використовується.
+	 * @param AirflowDirection — нормалізований вектор набігаючого потоку.
+	 * @return Нормалізований вектор підйомної сили або нульовий вектор.
+	 */
 	FVector FindLiftDirection(FVector WorldOffset, FVector AirflowDirection);
+
+	/**
+	 * @return Поточна швидкість актора в м/с (конвертується з cm/s).
+	 */
 	float   GetSpeedInMetersPerSecond();
+
+	/**
+	 * Обчислює силу аеродинамічного опору в Ньютонах: D = CD * 0.5 * ρ * V² * S.
+	 * @param CurveCd — крива CD від кута атаки.
+	 * @param Area    — площа поверхні в м².
+	 * @param AoA     — кут атаки в градусах.
+	 * @return Сила опору в Ньютонах.
+	 */
 	float   CalculateDragInNewtons(UCurveFloat* CurveCd, float Area, float AoA);
+
+	/**
+	 * Обчислює підйомну силу в Ньютонах: L = CL * 0.5 * ρ * V² * S.
+	 * @param CurveCl — крива CL від кута атаки.
+	 * @param Area    — площа поверхні в м².
+	 * @param AoA     — кут атаки в градусах.
+	 * @return Підйомна сила в Ньютонах.
+	 */
 	float   CalculateLiftInNewtons(UCurveFloat* CurveCl, float Area, float AoA);
+
+	/**
+	 * Обчислює кут атаки через скалярний добуток хорди та вектора потоку.
+	 * Повертає 0 якщо ЛА стоїть на місці.
+	 * @param AirflowDirection  — нормалізований вектор набігаючого потоку.
+	 * @param WingChordDirection — нормалізований вектор хорди.
+	 * @return Кут атаки в градусах [0, 180].
+	 */
 	float   CalculateAoA(FVector AirflowDirection, FVector WingChordDirection);
 
+	/**
+	 * Виводить повідомлення на екран якщо DebugUILogs == true.
+	 * @param Text — рядок повідомлення для відображення на екрані.
+	 */
 	void LogMsg(FString Text);
 
 private:

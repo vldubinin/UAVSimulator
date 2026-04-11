@@ -15,11 +15,16 @@ class UAVSIMULATOR_API UControlSurfaceSC : public USceneComponent
 {
 	GENERATED_BODY()
 
-public:	
-	// Sets default values for this component's properties
+public:
+	/** Ініціалізує тік компонента (увімкнено). */
 	UControlSurfaceSC();
 
 public:
+	/**
+	 * Обертає керуючу поверхню до заданого кута навколо налаштованої осі.
+	 * Якщо IsReverseDirection == true, знак кута інвертується перед застосуванням.
+	 * @param Angle — цільовий кут відхилення в градусах.
+	 */
 	void Move(float Angle);
 
 public:

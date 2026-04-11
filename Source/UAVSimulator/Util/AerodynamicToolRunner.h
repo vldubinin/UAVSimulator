@@ -10,30 +10,66 @@
 class UAVSIMULATOR_API AerodynamicToolRunner
 {
 public:
-	/** Return (and create if missing) the temporary work directory for tool outputs. */
+	/**
+	 * Повертає (і створює за необхідності) тимчасову робочу директорію для виводу інструментів.
+	 * Шлях будується так, щоб його довжина не перевищувала 45 символів (обмеження зовнішніх утиліт).
+	 * @return Абсолютний шлях до директорії "us_tmp".
+	 */
 	static FString GetOrCreateWorkDir();
 
-	/** Delete all contents of the temporary work directory. */
+	/**
+	 * Видаляє вміст тимчасової робочої директорії разом з самою директорією.
+	 * @return true якщо видалення пройшло успішно.
+	 */
 	static bool CleanWorkDir();
 
-	/** Convert a project-relative path to an absolute path for external apps. */
+	/**
+	 * Перетворює шлях відносно проекту на абсолютний шлях для зовнішніх програм.
+	 * @param Path — відносний шлях.
+	 * @return Абсолютний шлях.
+	 */
 	static FString ToAbsolutePath(FString Path);
 
-	/** Copy a file into the temporary work directory under the given name. Returns the destination path. */
+	/**
+	 * Копіює файл у тимчасову робочу директорію під заданим ім'ям.
+	 * @param SourcePath — повний шлях до джерела.
+	 * @param Name       — ім'я файлу у директорії призначення.
+	 * @return Абсолютний шлях до скопійованого файлу.
+	 */
 	static FString CopyToWorkDir(FString SourcePath, FString Name);
 
-	/** Serialize a polar map to a .dat file in the work directory. Returns the output file path. */
+	/**
+	 * Серіалізує мапу полярних характеристик у текстовий .dat файл у робочій директорії.
+	 * Формат: заголовок + рядки "AoA CL CD CM", відсортовані за кутом атаки.
+	 * @param Polar — мапа {кут атаки → FPolarRow}.
+	 * @return Абсолютний шлях до створеного файлу "airfoil.dat".
+	 */
 	static FString SavePolarFile(TMap<float, FPolarRow> Polar);
 
-	/** Execute a Python script via the UE PythonScriptPlugin. Returns true on success. */
+	/**
+	 * Виконує Python-скрипт через UE PythonScriptPlugin та виводить лог у LogUAV.
+	 * @param Command — рядок команди (шлях до скрипту + аргументи через пробіл).
+	 * @return true якщо виконання завершилось без помилок.
+	 */
 	static bool RunPythonScript(FString Command);
 
 	/**
-	 * Parse a whitespace-delimited polar text file.
-	 * @param AoAIdx, ClIdx, CdIdx, CmIdx — zero-based column indices for AoA, CL, CD, CM.
+	 * Парсить текстовий файл полярних характеристик з роздільником-пробілом.
+	 * Рядки, що не відповідають шаблону числових даних, пропускаються.
+	 * @param Path   — абсолютний шлях до файлу.
+	 * @param AoAIdx — індекс стовпця кута атаки (з нуля).
+	 * @param ClIdx  — індекс стовпця CL.
+	 * @param CdIdx  — індекс стовпця CD.
+	 * @param CmIdx  — індекс стовпця CM.
+	 * @return Мапа {кут атаки → FPolarRow}; порожня якщо файл не знайдено.
 	 */
 	static TMap<float, FPolarRow> ParsePolarFile(FString Path, int32 AoAIdx, int32 ClIdx, int32 CdIdx, int32 CmIdx);
 
-	/** Derive the airplane folder name from a UObject's class package path. */
+	/**
+	 * Визначає ім'я папки ЛА з пакетного шляху класу UObject.
+	 * Очікує формат "/Game/Airplane/<FolderName>/...".
+	 * @param ContextObject — будь-який UObject, клас якого розташований у папці ЛА.
+	 * @return Ім'я папки ЛА (перший сегмент після "/Game/Airplane/").
+	 */
 	static FString GetOwnerFolderName(UObject* ContextObject);
 };

@@ -27,18 +27,53 @@ class UAVSIMULATOR_API UAerodynamicSurfaceSC : public USceneComponent
 {
 	GENERATED_BODY()
 
-public:	
-	// Sets default values for this component's properties
+public:
+	/** Вмикає тік компонента. */
 	UAerodynamicSurfaceSC();
 
-public:	
+public:
+	/**
+	 * Ініціалізує аеродинамічну поверхню: знищує старі підповерхні та будує нові на основі SurfaceForm.
+	 * За потреби дзеркально дублює підповерхні (Mirror == true).
+	 * @param CenterOfMass — центр мас ЛА у світових координатах для розрахунку моментів.
+	 * @param ControlSur   — усі керуючі поверхні актора для прив'язки до підсекцій.
+	 */
 	void OnConstruction(FVector CenterOfMass, TArray<UControlSurfaceSC*> ControlSur);
+
+	/**
+	 * Підсумовує аеродинамічні сили та моменти від усіх підповерхонь.
+	 * @param CenterOfMass    — центр мас ЛА у світових координатах.
+	 * @param LinearVelocity  — лінійна швидкість mesh у cm/s.
+	 * @param AngularVelocity — кутова швидкість mesh у рад/с.
+	 * @param AirflowDirection — нормалізований вектор набігаючого потоку.
+	 * @param ControlState    — поточний стан органів керування.
+	 * @return Сумарна аеродинамічна сила та момент для всієї поверхні.
+	 */
 	AerodynamicForce CalculateForcesOnSurface(FVector CenterOfMass, FVector LinearVelocity, FVector AngularVelocity, FVector AirflowDirection, ControlInputState ControlState);
 
 private:
+	/**
+	 * Читає усі рядки з DataTable Profile та повертає масив точок профілю крила.
+	 * @return Масив FAirfoilPointData; порожній якщо Profile не задано.
+	 */
 	TArray<FAirfoilPointData> GetPoints();
+
+	/**
+	 * Будує підповерхні (USubAerodynamicSurfaceSC) на основі масиву SurfaceForm.
+	 * @param CenterOfMass — центр мас ЛА для розрахунку відстані до центру тиску.
+	 * @param Direction    — +1 для основної сторони, -1 для дзеркальної.
+	 */
 	void BuildSubsurfaces(FVector CenterOfMass, int32 Direction);
+
+	/** Знищує всі раніше створені підповерхні та очищає масив SubSurfaces. */
 	void DestroySubsurfaces();
+
+	/**
+	 * Шукає керуючу поверхню заданого типу з потрібним прапором дзеркальності.
+	 * @param Type    — тип поверхні (Aileron, Elevator, Rudder).
+	 * @param bMirror — true якщо потрібна дзеркальна поверхня.
+	 * @return Вказівник на знайдену UControlSurfaceSC або nullptr.
+	 */
 	UControlSurfaceSC* FindControlSurface(EFlapType Type, bool bMirror);
 	
 private:

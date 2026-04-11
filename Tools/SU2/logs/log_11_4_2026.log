@@ -1,0 +1,718 @@
+[2026-04-11 11:38:24] [INFO] Starting polar sweep. Arguments: ['C:/Users/DubakusPC/Documents/Unreal Projects/UAVSimulator/Content/WingProfile/NACA_0009/naca0009.dat', 'TailHorizontal', '4', '0.8', '-45', '45', '1', '-6', 'true']
+[2026-04-11 11:38:24] [INFO] Resuming: last flap=6.0deg AoA=1.0deg status=InProgress — history_naca0009_0.8_-45.0_45.0.data
+[2026-04-11 11:38:24] [INFO] 218 conditions will be skipped
+[2026-04-11 11:38:24] [INFO] Flap=0.0deg — generating mesh
+[2026-04-11 11:38:24] [INFO] Generating multi-element mesh
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=+0.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=+1.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=+2.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=+3.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=+4.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=+5.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=+6.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=+7.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=+8.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=+9.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=+10.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=+11.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=+12.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=+13.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=+14.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=+15.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=+16.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=+17.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=+18.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=+19.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=+20.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=-1.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=-2.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=-3.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=-4.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=-5.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=-6.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=-7.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=-8.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=-9.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=-10.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=-11.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=-12.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=-13.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=-14.0deg
+[2026-04-11 11:38:26] [INFO] Skip (done): flap=+0.0deg AoA=-15.0deg
+[2026-04-11 11:38:26] [INFO] Flap=1.0deg — generating mesh
+[2026-04-11 11:38:26] [INFO] Generating multi-element mesh
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=+0.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=+1.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=+2.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=+3.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=+4.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=+5.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=+6.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=+7.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=+8.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=+9.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=+10.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=+11.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=+12.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=+13.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=+14.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=+15.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=+16.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=+17.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=+18.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=+19.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=+20.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=-1.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=-2.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=-3.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=-4.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=-5.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=-6.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=-7.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=-8.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=-9.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=-10.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=-11.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=-12.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=-13.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=-14.0deg
+[2026-04-11 11:38:27] [INFO] Skip (done): flap=+1.0deg AoA=-15.0deg
+[2026-04-11 11:38:27] [INFO] Flap=2.0deg — generating mesh
+[2026-04-11 11:38:27] [INFO] Generating multi-element mesh
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=+0.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=+1.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=+2.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=+3.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=+4.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=+5.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=+6.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=+7.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=+8.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=+9.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=+10.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=+11.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=+12.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=+13.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=+14.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=+15.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=+16.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=+17.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=+18.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=+19.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=+20.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=-1.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=-2.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=-3.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=-4.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=-5.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=-6.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=-7.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=-8.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=-9.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=-10.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=-11.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=-12.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=-13.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=-14.0deg
+[2026-04-11 11:38:29] [INFO] Skip (done): flap=+2.0deg AoA=-15.0deg
+[2026-04-11 11:38:29] [INFO] Flap=3.0deg — generating mesh
+[2026-04-11 11:38:29] [INFO] Generating multi-element mesh
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=+0.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=+1.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=+2.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=+3.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=+4.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=+5.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=+6.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=+7.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=+8.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=+9.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=+10.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=+11.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=+12.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=+13.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=+14.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=+15.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=+16.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=+17.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=+18.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=+19.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=+20.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=-1.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=-2.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=-3.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=-4.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=-5.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=-6.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=-7.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=-8.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=-9.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=-10.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=-11.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=-12.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=-13.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=-14.0deg
+[2026-04-11 11:38:30] [INFO] Skip (done): flap=+3.0deg AoA=-15.0deg
+[2026-04-11 11:38:30] [INFO] Flap=4.0deg — generating mesh
+[2026-04-11 11:38:30] [INFO] Generating multi-element mesh
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=+0.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=+1.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=+2.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=+3.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=+4.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=+5.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=+6.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=+7.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=+8.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=+9.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=+10.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=+11.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=+12.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=+13.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=+14.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=+15.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=+16.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=+17.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=+18.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=+19.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=+20.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=-1.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=-2.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=-3.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=-4.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=-5.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=-6.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=-7.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=-8.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=-9.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=-10.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=-11.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=-12.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=-13.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=-14.0deg
+[2026-04-11 11:38:32] [INFO] Skip (done): flap=+4.0deg AoA=-15.0deg
+[2026-04-11 11:38:32] [INFO] Flap=5.0deg — generating mesh
+[2026-04-11 11:38:32] [INFO] Generating multi-element mesh
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=+0.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=+1.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=+2.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=+3.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=+4.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=+5.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=+6.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=+7.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=+8.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=+9.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=+10.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=+11.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=+12.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=+13.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=+14.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=+15.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=+16.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=+17.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=+18.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=+19.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=+20.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=-1.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=-2.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=-3.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=-4.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=-5.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=-6.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=-7.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=-8.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=-9.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=-10.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=-11.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=-12.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=-13.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=-14.0deg
+[2026-04-11 11:38:33] [INFO] Skip (done): flap=+5.0deg AoA=-15.0deg
+[2026-04-11 11:38:33] [INFO] Flap=6.0deg — generating mesh
+[2026-04-11 11:38:33] [INFO] Generating multi-element mesh
+[2026-04-11 11:39:26] [INFO] Starting polar sweep. Arguments: ['C:/Users/DubakusPC/Documents/Unreal Projects/UAVSimulator/Content/WingProfile/NACA_0009/naca0009.dat', 'TailHorizontal', '6', '0.8', '-45', '45', '1', '-6', 'true']
+[2026-04-11 11:39:26] [INFO] Resuming: last flap=6.0deg AoA=1.0deg status=InProgress — history_naca0009_0.8_-45.0_45.0.data
+[2026-04-11 11:39:26] [INFO] 218 conditions will be skipped
+[2026-04-11 11:39:26] [INFO] Flap=0.0deg — generating mesh
+[2026-04-11 11:39:26] [INFO] Generating multi-element mesh
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=+0.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=+1.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=+2.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=+3.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=+4.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=+5.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=+6.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=+7.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=+8.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=+9.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=+10.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=+11.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=+12.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=+13.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=+14.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=+15.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=+16.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=+17.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=+18.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=+19.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=+20.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=-1.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=-2.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=-3.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=-4.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=-5.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=-6.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=-7.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=-8.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=-9.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=-10.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=-11.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=-12.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=-13.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=-14.0deg
+[2026-04-11 11:39:28] [INFO] Skip (done): flap=+0.0deg AoA=-15.0deg
+[2026-04-11 11:39:28] [INFO] Flap=1.0deg — generating mesh
+[2026-04-11 11:39:28] [INFO] Generating multi-element mesh
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=+0.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=+1.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=+2.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=+3.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=+4.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=+5.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=+6.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=+7.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=+8.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=+9.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=+10.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=+11.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=+12.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=+13.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=+14.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=+15.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=+16.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=+17.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=+18.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=+19.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=+20.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=-1.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=-2.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=-3.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=-4.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=-5.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=-6.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=-7.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=-8.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=-9.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=-10.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=-11.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=-12.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=-13.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=-14.0deg
+[2026-04-11 11:39:29] [INFO] Skip (done): flap=+1.0deg AoA=-15.0deg
+[2026-04-11 11:39:29] [INFO] Flap=2.0deg — generating mesh
+[2026-04-11 11:39:29] [INFO] Generating multi-element mesh
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=+0.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=+1.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=+2.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=+3.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=+4.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=+5.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=+6.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=+7.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=+8.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=+9.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=+10.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=+11.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=+12.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=+13.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=+14.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=+15.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=+16.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=+17.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=+18.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=+19.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=+20.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=-1.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=-2.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=-3.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=-4.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=-5.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=-6.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=-7.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=-8.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=-9.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=-10.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=-11.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=-12.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=-13.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=-14.0deg
+[2026-04-11 11:39:31] [INFO] Skip (done): flap=+2.0deg AoA=-15.0deg
+[2026-04-11 11:39:31] [INFO] Flap=3.0deg — generating mesh
+[2026-04-11 11:39:31] [INFO] Generating multi-element mesh
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=+0.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=+1.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=+2.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=+3.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=+4.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=+5.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=+6.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=+7.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=+8.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=+9.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=+10.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=+11.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=+12.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=+13.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=+14.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=+15.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=+16.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=+17.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=+18.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=+19.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=+20.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=-1.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=-2.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=-3.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=-4.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=-5.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=-6.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=-7.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=-8.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=-9.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=-10.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=-11.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=-12.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=-13.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=-14.0deg
+[2026-04-11 11:39:32] [INFO] Skip (done): flap=+3.0deg AoA=-15.0deg
+[2026-04-11 11:39:32] [INFO] Flap=4.0deg — generating mesh
+[2026-04-11 11:39:32] [INFO] Generating multi-element mesh
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=+0.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=+1.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=+2.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=+3.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=+4.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=+5.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=+6.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=+7.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=+8.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=+9.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=+10.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=+11.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=+12.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=+13.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=+14.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=+15.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=+16.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=+17.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=+18.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=+19.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=+20.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=-1.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=-2.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=-3.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=-4.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=-5.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=-6.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=-7.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=-8.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=-9.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=-10.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=-11.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=-12.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=-13.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=-14.0deg
+[2026-04-11 11:39:34] [INFO] Skip (done): flap=+4.0deg AoA=-15.0deg
+[2026-04-11 11:39:34] [INFO] Flap=5.0deg — generating mesh
+[2026-04-11 11:39:34] [INFO] Generating multi-element mesh
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=+0.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=+1.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=+2.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=+3.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=+4.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=+5.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=+6.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=+7.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=+8.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=+9.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=+10.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=+11.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=+12.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=+13.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=+14.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=+15.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=+16.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=+17.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=+18.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=+19.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=+20.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=-1.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=-2.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=-3.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=-4.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=-5.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=-6.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=-7.0deg
+[2026-04-11 11:39:35] [INFO] Skip (done): flap=+5.0deg AoA=-8.0deg
+[2026-04-11 11:39:36] [INFO] Skip (done): flap=+5.0deg AoA=-9.0deg
+[2026-04-11 11:39:36] [INFO] Skip (done): flap=+5.0deg AoA=-10.0deg
+[2026-04-11 11:39:36] [INFO] Skip (done): flap=+5.0deg AoA=-11.0deg
+[2026-04-11 11:39:36] [INFO] Skip (done): flap=+5.0deg AoA=-12.0deg
+[2026-04-11 11:39:36] [INFO] Skip (done): flap=+5.0deg AoA=-13.0deg
+[2026-04-11 11:39:36] [INFO] Skip (done): flap=+5.0deg AoA=-14.0deg
+[2026-04-11 11:39:36] [INFO] Skip (done): flap=+5.0deg AoA=-15.0deg
+[2026-04-11 11:39:36] [INFO] Flap=6.0deg — generating mesh
+[2026-04-11 11:39:36] [INFO] Generating multi-element mesh
+[2026-04-11 11:39:37] [INFO] Skip (done): flap=+6.0deg AoA=+0.0deg
+[2026-04-11 11:39:37] [INFO] Skip (done): flap=+6.0deg AoA=+1.0deg
+[2026-04-11 11:39:37] [INFO] flap=+6.0deg  AoA=+2.0deg
+[2026-04-11 11:39:37] [INFO] Running SU2: AoA=+2.0deg  restart=False
+[2026-04-11 11:41:13] [INFO] SU2 complete: AoA=+2.0deg
+[2026-04-11 11:41:13] [INFO] CL=-0.04403  CD=0.03461  CMz=-0.06669  rms[Rho]=-6.007
+[2026-04-11 11:41:13] [INFO] flap=+6.0deg  AoA=+3.0deg
+[2026-04-11 11:41:13] [INFO] Running SU2: AoA=+3.0deg  restart=True
+[2026-04-11 11:42:35] [INFO] SU2 complete: AoA=+3.0deg
+[2026-04-11 11:42:35] [INFO] CL=0.00052  CD=0.02562  CMz=-0.05026  rms[Rho]=-6.073
+[2026-04-11 11:42:35] [INFO] flap=+6.0deg  AoA=+4.0deg
+[2026-04-11 11:42:35] [INFO] Running SU2: AoA=+4.0deg  restart=True
+[2026-04-11 11:43:57] [INFO] SU2 complete: AoA=+4.0deg
+[2026-04-11 11:43:57] [INFO] CL=0.21115  CD=0.02696  CMz=0.01880  rms[Rho]=-6.012
+[2026-04-11 11:43:57] [INFO] flap=+6.0deg  AoA=+5.0deg
+[2026-04-11 11:43:57] [INFO] Running SU2: AoA=+5.0deg  restart=True
+[2026-04-11 11:45:21] [INFO] SU2 complete: AoA=+5.0deg
+[2026-04-11 11:45:21] [INFO] CL=0.42586  CD=0.03251  CMz=0.06518  rms[Rho]=-6.036
+[2026-04-11 11:45:21] [INFO] flap=+6.0deg  AoA=+6.0deg
+[2026-04-11 11:45:21] [INFO] Running SU2: AoA=+6.0deg  restart=True
+[2026-04-11 11:46:43] [INFO] SU2 complete: AoA=+6.0deg
+[2026-04-11 11:46:43] [INFO] CL=0.39552  CD=0.02776  CMz=0.05293  rms[Rho]=-6.061
+[2026-04-11 11:46:43] [INFO] flap=+6.0deg  AoA=+7.0deg
+[2026-04-11 11:46:43] [INFO] Running SU2: AoA=+7.0deg  restart=True
+[2026-04-11 11:48:00] [INFO] SU2 complete: AoA=+7.0deg
+[2026-04-11 11:48:00] [INFO] CL=0.57227  CD=0.02840  CMz=0.11910  rms[Rho]=-6.110
+[2026-04-11 11:48:00] [INFO] flap=+6.0deg  AoA=+8.0deg
+[2026-04-11 11:48:00] [INFO] Running SU2: AoA=+8.0deg  restart=True
+[2026-04-11 11:50:29] [INFO] SU2 complete: AoA=+8.0deg
+[2026-04-11 11:50:29] [INFO] CL=0.67866  CD=0.02949  CMz=0.14691  rms[Rho]=-6.021
+[2026-04-11 11:50:29] [INFO] flap=+6.0deg  AoA=+9.0deg
+[2026-04-11 11:50:29] [INFO] Running SU2: AoA=+9.0deg  restart=True
+[2026-04-11 11:51:47] [INFO] SU2 complete: AoA=+9.0deg
+[2026-04-11 11:51:47] [INFO] CL=0.80792  CD=0.02949  CMz=0.15923  rms[Rho]=-6.001
+[2026-04-11 11:51:47] [INFO] flap=+6.0deg  AoA=+10.0deg
+[2026-04-11 11:51:47] [INFO] Running SU2: AoA=+10.0deg  restart=True
+[2026-04-11 11:53:19] [INFO] SU2 complete: AoA=+10.0deg
+[2026-04-11 11:53:19] [INFO] CL=0.78411  CD=0.02459  CMz=0.13403  rms[Rho]=-6.070
+[2026-04-11 11:53:19] [INFO] flap=+6.0deg  AoA=+11.0deg
+[2026-04-11 11:53:19] [INFO] Running SU2: AoA=+11.0deg  restart=True
+[2026-04-11 11:54:42] [INFO] SU2 complete: AoA=+11.0deg
+[2026-04-11 11:54:42] [INFO] CL=0.90606  CD=0.03065  CMz=0.17459  rms[Rho]=-6.010
+[2026-04-11 11:54:42] [INFO] flap=+6.0deg  AoA=+12.0deg
+[2026-04-11 11:54:42] [INFO] Running SU2: AoA=+12.0deg  restart=True
+[2026-04-11 11:55:34] [INFO] SU2 complete: AoA=+12.0deg
+[2026-04-11 11:55:34] [INFO] CL=0.99943  CD=0.03520  CMz=0.19659  rms[Rho]=-6.007
+[2026-04-11 11:55:34] [INFO] flap=+6.0deg  AoA=+13.0deg
+[2026-04-11 11:55:34] [INFO] Running SU2: AoA=+13.0deg  restart=True
+[2026-04-11 11:56:24] [INFO] SU2 complete: AoA=+13.0deg
+[2026-04-11 11:56:24] [INFO] CL=1.08689  CD=0.04040  CMz=0.21631  rms[Rho]=-6.010
+[2026-04-11 11:56:24] [INFO] flap=+6.0deg  AoA=+14.0deg
+[2026-04-11 11:56:24] [INFO] Running SU2: AoA=+14.0deg  restart=True
+[2026-04-11 11:57:13] [INFO] SU2 complete: AoA=+14.0deg
+[2026-04-11 11:57:13] [INFO] CL=1.17200  CD=0.04655  CMz=0.23556  rms[Rho]=-6.002
+[2026-04-11 11:57:13] [INFO] flap=+6.0deg  AoA=+15.0deg
+[2026-04-11 11:57:13] [INFO] Running SU2: AoA=+15.0deg  restart=True
+[2026-04-11 11:58:18] [INFO] SU2 complete: AoA=+15.0deg
+[2026-04-11 11:58:18] [INFO] CL=1.25298  CD=0.05452  CMz=0.25448  rms[Rho]=-6.002
+[2026-04-11 11:58:18] [INFO] flap=+6.0deg  AoA=+16.0deg
+[2026-04-11 11:58:18] [INFO] Running SU2: AoA=+16.0deg  restart=True
+[2026-04-11 11:59:07] [INFO] SU2 complete: AoA=+16.0deg
+[2026-04-11 11:59:07] [INFO] CL=1.32425  CD=0.06441  CMz=0.27132  rms[Rho]=-6.001
+[2026-04-11 11:59:07] [INFO] flap=+6.0deg  AoA=+17.0deg
+[2026-04-11 11:59:07] [INFO] Running SU2: AoA=+17.0deg  restart=True
+[2026-04-11 11:59:57] [INFO] SU2 complete: AoA=+17.0deg
+[2026-04-11 11:59:57] [INFO] CL=1.37615  CD=0.07672  CMz=0.28361  rms[Rho]=-6.047
+[2026-04-11 11:59:57] [INFO] flap=+6.0deg  AoA=+18.0deg
+[2026-04-11 11:59:57] [INFO] Running SU2: AoA=+18.0deg  restart=True
+[2026-04-11 12:00:48] [INFO] SU2 complete: AoA=+18.0deg
+[2026-04-11 12:00:48] [INFO] CL=1.41978  CD=0.09504  CMz=0.29545  rms[Rho]=-6.055
+[2026-04-11 12:00:48] [INFO] flap=+6.0deg  AoA=+19.0deg
+[2026-04-11 12:00:48] [INFO] Running SU2: AoA=+19.0deg  restart=True
+[2026-04-11 12:15:48] [ERROR] SU2 timeout: AoA=+19.0deg
+[2026-04-11 12:15:48] [WARNING] SU2 process error — stopping AoA sweep for flap=+6.0deg
+[2026-04-11 12:15:48] [INFO] flap=+6.0deg  AoA=-1.0deg
+[2026-04-11 12:15:48] [INFO] Running SU2: AoA=-1.0deg  restart=False
+[2026-04-11 12:17:19] [INFO] SU2 complete: AoA=-1.0deg
+[2026-04-11 12:17:19] [INFO] CL=-0.35092  CD=0.04257  CMz=-0.14504  rms[Rho]=-6.035
+[2026-04-11 12:17:19] [INFO] flap=+6.0deg  AoA=-2.0deg
+[2026-04-11 12:17:19] [INFO] Running SU2: AoA=-2.0deg  restart=True
+[2026-04-11 12:18:57] [INFO] SU2 complete: AoA=-2.0deg
+[2026-04-11 12:18:57] [INFO] CL=-0.48315  CD=0.02838  CMz=-0.17227  rms[Rho]=-6.130
+[2026-04-11 12:18:57] [INFO] flap=+6.0deg  AoA=-3.0deg
+[2026-04-11 12:18:57] [INFO] Running SU2: AoA=-3.0deg  restart=True
+[2026-04-11 12:20:14] [INFO] SU2 complete: AoA=-3.0deg
+[2026-04-11 12:20:14] [INFO] CL=-0.58838  CD=0.03377  CMz=-0.20833  rms[Rho]=-6.001
+[2026-04-11 12:20:14] [INFO] flap=+6.0deg  AoA=-4.0deg
+[2026-04-11 12:20:14] [INFO] Running SU2: AoA=-4.0deg  restart=True
+[2026-04-11 12:21:40] [INFO] SU2 complete: AoA=-4.0deg
+[2026-04-11 12:21:40] [INFO] CL=-0.60921  CD=0.03481  CMz=-0.20068  rms[Rho]=-6.003
+[2026-04-11 12:21:40] [INFO] flap=+6.0deg  AoA=-5.0deg
+[2026-04-11 12:21:40] [INFO] Running SU2: AoA=-5.0deg  restart=True
+[2026-04-11 12:22:32] [INFO] SU2 complete: AoA=-5.0deg
+[2026-04-11 12:22:32] [INFO] CL=-0.68012  CD=0.03712  CMz=-0.21216  rms[Rho]=-6.006
+[2026-04-11 12:22:32] [INFO] flap=+6.0deg  AoA=-6.0deg
+[2026-04-11 12:22:32] [INFO] Running SU2: AoA=-6.0deg  restart=True
+[2026-04-11 12:23:25] [INFO] SU2 complete: AoA=-6.0deg
+[2026-04-11 12:23:25] [INFO] CL=-0.76924  CD=0.04006  CMz=-0.23250  rms[Rho]=-6.007
+[2026-04-11 12:23:25] [INFO] flap=+6.0deg  AoA=-7.0deg
+[2026-04-11 12:23:25] [INFO] Running SU2: AoA=-7.0deg  restart=True
+[2026-04-11 12:24:32] [INFO] SU2 complete: AoA=-7.0deg
+[2026-04-11 12:24:32] [INFO] CL=-0.85115  CD=0.04328  CMz=-0.25006  rms[Rho]=-6.008
+[2026-04-11 12:24:32] [INFO] flap=+6.0deg  AoA=-8.0deg
+[2026-04-11 12:24:32] [INFO] Running SU2: AoA=-8.0deg  restart=True
+[2026-04-11 12:39:32] [ERROR] SU2 timeout: AoA=-8.0deg
+[2026-04-11 12:39:32] [WARNING] SU2 process error — stopping AoA sweep for flap=+6.0deg
+[2026-04-11 12:39:32] [INFO] Flap=7.0deg — generating mesh
+[2026-04-11 12:39:32] [INFO] Generating multi-element mesh
+[2026-04-11 12:39:33] [INFO] flap=+7.0deg  AoA=+0.0deg
+[2026-04-11 12:39:33] [INFO] Running SU2: AoA=+0.0deg  restart=False
+[2026-04-11 12:41:12] [INFO] SU2 complete: AoA=+0.0deg
+[2026-04-11 12:41:12] [INFO] CL=-0.29497  CD=0.03822  CMz=-0.13996  rms[Rho]=-6.033
+[2026-04-11 12:41:12] [INFO] flap=+7.0deg  AoA=+1.0deg
+[2026-04-11 12:41:12] [INFO] Running SU2: AoA=+1.0deg  restart=True
+[2026-04-11 12:42:57] [INFO] SU2 complete: AoA=+1.0deg
+[2026-04-11 12:42:57] [INFO] CL=-0.27797  CD=0.02648  CMz=-0.15358  rms[Rho]=-6.087
+[2026-04-11 12:42:57] [INFO] flap=+7.0deg  AoA=+2.0deg
+[2026-04-11 12:42:57] [INFO] Running SU2: AoA=+2.0deg  restart=True
+[2026-04-11 12:44:16] [INFO] SU2 complete: AoA=+2.0deg
+[2026-04-11 12:44:16] [INFO] CL=-0.08937  CD=0.02598  CMz=-0.08622  rms[Rho]=-6.006
+[2026-04-11 12:44:16] [INFO] flap=+7.0deg  AoA=+3.0deg
+[2026-04-11 12:44:16] [INFO] Running SU2: AoA=+3.0deg  restart=True
+[2026-04-11 12:45:47] [INFO] SU2 complete: AoA=+3.0deg
+[2026-04-11 12:45:47] [INFO] CL=0.08375  CD=0.02585  CMz=-0.03363  rms[Rho]=-6.096
+[2026-04-11 12:45:47] [INFO] flap=+7.0deg  AoA=+4.0deg
+[2026-04-11 12:45:47] [INFO] Running SU2: AoA=+4.0deg  restart=True
+[2026-04-11 12:46:41] [INFO] SU2 complete: AoA=+4.0deg
+[2026-04-11 12:46:41] [INFO] CL=0.21105  CD=0.02450  CMz=0.00389  rms[Rho]=-6.022
+[2026-04-11 12:46:41] [INFO] flap=+7.0deg  AoA=+5.0deg
+[2026-04-11 12:46:41] [INFO] Running SU2: AoA=+5.0deg  restart=True
+[2026-04-11 12:47:33] [INFO] SU2 complete: AoA=+5.0deg
+[2026-04-11 12:47:33] [INFO] CL=0.31710  CD=0.02378  CMz=0.03088  rms[Rho]=-6.010
+[2026-04-11 12:47:33] [INFO] flap=+7.0deg  AoA=+6.0deg
+[2026-04-11 12:47:33] [INFO] Running SU2: AoA=+6.0deg  restart=True
+[2026-04-11 12:48:27] [INFO] SU2 complete: AoA=+6.0deg
+[2026-04-11 12:48:27] [INFO] CL=0.41578  CD=0.02337  CMz=0.05486  rms[Rho]=-6.014
+[2026-04-11 12:48:27] [INFO] flap=+7.0deg  AoA=+7.0deg
+[2026-04-11 12:48:27] [INFO] Running SU2: AoA=+7.0deg  restart=True
+[2026-04-11 12:49:20] [INFO] SU2 complete: AoA=+7.0deg
+[2026-04-11 12:49:20] [INFO] CL=0.51396  CD=0.02383  CMz=0.07841  rms[Rho]=-6.002
+[2026-04-11 12:49:20] [INFO] flap=+7.0deg  AoA=+8.0deg
+[2026-04-11 12:49:20] [INFO] Running SU2: AoA=+8.0deg  restart=True
+[2026-04-11 12:50:18] [INFO] SU2 complete: AoA=+8.0deg
+[2026-04-11 12:50:18] [INFO] CL=0.61252  CD=0.02484  CMz=0.10247  rms[Rho]=-6.009
+[2026-04-11 12:50:18] [INFO] flap=+7.0deg  AoA=+9.0deg
+[2026-04-11 12:50:18] [INFO] Running SU2: AoA=+9.0deg  restart=True
+[2026-04-11 12:51:24] [INFO] SU2 complete: AoA=+9.0deg
+[2026-04-11 12:51:24] [INFO] CL=0.70583  CD=0.02623  CMz=0.12425  rms[Rho]=-6.010
+[2026-04-11 12:51:24] [INFO] flap=+7.0deg  AoA=+10.0deg
+[2026-04-11 12:51:24] [INFO] Running SU2: AoA=+10.0deg  restart=True
+[2026-04-11 12:52:26] [INFO] SU2 complete: AoA=+10.0deg
+[2026-04-11 12:52:26] [INFO] CL=0.79696  CD=0.02858  CMz=0.14539  rms[Rho]=-6.014
+[2026-04-11 12:52:26] [INFO] flap=+7.0deg  AoA=+11.0deg
+[2026-04-11 12:52:26] [INFO] Running SU2: AoA=+11.0deg  restart=True
+[2026-04-11 12:53:23] [INFO] SU2 complete: AoA=+11.0deg
+[2026-04-11 12:53:23] [INFO] CL=0.88373  CD=0.03158  CMz=0.16434  rms[Rho]=-6.026
+[2026-04-11 12:53:23] [INFO] flap=+7.0deg  AoA=+12.0deg
+[2026-04-11 12:53:23] [INFO] Running SU2: AoA=+12.0deg  restart=True
+[2026-04-11 12:54:19] [INFO] SU2 complete: AoA=+12.0deg
+[2026-04-11 12:54:19] [INFO] CL=0.97481  CD=0.03548  CMz=0.18571  rms[Rho]=-6.008
+[2026-04-11 12:54:19] [INFO] flap=+7.0deg  AoA=+13.0deg
+[2026-04-11 12:54:19] [INFO] Running SU2: AoA=+13.0deg  restart=True
+[2026-04-11 12:55:19] [INFO] SU2 complete: AoA=+13.0deg
+[2026-04-11 12:55:19] [INFO] CL=1.06131  CD=0.03986  CMz=0.20498  rms[Rho]=-6.009
+[2026-04-11 12:55:19] [INFO] flap=+7.0deg  AoA=+14.0deg
+[2026-04-11 12:55:19] [INFO] Running SU2: AoA=+14.0deg  restart=True
+[2026-04-11 12:56:23] [INFO] SU2 complete: AoA=+14.0deg
+[2026-04-11 12:56:23] [INFO] CL=1.14431  CD=0.04562  CMz=0.22382  rms[Rho]=-6.004
+[2026-04-11 12:56:23] [INFO] flap=+7.0deg  AoA=+15.0deg
+[2026-04-11 12:56:23] [INFO] Running SU2: AoA=+15.0deg  restart=True
+[2026-04-11 12:57:20] [INFO] SU2 complete: AoA=+15.0deg
+[2026-04-11 12:57:20] [INFO] CL=1.22411  CD=0.05321  CMz=0.24312  rms[Rho]=-6.012
+[2026-04-11 12:57:20] [INFO] flap=+7.0deg  AoA=+16.0deg
+[2026-04-11 12:57:20] [INFO] Running SU2: AoA=+16.0deg  restart=True
+[2026-04-11 12:58:25] [INFO] SU2 complete: AoA=+16.0deg
+[2026-04-11 12:58:25] [INFO] CL=1.29019  CD=0.06291  CMz=0.25948  rms[Rho]=-6.082
+[2026-04-11 12:58:25] [INFO] flap=+7.0deg  AoA=+17.0deg
+[2026-04-11 12:58:25] [INFO] Running SU2: AoA=+17.0deg  restart=True
+[2026-04-11 12:59:18] [INFO] SU2 complete: AoA=+17.0deg
+[2026-04-11 12:59:18] [INFO] CL=1.34919  CD=0.07595  CMz=0.27573  rms[Rho]=-6.028
+[2026-04-11 12:59:18] [INFO] flap=+7.0deg  AoA=+18.0deg
+[2026-04-11 12:59:18] [INFO] Running SU2: AoA=+18.0deg  restart=True
+[2026-04-11 13:14:18] [ERROR] SU2 timeout: AoA=+18.0deg
+[2026-04-11 13:14:18] [WARNING] SU2 process error — stopping AoA sweep for flap=+7.0deg
+[2026-04-11 13:14:18] [INFO] flap=+7.0deg  AoA=-1.0deg
+[2026-04-11 13:14:18] [INFO] Running SU2: AoA=-1.0deg  restart=False
+[2026-04-11 13:15:59] [INFO] SU2 complete: AoA=-1.0deg
+[2026-04-11 13:15:59] [INFO] CL=-0.41638  CD=0.03898  CMz=-0.17384  rms[Rho]=-6.038
+[2026-04-11 13:15:59] [INFO] flap=+7.0deg  AoA=-2.0deg
+[2026-04-11 13:15:59] [INFO] Running SU2: AoA=-2.0deg  restart=True
+[2026-04-11 13:17:19] [INFO] SU2 complete: AoA=-2.0deg
+[2026-04-11 13:17:19] [INFO] CL=-0.56707  CD=0.03155  CMz=-0.21487  rms[Rho]=-6.190
+[2026-04-11 13:17:19] [INFO] flap=+7.0deg  AoA=-3.0deg
+[2026-04-11 13:17:19] [INFO] Running SU2: AoA=-3.0deg  restart=True
+[2026-04-11 13:18:45] [INFO] SU2 complete: AoA=-3.0deg
+[2026-04-11 13:18:45] [INFO] CL=-0.65024  CD=0.04043  CMz=-0.24484  rms[Rho]=-6.161
+[2026-04-11 13:18:45] [INFO] flap=+7.0deg  AoA=-4.0deg
+[2026-04-11 13:18:45] [INFO] Running SU2: AoA=-4.0deg  restart=True
+[2026-04-11 13:20:29] [INFO] SU2 complete: AoA=-4.0deg
+[2026-04-11 13:20:29] [INFO] CL=-0.56269  CD=0.03503  CMz=-0.17889  rms[Rho]=-6.019
+[2026-04-11 13:20:29] [INFO] flap=+7.0deg  AoA=-5.0deg
+[2026-04-11 13:20:29] [INFO] Running SU2: AoA=-5.0deg  restart=True
+[2026-04-11 13:21:39] [INFO] SU2 complete: AoA=-5.0deg
+[2026-04-11 13:21:39] [INFO] CL=-0.67044  CD=0.03800  CMz=-0.20701  rms[Rho]=-6.016
+[2026-04-11 13:21:39] [INFO] flap=+7.0deg  AoA=-6.0deg
+[2026-04-11 13:21:39] [INFO] Running SU2: AoA=-6.0deg  restart=True
+[2026-04-11 13:23:13] [INFO] SU2 complete: AoA=-6.0deg
+[2026-04-11 13:23:13] [INFO] CL=-0.75466  CD=0.04072  CMz=-0.22610  rms[Rho]=-6.049
+[2026-04-11 13:23:13] [INFO] flap=+7.0deg  AoA=-7.0deg
+[2026-04-11 13:23:13] [INFO] Running SU2: AoA=-7.0deg  restart=True
+[2026-04-11 13:24:11] [INFO] SU2 complete: AoA=-7.0deg
+[2026-04-11 13:24:11] [INFO] CL=-0.83924  CD=0.04457  CMz=-0.24464  rms[Rho]=-6.002
+[2026-04-11 13:24:11] [INFO] flap=+7.0deg  AoA=-8.0deg
+[2026-04-11 13:24:11] [INFO] Running SU2: AoA=-8.0deg  restart=True
+[2026-04-11 14:20:34] [INFO] SU2 complete: AoA=-8.0deg
+[2026-04-11 14:20:34] [INFO] CL=-0.91966  CD=0.04731  CMz=-0.26015  rms[Rho]=-6.003
+[2026-04-11 14:20:34] [INFO] flap=+7.0deg  AoA=-9.0deg
+[2026-04-11 14:20:34] [INFO] Running SU2: AoA=-9.0deg  restart=True
+[2026-04-11 14:21:23] [INFO] SU2 complete: AoA=-9.0deg
+[2026-04-11 14:21:23] [INFO] CL=-1.00786  CD=0.05251  CMz=-0.28038  rms[Rho]=-6.013
+[2026-04-11 14:21:23] [INFO] flap=+7.0deg  AoA=-10.0deg
+[2026-04-11 14:21:23] [INFO] Running SU2: AoA=-10.0deg  restart=True
+[2026-04-11 14:22:28] [INFO] SU2 complete: AoA=-10.0deg
+[2026-04-11 14:22:28] [INFO] CL=-1.08142  CD=0.05594  CMz=-0.29359  rms[Rho]=-6.006
+[2026-04-11 14:22:28] [INFO] flap=+7.0deg  AoA=-11.0deg
+[2026-04-11 14:22:28] [INFO] Running SU2: AoA=-11.0deg  restart=True
+[2026-04-11 14:23:34] [INFO] SU2 complete: AoA=-11.0deg
+[2026-04-11 14:23:34] [INFO] CL=-1.15689  CD=0.06148  CMz=-0.30934  rms[Rho]=-6.010
+[2026-04-11 14:23:34] [INFO] flap=+7.0deg  AoA=-12.0deg
+[2026-04-11 14:23:34] [INFO] Running SU2: AoA=-12.0deg  restart=True
+[2026-04-11 14:24:36] [INFO] SU2 complete: AoA=-12.0deg
+[2026-04-11 14:24:36] [INFO] CL=-1.22859  CD=0.06799  CMz=-0.32438  rms[Rho]=-6.003
+[2026-04-11 14:24:36] [INFO] flap=+7.0deg  AoA=-13.0deg
+[2026-04-11 14:24:36] [INFO] Running SU2: AoA=-13.0deg  restart=True
+[2026-04-11 14:25:47] [INFO] SU2 complete: AoA=-13.0deg
+[2026-04-11 14:25:47] [INFO] CL=-1.29202  CD=0.07578  CMz=-0.33738  rms[Rho]=-6.021
+[2026-04-11 14:25:47] [INFO] flap=+7.0deg  AoA=-14.0deg
+[2026-04-11 14:25:47] [INFO] Running SU2: AoA=-14.0deg  restart=True
+[2026-04-11 14:26:49] [INFO] SU2 complete: AoA=-14.0deg
+[2026-04-11 14:26:49] [INFO] CL=-1.34779  CD=0.08449  CMz=-0.34811  rms[Rho]=-6.007
+[2026-04-11 14:26:49] [INFO] flap=+7.0deg  AoA=-15.0deg
+[2026-04-11 14:26:49] [INFO] Running SU2: AoA=-15.0deg  restart=True
+[2026-04-11 14:27:48] [INFO] SU2 complete: AoA=-15.0deg
+[2026-04-11 14:27:48] [INFO] CL=-1.39305  CD=0.09465  CMz=-0.35584  rms[Rho]=-6.015
+[2026-04-11 14:27:48] [INFO] Flap=8.0deg — generating mesh
+[2026-04-11 14:27:48] [INFO] Generating multi-element mesh
+[2026-04-11 14:27:49] [INFO] flap=+8.0deg  AoA=+0.0deg
+[2026-04-11 14:27:49] [INFO] Running SU2: AoA=+0.0deg  restart=False
+[2026-04-11 14:29:23] [INFO] SU2 complete: AoA=+0.0deg
+[2026-04-11 14:29:23] [INFO] CL=-0.33089  CD=0.04552  CMz=-0.15864  rms[Rho]=-6.018
+[2026-04-11 14:29:23] [INFO] flap=+8.0deg  AoA=+1.0deg
+[2026-04-11 14:29:23] [INFO] Running SU2: AoA=+1.0deg  restart=True

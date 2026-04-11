@@ -9,6 +9,7 @@ FAerodynamicProfileRow* AerodynamicProfileLookup::FindProfile(UDataTable* Table,
 		return nullptr;
 	}
 
+	// Ім'я рядка формується за конвенцією: "FLAP_{кут}_Deg" (наприклад "FLAP_0_Deg", "FLAP_-15_Deg")
 	FName RowName = FName(*FString::Printf(TEXT("FLAP_%d_Deg"), FlapAngle));
 	return Table->FindRow<FAerodynamicProfileRow>(RowName, TEXT("AerodynamicProfileLookup"));
 }

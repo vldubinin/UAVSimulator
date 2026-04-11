@@ -4,10 +4,6 @@ import sys
 
 print("Run XFOIL.Py")
 
-if len(sys.argv) < 6:
-    print("Error: Missing arguments.")
-    sys.exit(1)
-
 xfoil_path= sys.argv[1]
 airfoil_file_path = sys.argv[2]
 output_polar_file = sys.argv[3]
@@ -15,7 +11,7 @@ flap_position = sys.argv[4]
 flap_angle = sys.argv[5]
 
 commands = f"""
-LOAD {airfoil_file_path}
+LOAD naca0009.dat
 ppar
 n
 200
@@ -23,17 +19,17 @@ n
 
 GDES
 FLAP
-{flap_position}
+0.7
 999
 0.5
-{flap_angle}
+0.3
 exec
 
 oper
 v
 300000
 pacc
-{output_polar_file}
+output_polar_file.txt
 
 iter
 150
@@ -68,8 +64,8 @@ stdout_output, stderr_output = process.communicate(input=commands)
 print(f"XFOIL завершив роботу. Результати збережено у 'polar_results.txt'.")
 
 # Приклад читання результатів
-if os.path.exists('polar_results.txt'):
-    with open('polar_results.txt', 'r') as f:
+if os.path.exists('{output_polar_file}'):
+    with open('{output_polar_file}', 'r') as f:
         print("\nВміст файлу з результатами:")
         print(f.read())
 

@@ -18,11 +18,13 @@ void UFlightDynamicsComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// Масштабуємо час симуляції відповідно до налагоджувального множника
 	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), DebugSimulatorSpeed);
 	Owner = GetOwner();
 	if (Owner)
 	{
 		Root = Cast<UPrimitiveComponent>(Owner->GetRootComponent());
+		// Задаємо початкову швидкість у m/s → cm/s (множення на 100)
 		if (InitialSpeed > 0.f)
 		{
 			const FVector InitialVelocity = Owner->GetActorForwardVector() * (InitialSpeed * 100.0f);
@@ -30,6 +32,7 @@ void UFlightDynamicsComponent::BeginPlay()
 		}
 	}
 
+	// Виводимо початкові параметри симуляції для відлагодження
 	if (DebugConsoleLogs) UE_LOG(LogUAV, Warning, TEXT("######### СТАРТ СИМУЛЯЦІЇ #########\r\n"));
 	if (DebugConsoleLogs) UE_LOG(LogUAV, Warning, TEXT("Початкова позиція: %s"), *Root->GetComponentLocation().ToString());
 	if (DebugConsoleLogs) UE_LOG(LogUAV, Warning, TEXT("Гравітація увімкнена: %s"), Root->IsGravityEnabled() ? TEXT("Так") : TEXT("Ні"));
@@ -111,29 +114,32 @@ void UFlightDynamicsComponent::ApplyTailForceForSide(int32 Side)
 
 void UFlightDynamicsComponent::ApplyAerodynamicForceForSide(int32 Side, const FSurfaceForceParams& Params, bool bLog)
 {
-	const FVector CenterOfMass   = Root->GetCenterOfMass();
-	const FQuat   ComponentQuat  = Root->GetComponentQuat();
-	const FVector LocalOffset    = FVector(Params.ForcePointOffset.X, Side * Params.ForcePointOffset.Y, Params.ForcePointOffset.Z);
-	const FVector ForcePoint     = CenterOfMass + ComponentQuat.RotateVector(LocalOffset);
+	const FVector CenterOfMass  = Root->GetCenterOfMass();
+	const FQuat   ComponentQuat = Root->GetComponentQuat();
+	// Дзеркалюємо зміщення по Y залежно від сторони (+1 ліво, -1 право)
+	const FVector LocalOffset   = FVector(Params.ForcePointOffset.X, Side * Params.ForcePointOffset.Y, Params.ForcePointOffset.Z);
+	const FVector ForcePoint    = CenterOfMass + ComponentQuat.RotateVector(LocalOffset);
+
 	const FVector ChordDirection = FindChordDirection(ForcePoint, Params.LeadingEdgeOffset, Params.TrailingEdgeOffset, Side);
 	const FVector AirflowDir     = FindAirflowDirection(ForcePoint);
 	const float   AoA            = CalculateAoA(AirflowDir, ChordDirection);
 
-	// Drag
+	// Опір (Drag) — діє вздовж вектора набігаючого потоку
 	const float DragNewtons   = CalculateDragInNewtons(Params.CurveCd, Params.Area, AoA);
 	const float DragMagnitude = UAerodynamicPhysicsLibrary::NewtonsToKiloCentimeter(DragNewtons);
 	const FVector DragForce   = (AirflowDir * DragMagnitude) * Params.DragMultiplier;
 	if (!DisableDragForse) Root->AddForceAtLocation(DragForce, ForcePoint);
 
-	// Lift
+	// Підйомна сила (Lift) — перпендикулярна до потоку
 	FVector LiftDirection = FindLiftDirection(ForcePoint, AirflowDir);
+	// Для хвостових поверхонь підйомна сила інвертована (стабілізатор тисне вниз)
 	if (Params.bInvertLift) LiftDirection *= -1.f;
 	const float LiftNewtons   = CalculateLiftInNewtons(Params.CurveCl, Params.Area, AoA);
 	const float LiftMagnitude = UAerodynamicPhysicsLibrary::NewtonsToKiloCentimeter(LiftNewtons);
 	const FVector LiftForce   = (LiftDirection * LiftMagnitude) * Params.LiftMultiplier;
 	if (!DisableLiftForse) Root->AddForceAtLocation(LiftForce, ForcePoint);
 
-	// Debug visualization
+	// Відлагоджувальна візуалізація: фіолетова стрілка — опір, зелена — підйом, синя — потік
 	if (bDrawDebugMarkers && !DisableDragForse)
 		AerodynamicDebugRenderer::DrawForceArrow(GetWorld(), ForcePoint, DragForce, FColor::Purple, 0.01f * bDebugForceVectorSize, 4.0f, 1.0f, -1.f);
 	if (bDrawDebugMarkers && !DisableLiftForse)
@@ -152,6 +158,7 @@ float UFlightDynamicsComponent::CalculateLiftInNewtons(UCurveFloat* CurveCl, flo
 {
 	float Cl = CurveCl->GetFloatValue(AoA);
 	const float Speed = GetSpeedInMetersPerSecond();
+	// L = CL * 0.5 * ρ * V² * S
 	return Cl * ((AirDensity * (Speed * Speed)) / 2.f) * Area;
 }
 
@@ -159,33 +166,40 @@ float UFlightDynamicsComponent::CalculateDragInNewtons(UCurveFloat* CurveCd, flo
 {
 	float Cd = CurveCd->GetFloatValue(AoA);
 	const float Speed = GetSpeedInMetersPerSecond();
+	// D = CD * 0.5 * ρ * V² * S
 	return 0.5f * AirDensity * (Speed * Speed) * Cd * Area;
 }
 
 float UFlightDynamicsComponent::GetSpeedInMetersPerSecond()
 {
+	// Unreal зберігає швидкість у cm/s → ділимо на 100 для переведення в м/с
 	return GetOwner()->GetVelocity().Size() / 100.0f;
 }
 
 FVector UFlightDynamicsComponent::FindChordDirection(FVector ForcePoint, FVector LeadingEdgeOffset, FVector TrailingEdgeOffset, int32 Side)
 {
 	const FTransform& ActorTransform = Owner->GetActorTransform();
+	// Переводимо точку прикладання в локальний простір актора для коректного зміщення
 	const FVector LocalForcePoint = ActorTransform.InverseTransformPosition(ForcePoint);
 
+	// Дзеркалюємо Y кромки за стороною (+1 або -1)
 	const FVector LocalLeading  = LocalForcePoint + FVector(LeadingEdgeOffset.X,  LeadingEdgeOffset.Y  * Side, LeadingEdgeOffset.Z);
 	const FVector LocalTrailing = LocalForcePoint + FVector(TrailingEdgeOffset.X, TrailingEdgeOffset.Y * Side, TrailingEdgeOffset.Z);
 
 	const FVector WorldLeading  = ActorTransform.TransformPosition(LocalLeading);
 	const FVector WorldTrailing = ActorTransform.TransformPosition(LocalTrailing);
 
+	// Відображаємо хорду чорною лінією для відлагодження
 	if (bDrawDebugMarkers)
 		DrawDebugLine(GetWorld(), WorldLeading, WorldTrailing, FColor::Black, false, -1, 0, 0.5f * bDebugMarkersSize);
 
+	// Напрямок від задньої до передньої кромки
 	return (WorldLeading - WorldTrailing).GetSafeNormal();
 }
 
 FVector UFlightDynamicsComponent::FindAirflowDirection(FVector /*WorldOffset*/)
 {
+	// Напрямок набігаючого потоку — протилежний до вектора швидкості (зустрічний вітер)
 	const FVector ActorVelocity = Owner->GetVelocity();
 	if (ActorVelocity.IsNearlyZero()) return FVector();
 	return -ActorVelocity.GetSafeNormal();
@@ -193,6 +207,7 @@ FVector UFlightDynamicsComponent::FindAirflowDirection(FVector /*WorldOffset*/)
 
 FVector UFlightDynamicsComponent::FindLiftDirection(FVector /*WorldOffset*/, FVector AirflowDirection)
 {
+	// Підйомна сила ⊥ потоку і ⊥ осі розмаху (правому вектору крила)
 	const FVector WingRight = Root->GetRightVector();
 	FVector LiftDirection = FVector::CrossProduct(AirflowDirection, WingRight);
 	LiftDirection.Normalize();
@@ -203,6 +218,7 @@ float UFlightDynamicsComponent::CalculateAoA(FVector AirflowDirection, FVector C
 {
 	if (!Owner->GetVelocity().IsNearlyZero())
 	{
+		// arccos скалярного добутку нормалізованих векторів дає кут між ними [0, 180]
 		const float Dot = FVector::DotProduct(ChordDirection, AirflowDirection);
 		return FMath::RadiansToDegrees(FMath::Acos(Dot));
 	}
@@ -211,6 +227,7 @@ float UFlightDynamicsComponent::CalculateAoA(FVector AirflowDirection, FVector C
 
 void UFlightDynamicsComponent::LogMsg(FString Text)
 {
+	// Виводимо повідомлення на екран з тривалістю 0 (тільки поточний кадр)
 	if (GEngine && DebugUILogs)
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Black, Text);
