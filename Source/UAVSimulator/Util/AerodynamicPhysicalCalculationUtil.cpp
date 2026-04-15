@@ -16,7 +16,7 @@ void AerodynamicPhysicalCalculationUtil::GenerateAerodynamicPhysicalConfigutatio
 	{
 		FString PathToProfileFile = FindPathToProfile(Surface);
 		Surface->Profile->GetPackage();
-		TArray<FAerodynamicSurfaceStructure> SubSurfaces = Surface->SurfaceForm;
+		TArray<FAerodynamicSurfaceStructure>& SubSurfaces = Surface->SurfaceForm;
 
 		for (int32 i = 0; i < SubSurfaces.Num() - 1 && SubSurfaces.Num() > 1; i++)
 		{
@@ -32,13 +32,13 @@ void AerodynamicPhysicalCalculationUtil::GenerateAerodynamicPhysicalConfigutatio
 					RootSurface.MaxFlapAngle);
 			}
 			if (DoesAssetExist(AssetPath)) {
+				Surface->Modify();
 				AttachAssetToSurface(RootSurface, AssetPath);
 			}
 			else {
 				UE_LOG(LogUAV, Error, TEXT("GenerateAerodynamicPhysicalConfigutation: не вдалося створити ассет: '%s'."), *AssetPath);
 			}
 		}
-		break;
 	}
 }
 

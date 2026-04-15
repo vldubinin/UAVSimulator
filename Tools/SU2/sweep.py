@@ -200,6 +200,11 @@ def _finalize_history(path: Path) -> None:
 def _sweep_range(polar: Polar, flap: float, aoa_range, cfg: SweepConfig,
                  hist_path: Path, completed: Completed) -> None:
     prev_in_run = False
+    rms_quality = cfg.rms_quality
+    if flap > 25.0 or flap < -25.0:
+        rms_quality = rms_quality + 1.0
+        log("INFO", f"Rms_quality was changed to {rms_quality}")
+    
     for aoa in aoa_range:
         if (flap, aoa) in completed:
             log("INFO", f"Skip (done): flap={flap:+.1f}deg AoA={aoa:+.1f}deg")
@@ -207,8 +212,9 @@ def _sweep_range(polar: Polar, flap: float, aoa_range, cfg: SweepConfig,
             continue
 
         log("INFO", f"flap={flap:+.1f}deg  AoA={aoa:+.1f}deg")
+        
         try:
-            run_su2(aoa, cfg.core_number, cfg.rms_quality, use_restart=prev_in_run)
+            run_su2(aoa, cfg.core_number, rms_quality, use_restart=prev_in_run)
         except Exception:
             polar[flap][aoa] = None
             prev_in_run = False
@@ -223,8 +229,8 @@ def _sweep_range(polar: Polar, flap: float, aoa_range, cfg: SweepConfig,
             log("WARNING", f"Simulation failed: flap={flap:+.1f}deg AoA={aoa:+.1f}deg")
             break
 
-        if r["rms_rho"] > cfg.rms_quality:
-            log("WARNING", f"rms[Rho]={r['rms_rho']:.3f} exceeds threshold {cfg.rms_quality}, stopping AoA sweep")
+        if r["rms_rho"] > rms_quality:
+            log("WARNING", f"rms[Rho]={r['rms_rho']:.3f} exceeds threshold {rms_quality}, stopping AoA sweep")
             break
 
         polar[flap][aoa] = {"CL": r["CL"], "CD": r["CD"], "CMz": r["CMz"]}

@@ -10,7 +10,7 @@ _REPO_ROOT   = _SCRIPT_DIR.parent.parent
 # Adjust these to match the target airfoil / surface before running.
 # ---------------------------------------------------------------------------
 
-PARAMETERS =  ['C:/Users/DubakusPC/Documents/Unreal Projects/UAVSimulator/Content/WingProfile/NACA_0009/naca0009.dat', 'TailHorizontal', '6', '0.8', '-45', '45', '1', '-6', 'true']
+PARAMETERS =  ['C:/Users/KittyPC/Documents/Unreal Projects/UAVSimulator/Content/WingProfile/NACA_2412/naca2412.dat', 'Wing', '4', '0', '0', '0', '1', '-6', 'true']
 
 if __name__ == "__main__":
     target = _SCRIPT_DIR / "execute_su2_calculation.py"
