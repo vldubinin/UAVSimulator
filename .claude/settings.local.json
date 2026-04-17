@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(python geometry.py)",
+      "Bash(py -3 -c ' *)",
+      "Read(//c/Users/KittyPC/AppData/Local/Programs/**)",
+      "Bash(ls /c/Python*)",
+      "Bash(cmd.exe /c \"where python\")",
+      "Bash(python3 -c ' *)",
+      "Bash(cmd.exe *)",
+      "Bash(powershell.exe *)"
+    ]
+  }
+}

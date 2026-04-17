@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(grep -h \"^import \\\\|^from \" \"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\\\\Tools\\\\SU2\"/*.py)",
-      "Bash(grep *)",
-      "Bash(ls -la \"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\\\\Tools\\\\SU2\"/extrapolated* \"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\\\\Tools\\\\SU2\"/history*)"
-    ]
-  }
-}
