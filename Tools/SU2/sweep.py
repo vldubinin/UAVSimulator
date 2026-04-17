@@ -46,11 +46,26 @@ def history_path(cfg: SweepConfig) -> Path:
     return _BASE_DIR / f"history_{_name_stem(cfg)}.data"
 
 
-def _flap_sweep_order(cfg: SweepConfig):
-    return (
-        np.arange(0,              cfg.max_flap + cfg.flap_step * 0.5,  cfg.flap_step).tolist() +
-        np.arange(-cfg.flap_step, cfg.min_flap - cfg.flap_step * 0.5, -cfg.flap_step).tolist()
-    )
+def _flap_sweep_order(cfg: SweepConfig) -> list[float]:
+    if cfg.min_flap == cfg.max_flap:
+        return [cfg.min_flap]
+
+    # Якщо діапазон повністю від'ємний (наприклад, [-45, -40])
+    if cfg.max_flap <= 0:
+        # Йдемо від max_flap (ближче до 0) вниз до min_flap
+        return np.arange(cfg.max_flap, cfg.min_flap - cfg.flap_step * 0.5, -cfg.flap_step).tolist()
+    
+    # Якщо діапазон повністю додатний (наприклад, [40, 45])
+    if cfg.min_flap >= 0:
+        # Йдемо від min_flap (ближче до 0) вгору до max_flap
+        return np.arange(cfg.min_flap, cfg.max_flap + cfg.flap_step * 0.5, cfg.flap_step).tolist()
+    
+    # Якщо діапазон перетинає нуль (наприклад, [-10, 10])
+    # Класична логіка: від 0 вгору, потім від -step вниз
+    pos_sweep = np.arange(0, cfg.max_flap + cfg.flap_step * 0.5, cfg.flap_step).tolist()
+    neg_sweep = np.arange(-cfg.flap_step, cfg.min_flap - cfg.flap_step * 0.5, -cfg.flap_step).tolist()
+    
+    return pos_sweep + neg_sweep
 
 
 def _find_meta_offset(path: Path) -> int:
@@ -214,7 +229,7 @@ def _sweep_range(polar: Polar, flap: float, aoa_range, cfg: SweepConfig,
         log("INFO", f"flap={flap:+.1f}deg  AoA={aoa:+.1f}deg")
         
         try:
-            run_su2(aoa, cfg.core_number, rms_quality, use_restart=prev_in_run)
+            run_su2(aoa, cfg.core_number, cfg.hinge_location, rms_quality, use_restart=prev_in_run)
         except Exception:
             polar[flap][aoa] = None
             prev_in_run = False

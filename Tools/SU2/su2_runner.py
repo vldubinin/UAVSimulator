@@ -26,10 +26,7 @@ REYNOLDS_NUMBER= 1000000
 REF_LENGTH= 1.0
 REF_AREA= 1.0
 
-% --- Boundaries ---
-MARKER_HEATFLUX= ( airfoil, 0.0 )
-MARKER_FAR= ( farfield )
-MARKER_MONITORING= ( airfoil )
+{boundaries_config}
 
 % --- Numerics ---
 CONV_NUM_METHOD_FLOW= ROE
@@ -64,15 +61,29 @@ CONV_STARTITER= 10
 MESH_FILENAME= airfoil.su2
 MESH_FORMAT= SU2
 TABULAR_FORMAT= CSV
+OUTPUT_FILES= (PARAVIEW, SURFACE_PARAVIEW)
+VOLUME_FILENAME= flow
+SURFACE_FILENAME= surface_flow
 CONV_FILENAME= history
 HISTORY_OUTPUT= (ITER, RMS_RES, AERO_COEFF)
 """
 
 
-def run_su2(aoa: float, core_number: int, rms_quality: float, use_restart: bool = False) -> None:
+def run_su2(aoa: float, core_number: int, hinge_location: float, rms_quality: float, use_restart: bool = False) -> None:
     log("INFO", f"Running SU2: AoA={aoa:+.1f}deg  restart={use_restart}")
+    if hinge_location != 0:
+        boundaries = """% --- Boundaries ---
+        MARKER_HEATFLUX= ( wing, 0.0, flap, 0.0 )
+        MARKER_FAR= ( farfield )
+        MARKER_MONITORING= ( wing, flap )"""
+    else:
+        boundaries = """% --- Boundaries ---
+        MARKER_HEATFLUX= ( airfoil, 0.0 )
+        MARKER_FAR= ( farfield )
+        MARKER_MONITORING= ( airfoil )"""
+    
     _CONFIG_FILE.write_text(
-        _CONFIG_TEMPLATE.format(restart="YES" if use_restart else "NO", aoa=aoa, rms_quality=rms_quality),
+        _CONFIG_TEMPLATE.format(restart="YES" if use_restart else "NO", aoa=aoa, rms_quality=rms_quality, boundaries_config=boundaries),
         encoding="utf-8",
     )
     cmd = ["mpiexec.exe", "-n", str(core_number), _SU2_EXE, "airfoil.cfg"]
