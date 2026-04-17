@@ -21,6 +21,10 @@ def load_airfoil_dat(file_path: str) -> Coords:
 
 
 def split_and_deflect(coords: Coords, hinge_x: float, flap_angle_deg: float, gap: float = 0.015) -> Tuple[Coords, Coords]:
+    # hinge_x <= 0 means no flap — return the full airfoil as the wing
+    if hinge_x <= 0.0:
+        return list(coords), []
+
     arr = np.array(coords)
     near = arr[np.abs(arr[:, 0] - hinge_x) < 0.05]
     hinge_y = float(np.mean(near[:, 1])) if len(near) > 0 else 0.0
@@ -57,7 +61,8 @@ def split_and_deflect(coords: Coords, hinge_x: float, flap_angle_deg: float, gap
 
 
 def generate_mesh(wing_coords: Coords, flap_coords: Coords) -> None:
-    log("INFO", "Generating multi-element mesh")
+    has_flap = bool(flap_coords)
+    log("INFO", f"Generating {'multi-element' if has_flap else 'single-element'} mesh")
     gmsh.initialize()
     gmsh.option.setNumber("General.Terminal", 1)
     gmsh.model.add("airfoil")
@@ -69,10 +74,17 @@ def generate_mesh(wing_coords: Coords, flap_coords: Coords) -> None:
         return curve, gmsh.model.geo.addCurveLoop([curve])
 
     wing_curve, wing_loop = _add_closed_spline(wing_coords)
-    flap_curve, flap_loop = _add_closed_spline(flap_coords)
+
+    bl_curves = [wing_curve]
+    cutouts   = [wing_loop]
+
+    if has_flap:
+        flap_curve, flap_loop = _add_closed_spline(flap_coords)
+        bl_curves.append(flap_curve)
+        cutouts.append(flap_loop)
 
     gmsh.model.mesh.field.add("BoundaryLayer", 1)
-    gmsh.model.mesh.field.setNumbers(1, "CurvesList", [wing_curve, flap_curve])
+    gmsh.model.mesh.field.setNumbers(1, "CurvesList", bl_curves)
     gmsh.model.mesh.field.setNumber(1, "Size", 0.00002)
     gmsh.model.mesh.field.setNumber(1, "Ratio", 1.15)
     gmsh.model.mesh.field.setNumber(1, "Thickness", 0.015)
@@ -86,12 +98,12 @@ def generate_mesh(wing_coords: Coords, flap_coords: Coords) -> None:
     arc2 = gmsh.model.geo.addCircleArc(far2, center, far1)
     farfield_loop = gmsh.model.geo.addCurveLoop([arc1, arc2])
 
-    surf = gmsh.model.geo.addPlaneSurface([farfield_loop, wing_loop, flap_loop])
+    surf = gmsh.model.geo.addPlaneSurface([farfield_loop] + cutouts)
     gmsh.model.geo.synchronize()
 
-    gmsh.model.addPhysicalGroup(1, [wing_curve, flap_curve], name="airfoil")
-    gmsh.model.addPhysicalGroup(1, [arc1, arc2],             name="farfield")
-    gmsh.model.addPhysicalGroup(2, [surf],                   name="fluid")
+    gmsh.model.addPhysicalGroup(1, bl_curves,        name="airfoil")
+    gmsh.model.addPhysicalGroup(1, [arc1, arc2],     name="farfield")
+    gmsh.model.addPhysicalGroup(2, [surf],            name="fluid")
 
     gmsh.model.mesh.generate(2)
     gmsh.write(_MESH_FILE)

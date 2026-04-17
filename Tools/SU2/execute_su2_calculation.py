@@ -9,6 +9,7 @@ from logger import log
 from geometry import load_airfoil_dat
 from sweep import SweepConfig, history_path, load_history, build_completed_from_meta, run_polar_sweep, extrapolate_and_save
 from su2_unreal_import import create_unreal_assets
+from visualise_geometry import visualise_geometry
 
 # ---------------------------------------------------------------------------
 # Usage:
@@ -61,6 +62,7 @@ if __name__ == "__main__":
     log("INFO", f"Starting polar sweep. Arguments: {sys.argv[1:]}")
 
     base_coords = load_airfoil_dat(cfg.profile_path)
+    visualise_geometry(base_coords, cfg)
     hist_path   = history_path(cfg)
 
     if cfg.resume:
