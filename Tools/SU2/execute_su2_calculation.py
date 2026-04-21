@@ -65,13 +65,20 @@ if __name__ == "__main__":
     visualise_geometry(base_coords, cfg)
     hist_path   = history_path(cfg)
 
+    skip_sweep = False
+
     if cfg.resume:
         polar, meta = load_history(hist_path)
         if meta is not None:
             log("INFO", f"Resuming: last flap={meta['last_flap']:.1f}deg AoA={meta['last_aoa']:.1f}deg "
                         f"status={meta['status']} — {hist_path.name}")
-            completed = build_completed_from_meta(cfg, meta["last_flap"], meta["last_aoa"])
-            log("INFO", f"{len(completed)} conditions will be skipped")
+            if meta.get("status") == "Completed":
+                log("INFO", "Sweep already completed — skipping simulation")
+                skip_sweep = True
+                completed = set()
+            else:
+                completed = build_completed_from_meta(cfg, meta["last_flap"], meta["last_aoa"])
+                log("INFO", f"{len(completed)} conditions will be skipped")
         else:
             completed = set()
             log("INFO", f"No resume metadata found — fresh start — {hist_path.name}")
@@ -79,7 +86,8 @@ if __name__ == "__main__":
         polar, completed = {}, set()
         log("INFO", f"Fresh start — {hist_path.name}")
 
-    polar     = run_polar_sweep(base_coords, cfg, polar, completed)
+    if not skip_sweep:
+        polar = run_polar_sweep(base_coords, cfg, polar, completed)
     json_path = extrapolate_and_save(polar, cfg)
 
     create_unreal_assets(
