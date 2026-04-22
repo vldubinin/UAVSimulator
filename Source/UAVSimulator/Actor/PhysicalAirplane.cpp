@@ -103,6 +103,9 @@ void APhysicalAirplane::Tick(float DeltaTime)
 				? ForceN / (AirDensity * SpeedMs * SpanM)
 				: 0.0f;
 
+			UE_LOG(LogTemp, Warning, TEXT("Surface: %s | ForceN: %f | SpeedMs: %f | SpanM: %f | Calc Gamma: %f"),
+				*Surface->GetName(), ForceN, SpeedMs, SpanM, Gamma);
+
 			const FVector SurfaceCenter = Surface->GetComponentLocation();
 			const FVector RightDir      = GetActorRightVector();
 
@@ -194,9 +197,9 @@ void APhysicalAirplane::UpdateVortexWake()
 			}
 		};
 
-		// З кореня скидається -Gamma, з кінцівки скидається +Gamma
-		TryAddNode(i * 2,     BV.StartPoint, -BV.Gamma);
-		TryAddNode(i * 2 + 1, BV.EndPoint,    BV.Gamma);
+		// З кореня скидається +Gamma, з кінцівки скидається -Gamma (правило правої руки: сегмент іде Root→Tip)
+		TryAddNode(i * 2,     BV.StartPoint,  BV.Gamma);
+		TryAddNode(i * 2 + 1, BV.EndPoint,   -BV.Gamma);
 	}
 }
 
@@ -208,7 +211,7 @@ void APhysicalAirplane::SendWakeDataToNiagara()
 	TArray<float>   FlatWakeGammas;
 
 	int32 TotalNodes = 0;
-	for (const auto& Line : VortexWakeLines) TotalNodes += Line.Num();
+	for (const auto& Line : VortexWakeLines) TotalNodes += Line.Num() + 1;
 	FlatWakePositions.Reserve(TotalNodes);
 	FlatWakeGammas.Reserve(TotalNodes);
 
@@ -218,6 +221,11 @@ void APhysicalAirplane::SendWakeDataToNiagara()
 		{
 			FlatWakePositions.Add(Node.Position);
 			FlatWakeGammas.Add(Node.Gamma);
+		}
+		if (Line.Num() > 0)
+		{
+			FlatWakePositions.Add(Line.Last().Position + FVector(0, 0, 100000.0f));
+			FlatWakeGammas.Add(0.0f);
 		}
 	}
 

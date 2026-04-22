@@ -81,7 +81,8 @@ for (int i = 1; i < ArraySize; i++) {
     float r3 = pow(rLen + CoreRadius, 3);
     
     float CurrentGamma; WakeGammas.Get(i, CurrentGamma);
-    InducedVelocity += (CurrentGamma / 12.56637f) * (crossProd / r3);
+    float GammaCm = CurrentGamma * 10000.0f; // SI (m^2/s) -> UE (cm^2/s)
+    InducedVelocity += (GammaCm / 12.56637f) * (crossProd / r3);
 }
 
 TotalInducedVelocity = InducedVelocity;```

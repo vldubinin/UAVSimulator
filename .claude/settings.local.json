@@ -9,7 +9,9 @@
       "Bash(cmd.exe /c \"where python\")",
       "Bash(python3 -c ' *)",
       "Bash(cmd.exe *)",
-      "Bash(powershell.exe *)"
+      "Bash(powershell.exe *)",
+      "Bash(xargs grep *)",
+      "Bash(xargs head *)"
     ]
   }
 }
