@@ -10,9 +10,9 @@ public class UAVSimulator : ModuleRules
 
         OptimizeCode = CodeOptimization.Never;
 
-        PublicDependencyModuleNames.AddRange(new string[] { 
+        PublicDependencyModuleNames.AddRange(new string[] {
 			"Core", "CoreUObject", "Engine", "InputCore", "AirfoilImporter",
-            "RenderCore", "RHI", "OpenCVHelper", "OpenCV"
+            "RenderCore", "RHI", "OpenCVHelper", "OpenCV", "Niagara"
         });
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "AssetTools", "UnrealEd", "PythonScriptPlugin" });

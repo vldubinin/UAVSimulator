@@ -9,10 +9,13 @@
 #include "UAVSimulator/Util/AerodynamicPhysicalCalculationUtil.h"
 #include "UAVSimulator/Entity/AerodynamicForce.h"
 #include "UAVSimulator/Entity/ControlInputState.h"
+#include "UAVSimulator/Entity/VortexEntities.h"
 #include "UAVSimulator/Components/UAVCameraComponent.h"
 #include "UAVSimulator/Components/UAVPhysicsStateComponent.h"
 
 #include "PhysicalAirplane.generated.h"
+
+class UNiagaraComponent;
 
 UCLASS()
 class UAVSIMULATOR_API APhysicalAirplane : public APawn
@@ -83,6 +86,22 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Computer Vision")
 	UTexture2D* GetCameraOutputTexture() const;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VLM",
+		meta = (ToolTip = "Компонент Niagara для візуалізації потоку"))
+	UNiagaraComponent* FlowVisualizer;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VLM",
+		meta = (ToolTip = "Максимальна кількість вузлів в одній лінії вихорового сліду."))
+	int32 MaxWakeLength = 100;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VLM",
+		meta = (ToolTip = "Мінімальна відстань (см) між вузлами сліду."))
+	float MinWakeDistance = 50.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VLM",
+		meta = (ToolTip = "Щільність повітря в кг/м³ для розрахунку циркуляції Γ."))
+	float AirDensity = 1.225f;
+
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Computer Vision", meta = (AllowPrivateAccess = "true"))
 	UUAVCameraComponent* CameraComp;
@@ -95,4 +114,19 @@ private:
 
 	float ThrottlePercent = 1.f;
 	FControlInputState ControlState;
+
+	/** Bound vortex filaments rebuilt each tick from active surfaces. */
+	TArray<FBoundVortex> CurrentBoundVortices;
+
+	/**
+	 * Trailing vortex wake lines shed from each surface.
+	 * Outer index = wake line (2 per surface: root + tip); inner = sequential nodes.
+	 */
+	TArray<TArray<FTrailingVortexNode>> VortexWakeLines;
+
+	/** Скидає нові вузли вихорового сліду з кінців кожного приєднаного вихору. */
+	void UpdateVortexWake();
+
+	/** Розгладжує VortexWakeLines у паралельні масиви та передає їх у FlowVisualizer. */
+	void SendWakeDataToNiagara();
 };
