@@ -6,6 +6,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "NiagaraComponent.h"
 #include "NiagaraDataInterfaceArrayFunctionLibrary.h"
+#include "NiagaraSystem.h"
 
 APhysicalAirplane::APhysicalAirplane()
 {
@@ -54,6 +55,26 @@ void APhysicalAirplane::BeginPlay()
 	for (UAerodynamicSurfaceSC* Surface : Surfaces)
 	{
 		Surface->OnConstruction(CoM, ControlSurfaces);
+	}
+
+	if (FlowVisualizerSystem)
+	{
+		for (UAerodynamicSurfaceSC* Surface : Surfaces)
+		{
+			if (!Surface->GetName().Contains(TEXT("Wing"))) continue;
+
+			UNiagaraComponent* NiagaraComp = NewObject<UNiagaraComponent>(this);
+			NiagaraComp->SetAsset(FlowVisualizerSystem);
+			NiagaraComp->SetupAttachment(Surface);
+			NiagaraComp->RegisterComponent();
+
+			float SpanCm = 0.0f;
+			for (const auto& Form : Surface->SurfaceForm) { SpanCm += FMath::Abs(Form.Offset.Y); }
+			if (Surface->Mirror) SpanCm *= 2.0f;
+
+			NiagaraComp->SetFloatParameter(FName("SurfaceSpan"), SpanCm);
+			ActiveFlowVisualizers.Add(NiagaraComp);
+		}
 	}
 }
 
@@ -219,7 +240,7 @@ void APhysicalAirplane::UpdateVortexWake()
 
 void APhysicalAirplane::SendWakeDataToNiagara()
 {
-	if (!FlowVisualizer) return;
+	if (ActiveFlowVisualizers.Num() == 0) return;
 
 	TArray<FVector> FlatWakePositions;
 	TArray<float>   FlatWakeGammas;
@@ -243,6 +264,9 @@ void APhysicalAirplane::SendWakeDataToNiagara()
 		}
 	}
 
-	UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(FlowVisualizer, FName("WakePositions"), FlatWakePositions);
-	UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloat(FlowVisualizer, FName("WakeGammas"),    FlatWakeGammas);
+	for (UNiagaraComponent* Visualizer : ActiveFlowVisualizers)
+	{
+		UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(Visualizer, FName("WakePositions"), FlatWakePositions);
+		UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloat(Visualizer, FName("WakeGammas"),    FlatWakeGammas);
+	}
 }

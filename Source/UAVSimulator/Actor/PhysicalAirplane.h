@@ -16,6 +16,7 @@
 #include "PhysicalAirplane.generated.h"
 
 class UNiagaraComponent;
+class UNiagaraSystem;
 
 UCLASS()
 class UAVSIMULATOR_API APhysicalAirplane : public APawn
@@ -87,8 +88,11 @@ public:
 	UTexture2D* GetCameraOutputTexture() const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VLM",
-		meta = (ToolTip = "Компонент Niagara для візуалізації потоку"))
-	UNiagaraComponent* FlowVisualizer;
+		meta = (ToolTip = "Шаблон Niagara системи для генерації на крилах"))
+	class UNiagaraSystem* FlowVisualizerSystem;
+
+	UPROPERTY(Transient)
+	TArray<UNiagaraComponent*> ActiveFlowVisualizers;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VLM",
 		meta = (ToolTip = "Максимальна кількість вузлів в одній лінії вихорового сліду."))
