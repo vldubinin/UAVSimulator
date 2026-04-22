@@ -107,11 +107,11 @@ void APhysicalAirplane::Tick(float DeltaTime)
 				*Surface->GetName(), ForceN, SpeedMs, SpanM, Gamma);
 
 			const FVector SurfaceCenter = Surface->GetComponentLocation();
-			const FVector RightDir      = GetActorRightVector();
+			const FVector RightDir      = Surface->GetRightVector();
 
 			// Еліптичний розподіл циркуляції по розмаху (дискретна несуча лінія)
 			const float GammaMax  = Gamma * (4.0f / UE_PI);
-			const int32 NumSegments = 10;
+			const int32 NumSegments = FMath::Clamp(FMath::RoundToInt(SpanM / 0.5f), 2, 20);
 			const float SegmentLen  = SpanCm / NumSegments;
 			for (int32 j = 0; j < NumSegments; j++)
 			{
