@@ -1,212 +1,87 @@
-# Niagara VLM Flow Visualization — Setup Guide
+# Niagara VLM Flow Visualization — Setup Guide (Виправлена версія)
 
-Цей документ описує покроковe налаштування Niagara System для візуалізації вихорового сліду на основі даних, що передаються з `FlightDynamicsComponent` кожен тік.
-
-C++ сторона вже готова: масиви `WakePositions` і `WakeGammas` передаються через `UNiagaraDataInterfaceArrayFunctionLibrary` у `SendWakeDataToNiagara()`.
+Цей документ описує покрокове налаштування Niagara System для фізично коректної візуалізації вихорового сліду (Vortex Lattice Method). Система використовує GPU для виконання рівняння Біо-Савара над десятками тисяч частинок.
 
 ---
 
-## Крок 1 — Створення Niagara System
+## Крок 1 — Створення базової Niagara System
 
-1. У Content Browser: **правий клік → FX → Niagara System**
-2. Обери **"New system from selected emitter(s)"** → знайди **"Fountain"** або **"Simple Sprite Burst"** як базу (потім замінимо рендерер на стрічки)
-3. Назви актив **`NS_VLMFlow`** і збережи у `Content/FX/`
-4. Відкрий подвійним кліком — відкриється **Niagara Editor**
-
----
-
-## Крок 2 — Налаштування емітера
-
-У панелі **Emitter** (ліва колонка):
-
-1. **Emitter Properties → Sim Target**: залиш `CPUSim` — дані приходять з CPU кожен тік
-2. **Spawn Rate**: встанови `0` — частинки не спавняться автоматично; позиції ми задаємо вручну через масив
-3. **Spawn Burst Instantaneous**: також `0`
-
-> Ми керуватимемо кількістю частинок вручну через кількість вузлів у `WakePositions`.
+1. У Content Browser: **правий клік → FX → Niagara System**.
+2. Обери **"New system from selected emitter(s)"** → знайди шаблон **"Fountain"**, додай його і натисни Finish.
+3. Назви актив **`NS_VLMFlow`** і збережи його у своїй папці. Відкрий файл.
 
 ---
 
-## Крок 3 — Додавання User Parameters (змінні-масиви)
+## Крок 2 — Переведення на GPU (Критично для продуктивності)
 
-У панелі **Parameters** (права колонка) → вкладка **User**:
-
-1. Натисни **"+"** → **Array → Vector**
-   - Назва: `WakePositions`
-   - Тип: `Vector Array` (`float3[]`)
-
-2. Натисни **"+"** → **Array → Float**
-   - Назва: `WakeGammas`
-   - Тип: `Float Array` (`float[]`)
-
-> **Важливо:** імена мають збігатися **точно** з рядками у `SendWakeDataToNiagara()`:
-> ```cpp
-> FName("WakePositions")
-> FName("WakeGammas")
-> ```
+У панелі **Emitter** (центральне вікно):
+1. Натисни на помаранчевий вузол **Emitter Properties**.
+2. У панелі налаштувань (Selection) знайди **Sim Target** і зміни `CPUSim` на **`GPUCompute Sim`**.
+3. Прокрути нижче до розділу **Bounds**.
+4. Зміни `Calculate Bounds Mode` на **`Fixed`**.
+5. У `Fixed Bounds` впишіть великі значення: Min `(-10000, -10000, -10000)`, Max `(10000, 10000, 10000)`. *(Це запобігає зникненню частинок, коли ви відвертаєте камеру)*.
+6. Переконайся, що галочка **Local Space** знята.
 
 ---
 
-## Крок 4 — Particle Spawn: ініціалізація позицій
+## Крок 3 — Налаштування спавну "повітря"
 
-У секції **Particle Spawn** додай модуль **"Initialize Particle"**:
+У зеленій секції **Emitter Update**:
+1. Видали модуль `Spawn Burst Instantaneous` (якщо є).
+2. Залиш або додай `Spawn Rate` і встанови значення **`15000`** (або більше).
 
-- **Position**: прив'яжи до `User.WakePositions[Particles.UniqueID]`
-  - Для цього: клікни на поле Position → **"Link Input"** → `User.WakePositions` → використай індекс `Particles.UniqueID`
-
-Це розмістить кожну частинку точно у відповідному вузлі сліду при народженні.
+У помаранчевій секції **Particle Spawn**:
+1. Натисни `+`, знайдіть і додай **Shape Location**.
+2. У його налаштуваннях обери `Shape Primitive` -> **Box**.
+3. Встанови `Box Size` на `(5.0, 1500.0, 500.0)` — це створить стіну частинок попереду літака.
+4. Встанови `Offset` на `(500.0, 0.0, 0.0)` (відсуваємо спавн на 5 метрів вперед).
+5. У модулі `Initialize Particle` встанови `Lifetime` на `Random` (від `2.0` до `5.0`), а `Sprite Size` на `5.0` або `10.0`.
 
 ---
 
-## Крок 5 — Particle Update: Custom HLSL модуль (Biot-Savart)
+## Крок 4 — Створення User Parameters (зв'язок з C++)
 
-У секції **Particle Update**:
+У панелі **Parameters** (User Parameters) додай через `+`:
+1. **Array -> Vector**: Назви `WakePositions`.
+2. **Array -> Float**: Назви `WakeGammas`.
+3. **Float**: Назви `CoreRadius` і задай значення за замовчуванням `10.0`.
 
-1. Натисни **"+"** → **"Scratch Pad Module"** або **"Custom HLSL"**
-2. Назви модуль `BiotSavart_InducedVelocity`
+---
 
-### Вхідні параметри модуля
+## Крок 5 — Модуль Custom HLSL (Біо-Савар)
 
-Додай у **Inputs** цього модуля:
-
-| Назва | Тип |
-|---|---|
-| `ParticlePosition` | `Vector (float3)` |
-| `ArraySize` | `Int` |
-| `WakePositions` | `Array<Vector>` |
-| `WakeGammas` | `Array<Float>` |
-| `CoreRadius` | `Float` |
-
-Прив'яжи:
-- `ParticlePosition` → `Particles.Position`
-- `ArraySize` → `length(User.WakePositions)` або через окремий User Int параметр
-- `WakePositions` → `User.WakePositions`
-- `WakeGammas` → `User.WakeGammas`
-- `CoreRadius` → константа `10.0` (або User Float параметр для тюнінгу)
-
-### HLSL код
+У синій секції **Particle Update**:
+1. Видали `Gravity Force` та `Drag`.
+2. Натисни `+` -> додай **New Scratch Pad Module**. Відкриється редактор внизу.
+3. У вузлі **Map Get** (вхідні дані) створи 4 змінні. Обов'язково в панелі їх налаштувань зміни **Namespace** на **`Module`**!
+   - `ParticlePosition` (Тип: Position або Vector 3D)
+   - `CoreRadius` (Тип: Float)
+   - `WakePositions` (Тип: Vector 3D Array)
+   - `WakeGammas` (Тип: Float Array)
+4. У вузлі **Map Set** (вихідні дані) створи змінну. Переконайся, що її Namespace також стоїть **`Module`**!
+   - `TotalInducedVelocity` (Тип: Vector 3D)
+5. Додай між ними вузол **Custom HLSL**, з'єднай піни і встав цей виправлений код:
 
 ```hlsl
-float3 TotalInducedVelocity = float3(0.0, 0.0, 0.0);
+float3 InducedVelocity = float3(0.0f, 0.0f, 0.0f);
 
-for (int i = 1; i < ArraySize; i++)
-{
-    float3 PosA = WakePositions[i - 1];
-    float3 PosB = WakePositions[i];
+int ArraySize;
+WakePositions.Length(ArraySize);
 
-    // Захист від з'єднання сегментів різних ліній сліду (різні крила/хвіст)
-    // у плоскому масиві вони розташовані підряд, але фізично далеко одне від одного
-    if (distance(PosB, PosA) > 500.0)
-    {
-        continue;
-    }
-
-    // Вектор сегменту вихорової нитки
-    float3 dl = PosB - PosA;
-
-    // Вектор від початку сегменту до точки спостереження
-    float3 r = ParticlePosition - PosA;
-
+for (int i = 1; i < ArraySize; i++) {
+    float3 P1; WakePositions.Get(i - 1, P1);
+    float3 P2; WakePositions.Get(i, P2);
+    
+    float3 dl = P2 - P1;
+    if (length(dl) > 500.0f) continue; // Розрив між крилами
+    
+    float3 r = ParticlePosition - P1;
     float3 crossProd = cross(dl, r);
-    float  rLen      = length(r);
-
-    // Знаменник з CoreRadius для уникнення сингулярності при rLen → 0
-    float r3 = pow(rLen + CoreRadius, 3.0);
-
-    // Закон Біо-Савара: dV = (Γ / 4π) * (dl × r) / |r|³
-    // 1 / (4π) ≈ 1 / 12.56637
-    TotalInducedVelocity += (WakeGammas[i] / 12.56637) * (crossProd / r3);
+    float rLen = length(r);
+    float r3 = pow(rLen + CoreRadius, 3);
+    
+    float CurrentGamma; WakeGammas.Get(i, CurrentGamma);
+    InducedVelocity += (CurrentGamma / 12.56637f) * (crossProd / r3);
 }
-```
 
-### Вихідний параметр
-
-Додай у **Outputs** модуля:
-
-| Назва | Тип |
-|---|---|
-| `InducedVelocity` | `Vector (float3)` |
-
-Останній рядок у HLSL:
-```hlsl
-InducedVelocity = TotalInducedVelocity;
-```
-
----
-
-## Крок 6 — Застосування індукованої швидкості до частинок
-
-Після модуля `BiotSavart_InducedVelocity` у секції **Particle Update** додай ще один **"Custom HLSL"** або використай вбудований **"Add Velocity"**:
-
-**Варіант A — через вбудований модуль "Add Velocity":**
-- Додай **Add Velocity**
-- У поле **Velocity** встав вивід `InducedVelocity` від попереднього модуля
-
-**Варіант B — через Custom HLSL (точніший контроль):**
-```hlsl
-// ScaleFactor дозволяє тюнити силу візуального ефекту незалежно від фізики
-Particles.Velocity += InducedVelocity * ScaleFactor;
-```
-де `ScaleFactor` — User Float параметр (рекомендоване початкове значення: `0.1`).
-
----
-
-## Крок 7 — Рендерер: Ribbon (стрічки)
-
-Щоб слід виглядав як суцільні лінії потоку, а не окремі спрайти:
-
-1. У **Render** секції: видали **Sprite Renderer**
-2. Додай **Ribbon Renderer**
-3. Налаштуй:
-   - **Ribbon Link Order**: `Particles.UniqueID`
-   - **Width**: `2.0–5.0` (або прив'яжи до `abs(User.WakeGammas[i])` для варіації товщини за силою вихору)
-   - **Material**: створи простий матеріал з `Unlit + Translucent`, колір прив'яжи до градієнта за Gamma (синій → червоний)
-
----
-
-## Крок 8 — Підключення у Blueprint літака (BP_UAV)
-
-1. Відкрий **BP_UAV** у Blueprint Editor
-2. У панелі **Components** знайди **`FlightDynamicsComponent`**
-3. У **Details** панелі → секція **"Aircraft | VLM"** → поле **`Flow Visualizer`**
-4. Натисни **"+"** праворуч → додай новий компонент **Niagara System**:
-   - **Niagara System Asset**: обери `NS_VLMFlow`
-5. Перетягни цей новий **NiagaraComponent** у слот **`Flow Visualizer`**
-
-**Або через Blueprint вузли (у `BeginPlay` графі BP_UAV):**
-```
-[BeginPlay]
-    ↓
-[Get FlightDynamicsComponent]
-    ↓
-[Set Flow Visualizer] ← [Get Component by Class: NiagaraComponent]
-```
-
----
-
-## Підсумок потоку даних
-
-```
-FlightDynamicsComponent::TickComponent()
-    └── UpdateVortexWake()         — оновлює VortexWakeLines
-    └── SendWakeDataToNiagara()    — flatten → SetNiagaraArrayVector / SetNiagaraArrayFloat
-            ↓
-    NS_VLMFlow (NiagaraComponent на літаку)
-        └── User.WakePositions[]   — позиції вузлів сліду
-        └── User.WakeGammas[]      — циркуляція Γ кожного вузла
-            ↓
-    Particle Update: BiotSavart_InducedVelocity (HLSL)
-        └── Particles.Velocity += InducedVelocity * ScaleFactor
-            ↓
-    Ribbon Renderer                — видима стрічка потоку у viewport
-```
-
----
-
-## Параметри для тюнінгу (User Parameters у NS_VLMFlow)
-
-| Параметр | Тип | Рекомендоване значення | Ефект |
-|---|---|---|---|
-| `CoreRadius` | Float | `10.0` | Зменшення → гостріші вихори, збільшення → плавніший ефект |
-| `ScaleFactor` | Float | `0.1` | Масштаб візуального впливу на швидкість частинок |
-| `RibbonWidth` | Float | `3.0` | Товщина стрічки сліду |
+TotalInducedVelocity = InducedVelocity;
