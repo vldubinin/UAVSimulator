@@ -109,11 +109,25 @@ void APhysicalAirplane::Tick(float DeltaTime)
 			const FVector SurfaceCenter = Surface->GetComponentLocation();
 			const FVector RightDir      = GetActorRightVector();
 
-			FBoundVortex BV;
-			BV.StartPoint = SurfaceCenter - RightDir * (SpanCm / 2.0f);
-			BV.EndPoint   = SurfaceCenter + RightDir * (SpanCm / 2.0f);
-			BV.Gamma      = Gamma;
-			CurrentBoundVortices.Add(BV);
+			// Еліптичний розподіл циркуляції по розмаху (дискретна несуча лінія)
+			const float GammaMax  = Gamma * (4.0f / UE_PI);
+			const int32 NumSegments = 10;
+			const float SegmentLen  = SpanCm / NumSegments;
+			for (int32 j = 0; j < NumSegments; j++)
+			{
+				const float LocalY      = -SpanCm / 2.0f + SegmentLen * j;
+				const float SegmentCenterY = LocalY + SegmentLen / 2.0f;
+				const float HalfSpan    = SpanCm / 2.0f;
+				const float LocalGamma  = (HalfSpan > 0.0f)
+					? GammaMax * FMath::Sqrt(FMath::Max(0.0f, 1.0f - FMath::Pow(SegmentCenterY / HalfSpan, 2.0f)))
+					: 0.0f;
+
+				FBoundVortex BV;
+				BV.StartPoint = SurfaceCenter + RightDir * LocalY;
+				BV.EndPoint   = SurfaceCenter + RightDir * (LocalY + SegmentLen);
+				BV.Gamma      = LocalGamma;
+				CurrentBoundVortices.Add(BV);
+			}
 		}
 
 		// Застосовуємо сумарну підйомну силу та момент до rigid body
