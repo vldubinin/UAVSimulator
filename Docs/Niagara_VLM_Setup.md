@@ -84,4 +84,30 @@ for (int i = 1; i < ArraySize; i++) {
     InducedVelocity += (CurrentGamma / 12.56637f) * (crossProd / r3);
 }
 
-TotalInducedVelocity = InducedVelocity;
+TotalInducedVelocity = InducedVelocity;```
+
+6. Натисни зелену кнопку Apply у Scratch Pad.
+
+---
+
+## Крок 6 — Прив'язка даних та застосування швидкості
+У головному вікні емітера, на вашому модулі Scratch Pad, з'являться 4 поля входів. Прив'яжи їх:
+- Particle Position -> Particles.Position
+- Core Radius -> User.CoreRadius
+- Wake Positions -> User.WakePositions
+- Wake Gammas -> User.WakeGammas
+Під цим модулем додай модуль Set New or Existing Parameter Variables.
+Натисни +, обери Particles.Velocity.
+У поле, що з'явиться, передай вихід з твого модуля: Scratchpad.TotalInducedVelocity.
+Переконайся, що нижче стоїть Solve Forces and Velocity. Збережи NS_VLMFlow.
+
+---
+
+## Крок 7 — Підключення до літака
+Відкрий Blueprint літака (BP_UAV).
+Додай компонент Niagara Particle System і назви його FlowVisualizerComp.
+В його налаштуваннях у Niagara System Asset обери NS_VLMFlow.
+Відкрий вкладку Event Graph.
+Від вузла Event BeginPlay витягни ноду Set Flow Visualizer (викликавши її з компонента, що рахує VLM, наприклад PhysicalAirplane або FlightDynamicsComponent).
+Підключи FlowVisualizerComp у вхід цієї ноди.
+Компілюй і запускай симуляцію. Частинки будуть закручуватися слідом за літаком згідно з математикою!
