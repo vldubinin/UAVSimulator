@@ -61,18 +61,31 @@ void APhysicalAirplane::BeginPlay()
 	{
 		for (UAerodynamicSurfaceSC* Surface : Surfaces)
 		{
-			if (!Surface->GetName().Contains(TEXT("Wing"))) continue;
+			if (!Surface->GetName().Contains(TEXT("Wing")) && !Surface->GetName().Contains(TEXT("TailHorizontal"))) continue;
 
 			UNiagaraComponent* NiagaraComp = NewObject<UNiagaraComponent>(this);
 			NiagaraComp->SetAsset(FlowVisualizerSystem);
 			NiagaraComp->SetupAttachment(Surface);
-			NiagaraComp->RegisterComponent();
 
 			float SpanCm = 0.0f;
 			for (const auto& Form : Surface->SurfaceForm) { SpanCm += FMath::Abs(Form.Offset.Y); }
 			if (Surface->Mirror) SpanCm *= 2.0f;
 
-			NiagaraComp->SetFloatParameter(FName("SurfaceSpan"), SpanCm);
+			if (Surface->GetName().Contains(TEXT("TailHorizontal")))
+			{
+				// Налаштування для зонда (решітки) перед хвостом
+				NiagaraComp->SetRelativeLocation(FVector(100.0f, 0.0f, 0.0f));
+				NiagaraComp->SetFloatParameter(FName("SurfaceSpan"), SpanCm * 1.5f);
+				NiagaraComp->SetFloatParameter(FName("ProbeHeight"), 150.0f);
+			}
+			else
+			{
+				// Налаштування для тонкої пелени з головного крила
+				NiagaraComp->SetFloatParameter(FName("SurfaceSpan"), SpanCm);
+				NiagaraComp->SetFloatParameter(FName("ProbeHeight"), 2.0f);
+			}
+
+			NiagaraComp->RegisterComponent();
 			ActiveFlowVisualizers.Add(NiagaraComp);
 		}
 	}
