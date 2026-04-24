@@ -7,6 +7,7 @@
 #include "NiagaraComponent.h"
 #include "NiagaraDataInterfaceArrayFunctionLibrary.h"
 #include "NiagaraSystem.h"
+#include "Curves/CurveFloat.h"
 
 APhysicalAirplane::APhysicalAirplane()
 {
@@ -182,11 +183,23 @@ void APhysicalAirplane::Tick(float DeltaTime)
 		Mesh->AddForce(TotalForce.PositionalForce);
 		Mesh->AddTorqueInRadians(TotalForce.RotationalForce);
 
-		// Тяга двигуна: максимум 1 500 000 kg·cm/s² (≈ 15 000 N), масштабована дроселем
-		if (ThrottlePercent > 0.0f)
+		// Інерція розкручування двигуна
+		CurrentThrottle = FMath::FInterpTo(CurrentThrottle, TargetThrottle, DeltaTime, EngineSpoolSpeed);
+
+		if (CurrentThrottle > 0.01f)
 		{
-			const float MaxThrust = 1500000.f;
-			Mesh->AddForce(GetActorForwardVector() * MaxThrust * ThrottlePercent);
+			float ThrustMultiplier = 1.0f;
+			if (ThrustVsAirspeedCurve)
+			{
+				ThrustMultiplier = ThrustVsAirspeedCurve->GetFloatValue(SpeedMs);
+			}
+			else
+			{
+				UE_LOG(LogUAV, Warning, TEXT("ThrustVsAirspeedCurve не призначено — використовується множник 1.0"));
+			}
+
+			const float ActualThrust = MaxStaticThrust * CurrentThrottle * ThrustMultiplier;
+			Mesh->AddForce(GetActorForwardVector() * ActualThrust);
 		}
 
 		UE_LOG(LogUAV, Log, TEXT("%s Location: %s"), *GetName(), *GetActorLocation().ToString());
@@ -217,6 +230,11 @@ void APhysicalAirplane::UpdateRudderControl(float RudderAngleValue)
 {
 	// Зберігаємо кут руля напрямку
 	ControlState.RudderAngle = RudderAngleValue;
+}
+
+void APhysicalAirplane::UpdateThrottleControl(float Throttle)
+{
+	TargetThrottle = FMath::Clamp(Throttle, 0.0f, 1.0f);
 }
 
 void APhysicalAirplane::GenerateAerodynamicPhysicalConfigutation()

@@ -17,6 +17,7 @@
 
 class UNiagaraComponent;
 class UNiagaraSystem;
+class UCurveFloat;
 
 UCLASS()
 class UAVSIMULATOR_API APhysicalAirplane : public APawn
@@ -36,6 +37,15 @@ protected:
 	 * Збирає всі аеродинамічні поверхні та керуючі поверхні, передає центр мас кожній поверхні.
 	 */
 	virtual void OnConstruction(const FTransform& Transform) override;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Engine")
+	float MaxStaticThrust = 1500000.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Engine")
+	float EngineSpoolSpeed = 1.5f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Engine")
+	UCurveFloat* ThrustVsAirspeedCurve = nullptr;
 
 public:
 	/**
@@ -63,6 +73,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation Settings", meta = (ToolTip = "Увімкнути/вимкнути малювання векторів сил та моментів (Debug Arrows)"))
 	bool bVisualizeForces = false;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Engine")
+	float TargetThrottle = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Engine")
+	float CurrentThrottle = 0.0f;
+
 	/**
 	 * Оновлює кути відхилення елеронів у поточному стані керування.
 	 * @param LeftAileronAngle  — кут лівого елерона в градусах.
@@ -85,6 +101,13 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "UpdateRudderControl"),   Category = "Control")
 	void UpdateRudderControl(float RudderAngle);
+
+	/**
+	 * Встановлює цільове значення газу двигуна.
+	 * @param Throttle — нормалізоване значення [0..1].
+	 */
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "UpdateThrottleControl"), Category = "Control")
+	void UpdateThrottleControl(float Throttle);
 
 	/**
 	 * Повертає оброблену OpenCV текстуру з бортової камери.
@@ -122,7 +145,6 @@ private:
 	TArray<UAerodynamicSurfaceSC*>  Surfaces;
 	TArray<UControlSurfaceSC*>      ControlSurfaces;
 
-	float ThrottlePercent = 1.f;
 	FControlInputState ControlState;
 
 	/** Bound vortex filaments rebuilt each tick from active surfaces. */
