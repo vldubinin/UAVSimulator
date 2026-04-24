@@ -118,7 +118,8 @@ void APhysicalAirplane::Tick(float DeltaTime)
 				PhysicsState->GetLinearVelocity(),
 				PhysicsState->GetAngularVelocity(),
 				PhysicsState->GetAirflowDirection(),
-				ControlState);
+				ControlState,
+				bVisualizeForces);
 			TotalForce.PositionalForce += SurfaceForce.PositionalForce;
 			TotalForce.RotationalForce += SurfaceForce.RotationalForce;
 
@@ -155,6 +156,19 @@ void APhysicalAirplane::Tick(float DeltaTime)
 				const float LocalGamma  = (HalfSpan > 0.0f)
 					? GammaMax * FMath::Sqrt(FMath::Max(0.0f, 1.0f - FMath::Pow(SegmentCenterY / HalfSpan, 2.0f)))
 					: 0.0f;
+
+				// --- ФІЗИКА ІНДУКТИВНОГО ОПОРУ ---
+				FVector SegmentCenterCm = SurfaceCenter + RightDir * SegmentCenterY;
+				FVector Vind_ms = GetInducedVelocity(SegmentCenterCm);
+				FVector SegmentDl_m = (RightDir * SegmentLen) / 100.0f;
+
+				// Теорема Кутти-Жуковського: F = rho * (Gamma * dl) x V
+				FVector InducedForceN = AirDensity * LocalGamma * FVector::CrossProduct(SegmentDl_m, Vind_ms);
+				FVector InducedForceUU = InducedForceN * 100.0f;
+
+				// Застосовуємо локальний опір прямо до відповідного сегмента крила
+				Mesh->AddForceAtLocation(InducedForceUU, SegmentCenterCm);
+				// ---------------------------------
 
 				FBoundVortex BV;
 				BV.StartPoint = SurfaceCenter + RightDir * LocalY;
@@ -279,7 +293,46 @@ void APhysicalAirplane::SendWakeDataToNiagara()
 
 	for (UNiagaraComponent* Visualizer : ActiveFlowVisualizers)
 	{
+		if (Visualizer->IsVisible() != bVisualizeParticles)
+		{
+			Visualizer->SetVisibility(bVisualizeParticles);
+		}
+		if (!bVisualizeParticles) continue;
+
 		UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(Visualizer, FName("WakePositions"), FlatWakePositions);
 		UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloat(Visualizer, FName("WakeGammas"),    FlatWakeGammas);
 	}
+}
+
+FVector APhysicalAirplane::GetInducedVelocity(const FVector& TargetPosCm) const
+{
+	FVector Vind_ms = FVector::ZeroVector;
+	FVector P = TargetPosCm / 100.0f; // Перевід цільової точки у метри
+
+	for (const auto& Line : VortexWakeLines)
+	{
+		for (int32 i = 0; i < Line.Num() - 1; i++)
+		{
+			FVector A = Line[i].Position / 100.0f;
+			FVector B = Line[i+1].Position / 100.0f;
+			float NodeGamma = Line[i].Gamma;
+
+			FVector R1 = P - A;
+			FVector R2 = P - B;
+			FVector R1xR2 = FVector::CrossProduct(R1, R2);
+			float R1xR2_sqr = R1xR2.SizeSquared();
+
+			// Захист від сингулярності (щоб не ділити на нуль, якщо точка лежить на вихорі)
+			if (R1xR2_sqr > 0.001f)
+			{
+				float r1 = R1.Size();
+				float r2 = R2.Size();
+				float Dot = FVector::DotProduct(R1, R2);
+
+				FVector dV = (NodeGamma / (4.0f * UE_PI * R1xR2_sqr)) * R1xR2 * ((r1 + r2) * (1.0f - (Dot / (r1 * r2))));
+				Vind_ms += dV;
+			}
+		}
+	}
+	return Vind_ms;
 }

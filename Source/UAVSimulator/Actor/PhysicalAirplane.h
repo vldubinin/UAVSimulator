@@ -53,9 +53,15 @@ public:
 	UFUNCTION(BlueprintCallable, CallInEditor, meta = (DisplayName = "Розрахувати поляри для ЛА"), Category = "Автоматизація")
 	void GenerateAerodynamicPhysicalConfigutation();
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Налаштування симуляції",
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation Settings",
 		meta = (ToolTip = "Значення '1' відповідає звичайній швидкості.", DisplayName = "Швидкість роботи симуляції"))
 	float DebugSimulatorSpeed = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation Settings", meta = (ToolTip = "Увімкнути/вимкнути димові лінії (Niagara)"))
+	bool bVisualizeParticles = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation Settings", meta = (ToolTip = "Увімкнути/вимкнути малювання векторів сил та моментів (Debug Arrows)"))
+	bool bVisualizeForces = false;
 
 	/**
 	 * Оновлює кути відхилення елеронів у поточному стані керування.
@@ -133,4 +139,7 @@ private:
 
 	/** Розгладжує VortexWakeLines у паралельні масиви та передає їх у FlowVisualizer. */
 	void SendWakeDataToNiagara();
+
+	/** Обчислює індуковану швидкість від усього сліду у заданій точці (м/с) */
+	FVector GetInducedVelocity(const FVector& TargetPosCm) const;
 };

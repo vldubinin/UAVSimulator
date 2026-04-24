@@ -49,7 +49,7 @@ public:
 	 * @param ControlState    — поточний стан органів керування.
 	 * @return Сумарна аеродинамічна сила та момент для всієї поверхні.
 	 */
-	AerodynamicForce CalculateForcesOnSurface(FVector CenterOfMass, FVector LinearVelocity, FVector AngularVelocity, FVector AirflowDirection, ControlInputState ControlState);
+	AerodynamicForce CalculateForcesOnSurface(FVector CenterOfMass, FVector LinearVelocity, FVector AngularVelocity, FVector AirflowDirection, ControlInputState ControlState, bool bVisualizeForces);
 
 private:
 	/**

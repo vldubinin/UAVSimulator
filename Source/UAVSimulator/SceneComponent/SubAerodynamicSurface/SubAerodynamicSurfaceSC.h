@@ -58,7 +58,7 @@ public:
 	 * @return FAerodynamicForce з позиційною силою (підйом+опір) та моментом.
 	 */
 	FAerodynamicForce CalculateForcesOnSubSurface(FVector LinearVelocity, FVector AngularVelocity,
-		FVector GlobalCenterOfMassInWorld, FVector AirflowDirection, FControlInputState ControlState);
+		FVector GlobalCenterOfMassInWorld, FVector AirflowDirection, FControlInputState ControlState, bool bVisualizeForces);
 
 private:
 	TArray<FVector> Start3DProfile;

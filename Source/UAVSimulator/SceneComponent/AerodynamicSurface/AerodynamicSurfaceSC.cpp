@@ -32,13 +32,13 @@ void UAerodynamicSurfaceSC::OnConstruction(FVector CenterOfMass, TArray<UControl
 	}
 }
 
-AerodynamicForce UAerodynamicSurfaceSC::CalculateForcesOnSurface(FVector CenterOfMass, FVector LinearVelocity, FVector AngularVelocity, FVector AirflowDirection, ControlInputState ControlState)
+AerodynamicForce UAerodynamicSurfaceSC::CalculateForcesOnSurface(FVector CenterOfMass, FVector LinearVelocity, FVector AngularVelocity, FVector AirflowDirection, ControlInputState ControlState, bool bVisualizeForces)
 {
 	// Підсумовуємо позиційні сили та моменти від усіх підсекцій
 	AerodynamicForce TotalAerodynamicForceForAllSubSurfaces;
 	for (USubAerodynamicSurfaceSC* SubSurface : SubSurfaces)
 	{
-		AerodynamicForce SubSurfaceForces = SubSurface->CalculateForcesOnSubSurface(LinearVelocity, AngularVelocity, CenterOfMass, AirflowDirection, ControlState);
+		AerodynamicForce SubSurfaceForces = SubSurface->CalculateForcesOnSubSurface(LinearVelocity, AngularVelocity, CenterOfMass, AirflowDirection, ControlState, bVisualizeForces);
 		TotalAerodynamicForceForAllSubSurfaces.PositionalForce += SubSurfaceForces.PositionalForce;
 		TotalAerodynamicForceForAllSubSurfaces.RotationalForce += SubSurfaceForces.RotationalForce;
 	}

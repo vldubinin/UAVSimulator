@@ -78,7 +78,7 @@ void USubAerodynamicSurfaceSC::InitComponent(
 FAerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(
 	FVector LinearVelocity, FVector AngularVelocity,
 	FVector GlobalCenterOfMassInWorld, FVector AirflowDirection,
-	FControlInputState ControlState)
+	FControlInputState ControlState, bool bVisualizeForces)
 {
 	const FTransform& Transform = GetComponentTransform();
 
@@ -139,7 +139,9 @@ FAerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(
 	// Відображення вектора результуючої сили під час гри (зелена стрілка)
 	FVector EndLocation = CenterOfPressureInWorld + Result.PositionalForce;
 	FVector MidPoint = FMath::Lerp(CenterOfPressureInWorld, EndLocation, 0.5f);
-	DrawDebugDirectionalArrow(GetWorld(), CenterOfPressureInWorld, MidPoint, 25.0f, FColor::Green, false, -1.f, 0, 5.0f);
-
+	
+	if (bVisualizeForces) {
+		DrawDebugDirectionalArrow(GetWorld(), CenterOfPressureInWorld, MidPoint, 25.0f, FColor::Green, false, -1.f, 0, 5.0f);
+	}
 	return Result;
 }
