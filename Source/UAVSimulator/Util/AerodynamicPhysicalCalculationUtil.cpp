@@ -16,7 +16,7 @@ void AerodynamicPhysicalCalculationUtil::GenerateAerodynamicPhysicalConfigutatio
 	{
 		FString PathToProfileFile = FindPathToProfile(Surface);
 		Surface->Profile->GetPackage();
-		TArray<FAerodynamicSurfaceStructure> SubSurfaces = Surface->SurfaceForm;
+		TArray<FAerodynamicSurfaceStructure>& SubSurfaces = Surface->SurfaceForm;
 
 		for (int32 i = 0; i < SubSurfaces.Num() - 1 && SubSurfaces.Num() > 1; i++)
 		{
@@ -38,12 +38,16 @@ void AerodynamicPhysicalCalculationUtil::GenerateAerodynamicPhysicalConfigutatio
 					*Surface->GetName(),
 					i);
 			}
-			if (DoesAssetExist(AssetPath)) {
-				Surface->Modify();
-				AttachAssetToSurface(RootSurface, AssetPath);
+			// DoesAssetExist uses FPackageName::DoesPackageExist (disk cache) and may not
+			// see an asset created by Python in this same frame. LoadObject inside
+			// AttachAssetToSurface uses StaticFindObject which finds in-memory objects immediately.
+			Surface->Modify();
+			if (AttachAssetToSurface(RootSurface, AssetPath))
+			{
+				UE_LOG(LogUAV, Log, TEXT("GenerateAerodynamicPhysicalConfigutation: surface %s оновлено: '%s'."), *Surface->GetName(), *AssetPath);
 			}
 			else {
-				UE_LOG(LogUAV, Error, TEXT("GenerateAerodynamicPhysicalConfigutation: не вдалося створити ассет: '%s'."), *AssetPath);
+				UE_LOG(LogUAV, Error, TEXT("GenerateAerodynamicPhysicalConfigutation: не вдалося оновити surface '%s' за допомогою '%s'."), *Surface->GetName(), *AssetPath);
 			}
 		}
 	}
@@ -291,7 +295,7 @@ TMap<float, FPolarRow> AerodynamicPhysicalCalculationUtil::CalculatePolar(
 
 	return TMap<float, FPolarRow>();
 }
-
+*/
 
 void AerodynamicPhysicalCalculationUtil::RunSU2Calculation(
 	FString ProfilePath, FString SurfaceName, float HingeLocation, float MinFlap, float MaxFlap)
@@ -321,7 +325,7 @@ void AerodynamicPhysicalCalculationUtil::RunSU2Calculation(
 
 	UE_LOG(LogUAV, Log, TEXT("RunSU2Calculation: %s"), *Command);
 	AerodynamicToolRunner::RunPythonScript(Command);
-}*/
+}
 
 // ---------------------------------------------------------------------------
 // Private helper — matches Python's str(float).replace(".", "-")
