@@ -16,6 +16,108 @@ void AerodynamicPhysicalCalculationUtil::GenerateAerodynamicPhysicalConfigutatio
 	{
 		FString PathToProfileFile = FindPathToProfile(Surface);
 		Surface->Profile->GetPackage();
+		TArray<FAerodynamicSurfaceStructure> SubSurfaces = Surface->SurfaceForm;
+
+		for (int32 i = 0; i < SubSurfaces.Num() - 1 && SubSurfaces.Num() > 1; i++)
+		{
+			FAerodynamicSurfaceStructure& RootSurface = SubSurfaces[i];
+			FAerodynamicSurfaceStructure& TipSurface = SubSurfaces[i + 1];
+
+			float HingeLocation = ((RootSurface.StartFlapPosition + RootSurface.EndFlapPosition) / 2) * 0.01;
+			FString AssetPath = BuildAssetPathForVSpaero(PathToProfileFile, (int32)RootSurface.ChordSize, (int32)TipSurface.ChordSize, (int32)TipSurface.Offset.Y, RootSurface.MinFlapAngle, RootSurface.MaxFlapAngle, 0, HingeLocation);
+
+			if (!DoesAssetExist(AssetPath)) {
+				CalculatePolar(PathToProfileFile,
+					(int32)RootSurface.ChordSize,
+					(int32)TipSurface.ChordSize,
+					(int32)TipSurface.Offset.Y,
+					RootSurface.MinFlapAngle,
+					RootSurface.MaxFlapAngle,
+					0 /* Sweep */,
+					HingeLocation,
+					*Surface->GetName(),
+					i);
+			}
+			if (DoesAssetExist(AssetPath)) {
+				Surface->Modify();
+				AttachAssetToSurface(RootSurface, AssetPath);
+			}
+			else {
+				UE_LOG(LogUAV, Error, TEXT("GenerateAerodynamicPhysicalConfigutation: не вдалося створити ассет: '%s'."), *AssetPath);
+			}
+		}
+	}
+}
+
+void AerodynamicPhysicalCalculationUtil::CalculatePolar(
+	FString PathToProfile,
+	int32 RootChord, int32 TipChord, int32 Span,
+	int32 DeflectionAngleStart, int32 DeflectionAngleEnd,
+	int32 Sweep, float HingeLocation, FString SurfaceName, int32 SubSurfaceIndex)
+{
+	const FString ScriptPath = FPaths::ProjectDir() + TEXT("Tools/OpenVSP/openvsp_vspaero.py");
+
+	const FString Command = FString::Printf(
+		TEXT("\"%s\" \"%d\" \"%d\" \"%d\" \"%d\" \"%d\" \"%d\" \"%f\" \"%s\" \"%d\" \"%s\""),
+		*ScriptPath,
+		RootChord, TipChord, Span,
+		DeflectionAngleStart, DeflectionAngleEnd,
+		Sweep,
+		HingeLocation,
+		*SurfaceName,
+		SubSurfaceIndex,
+		*PathToProfile);
+
+	AerodynamicToolRunner::RunPythonScript(Command);
+}
+
+FString AerodynamicPhysicalCalculationUtil::BuildAssetPathForVSpaero(const FString& ProfilePath, float RootChord, float TipChord, float Span, float DeflectionAngleStartVal, float DeflectionAngleEndVal, float Sweep, float FlapDepth)
+{
+	FString NormPath = ProfilePath;
+	FPaths::NormalizeFilename(NormPath);
+	const FString AirfoilName = FPaths::GetBaseFilename(NormPath);
+
+	const FString Name = FString::Printf(
+		TEXT("DT_Polar_%s_rtCh_%s_tCh_%s_sp_%s_startDa_%s_endDa_%s_sw_%s_fDep_%s"),
+		*AirfoilName,
+		*FormatFloatForAsset(RootChord),
+		*FormatFloatForAsset(TipChord),
+		*FormatFloatForAsset(Span),
+		*FormatFloatForAsset(DeflectionAngleStartVal),
+		*FormatFloatForAsset(DeflectionAngleEndVal),
+		*FormatFloatForAsset(Sweep),
+		*FormatFloatForAsset(FlapDepth)
+	);
+
+	return FString::Printf(TEXT("/Game/DataTables/%s"), *Name);
+}
+
+FString AerodynamicPhysicalCalculationUtil::FormatFloatForAsset(float Value)
+{
+	FString Str = FString::Printf(TEXT("%.3f"), Value);
+
+	while (Str.EndsWith(TEXT("0")))
+	{
+		Str.RemoveFromEnd(TEXT("0"));
+	}
+
+	if (Str.EndsWith(TEXT(".")))
+	{
+		Str.RemoveFromEnd(TEXT("."));
+	}
+
+	Str = Str.Replace(TEXT("."), TEXT("_"));
+	Str = Str.Replace(TEXT("-"), TEXT("_"));
+
+	return Str;
+}
+
+/*void AerodynamicPhysicalCalculationUtil::GenerateAerodynamicPhysicalConfigutation(TArray<UAerodynamicSurfaceSC*> Surfaces)
+{
+	for (UAerodynamicSurfaceSC* Surface : Surfaces)
+	{
+		FString PathToProfileFile = FindPathToProfile(Surface);
+		Surface->Profile->GetPackage();
 		TArray<FAerodynamicSurfaceStructure>& SubSurfaces = Surface->SurfaceForm;
 
 		for (int32 i = 0; i < SubSurfaces.Num() - 1 && SubSurfaces.Num() > 1; i++)
@@ -42,7 +144,7 @@ void AerodynamicPhysicalCalculationUtil::GenerateAerodynamicPhysicalConfigutatio
 	}
 }
 
-/*void AerodynamicPhysicalCalculationUtil::GenerateAerodynamicPhysicalConfigutation(TArray<UAerodynamicSurfaceSC*> Surfaces)
+void AerodynamicPhysicalCalculationUtil::GenerateAerodynamicPhysicalConfigutation(TArray<UAerodynamicSurfaceSC*> Surfaces)
 {
 	for (UAerodynamicSurfaceSC* Surface : Surfaces)
 	{
@@ -68,9 +170,9 @@ void AerodynamicPhysicalCalculationUtil::GenerateAerodynamicPhysicalConfigutatio
 		}
 		break;
 	}
-}*/
+}
 
-/*TMap<float, FPolarRow> AerodynamicPhysicalCalculationUtil::CalculatePolar(
+TMap<float, FPolarRow> AerodynamicPhysicalCalculationUtil::CalculatePolar(
 	FString PathToProfile,
 	int32 RootChord, int32 TipChord, int32 Span,
 	int32 DeflectionAngleStart, int32 DeflectionAngleEnd,
@@ -93,7 +195,7 @@ void AerodynamicPhysicalCalculationUtil::GenerateAerodynamicPhysicalConfigutatio
 
 	// Результати зберігаються Python-скриптом на диску; тут повертаємо порожню мапу
 	return TMap<float, FPolarRow>();
-}*/
+}
 
 TMap<float, FPolarRow> AerodynamicPhysicalCalculationUtil::CalculatePolar(
 	FString PathToProfile,
@@ -190,6 +292,7 @@ TMap<float, FPolarRow> AerodynamicPhysicalCalculationUtil::CalculatePolar(
 	return TMap<float, FPolarRow>();
 }
 
+
 void AerodynamicPhysicalCalculationUtil::RunSU2Calculation(
 	FString ProfilePath, FString SurfaceName, float HingeLocation, float MinFlap, float MaxFlap)
 {
@@ -218,7 +321,7 @@ void AerodynamicPhysicalCalculationUtil::RunSU2Calculation(
 
 	UE_LOG(LogUAV, Log, TEXT("RunSU2Calculation: %s"), *Command);
 	AerodynamicToolRunner::RunPythonScript(Command);
-}
+}*/
 
 // ---------------------------------------------------------------------------
 // Private helper — matches Python's str(float).replace(".", "-")

@@ -1,5 +1,6 @@
 import json
 import sys
+import os
 
 import openvsp as vsp
 import unreal
@@ -29,33 +30,13 @@ span = int(sys.argv[3].strip())
 deflection_angle_start_val = int(sys.argv[4].strip()) # початковий flap angle
 deflection_angle_end_val = int(sys.argv[5].strip()) # кінцевий flap angle
 sweep = int(sys.argv[6].strip())
+flap_depth = float(sys.argv[7].strip())
 flap = (deflection_angle_start_val != 0) & (deflection_angle_end_val != 0)
-surface_name = sys.argv[7]
-sub_surface_index = sys.argv[8]
-airfoil_path = sys.argv[9]
+surface_name = sys.argv[8]
+sub_surface_index = sys.argv[9]
+airfoil_path = sys.argv[10]
+airfoil_name = os.path.splitext(os.path.basename(airfoil_path))[0]
 
-#root_chord = 10
-#tip_chord = 10
-#span = 10
-#deflection_angle_start_val = -45 # початковий flap angle
-#deflection_angle_end_val = 45
-#sweep = 0
-#flap = True
-#surface_name = "surface"
-#sub_surface_index = 1
-#airfoil_path = r"C:\Users\PC\Documents\Unreal Projects\UAVSimulator\Content\WingProfile\NACA_2412\naca2412.dat"
-print(airfoil_path)
-
-print(f"############# Початок розрахунку для {surface_name}. Sub surface: {sub_surface_index} #############")
-ASSET_PATH = f"/Game/DataTables/{surface_name}/"
-ASSET_NAME = f"DT_AerodynamicProfile_{sub_surface_index}"
-
-print(flap)
-surface_form = [{"span": span, "root_chord": root_chord, "tip_chord": tip_chord, "sweep": sweep, "flap": flap}]
-
-print(surface_form)
-
-vsp.VSPCheckSetup()
 
 def calculate(alpha, deflection_angle, wake_num_iter, surface_geometry):
     vsp.ClearVSPModel()
@@ -96,6 +77,7 @@ def calculate(alpha, deflection_angle, wake_num_iter, surface_geometry):
             flop_offset = 1 / (len(surface_geometry) + 2)
             vsp.SetParmVal(wing_id, 'UStart', 'SS_Control_1', flop_offset * (i + 1))
             vsp.SetParmVal(wing_id, 'UEnd', 'SS_Control_1', flop_offset * (i + 2))
+            vsp.SetParmVal(wing_id, 'Length_C_Start', 'SS_Control_1', geometry["flap_depth"])
 
     vsp.Update()
 
@@ -179,6 +161,13 @@ def create_curve_data(keys_data):
         },
         "ExternalCurve": ""  # Використовуємо None для нульового вказівника
     }
+    
+def format_float(x):
+    s = f"{x:.3f}"          # максимум 3 знаки після крапки
+    s = s.rstrip('0').rstrip('.')  
+    s = s.replace('.', '_')    
+    s = s.replace('-', '_')
+    return s
 
 def create_aerodynamic_profile_datatable(rows_data):
     """
@@ -239,6 +228,27 @@ def create_aerodynamic_profile_datatable(rows_data):
         unreal.log(f"Ассет {ASSET_NAME} успішно збережено.")
     except Exception as e:
         unreal.log_error(f"Сталася помилка під час імпорту або збереження: {e}")
+
+
+print(airfoil_path)
+
+print(f"############# Початок розрахунку для {surface_name}. Sub surface: {sub_surface_index} #############")
+ASSET_PATH = f"/Game/DataTables/"
+ASSET_NAME = (
+    f"DT_Polar_{airfoil_name}_"
+    f"rtCh_{format_float(root_chord)}_"
+    f"tCh_{format_float(tip_chord)}_"
+    f"sp_{format_float(span)}_"
+    f"startDa_{format_float(deflection_angle_start_val)}_"
+    f"endDa_{format_float(deflection_angle_end_val)}_"
+    f"sw_{format_float(sweep)}_"
+    f"fDep_{format_float(flap_depth)}"
+)
+print (ASSET_NAME)
+surface_form = [{"span": span, "root_chord": root_chord, "tip_chord": tip_chord, "sweep": sweep, "flap": flap, "flap_depth": flap_depth}]
+print(surface_form)
+
+vsp.VSPCheckSetup()
 
 results = []
 for current_deflection_angle in range(int(deflection_angle_start_val), int(deflection_angle_end_val + 1), int(deflection_angle_step_val)):

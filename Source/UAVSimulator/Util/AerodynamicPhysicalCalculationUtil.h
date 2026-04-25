@@ -39,10 +39,10 @@ public:
 	 * @param SubSurfaceIndex     — індекс підсекції в масиві SurfaceForm.
 	 * @return Порожня мапа (результати записуються XFoil безпосередньо у polar.txt).
 	 */
-	static TMap<float, FPolarRow> CalculatePolar(FString PathToProfile,
+	static void CalculatePolar(FString PathToProfile,
 		int32 RootChord, int32 TipChord, int32 Span,
 		int32 DeflectionAngleStart, int32 DeflectionAngleEnd,
-		int32 Sweep, FString SurfaceName, int32 SubSurfaceIndex);
+		int32 Sweep, float HingeLocation, FString SurfaceName, int32 SubSurfaceIndex);
 
 	/**
 	 * Запускає Tools/SU2/execute_su2_calculation.py для заданого профілю.
@@ -74,6 +74,10 @@ public:
 	 * @return Unreal object path, наприклад /Game/WingProfile/NACA_0009/DT_naca0009_0-75_-40-0_40-0
 	 */
 	static FString BuildAssetPath(const FString& ProfilePath, float HingeLocation, float MinFlap, float MaxFlap);
+	
+	static FString BuildAssetPathForVSpaero(const FString& ProfilePath, float RootChord, float TipChord, float Span, float DeflectionAngleStartVal, float DeflectionAngleEndVal, float Sweep, float FlapDepth);
+
+	static FString FormatFloatForAsset(float Value);
 
 	/**
 	 * Перевіряє, чи існує DataTable-ресурс за вказаним Unreal-шляхом.
