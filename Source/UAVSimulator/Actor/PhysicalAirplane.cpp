@@ -8,6 +8,7 @@
 #include "NiagaraDataInterfaceArrayFunctionLibrary.h"
 #include "NiagaraSystem.h"
 #include "Curves/CurveFloat.h"
+#include "UAVSimulator/Util/AerodynamicDebugRenderer.h"
 
 APhysicalAirplane::APhysicalAirplane()
 {
@@ -36,6 +37,16 @@ void APhysicalAirplane::OnConstruction(const FTransform& Transform)
 	{
 		// Передаємо повний список керуючих поверхонь — кожна поверхня сама знайде свою
 		Surface->OnConstruction(CoM, AllControlSurfaces);
+	}
+
+	if (Mesh)
+	{
+		AerodynamicDebugRenderer::DrawCrosshairs(Mesh, EngineThrustOffsetLocal, FName("ThrustPoint"));
+		AerodynamicDebugRenderer::DrawLabel(Mesh,
+			TEXT("Thrust Point"),
+			EngineThrustOffsetLocal, FVector(0.f, 0.f, 50.f),
+			FRotator(90.f, 180.f, 0.f), FColor::Green,
+			FName("ThrustPointLabel"));
 	}
 }
 
@@ -89,6 +100,13 @@ void APhysicalAirplane::BeginPlay()
 			NiagaraComp->RegisterComponent();
 			ActiveFlowVisualizers.Add(NiagaraComp);
 		}
+	}
+
+	// --- Встановлення початкової швидкості ---
+	if (InitialSpeedMs > 0.1f && Mesh)
+	{
+		FVector InitialVelocityUU = GetActorForwardVector() * (InitialSpeedMs * 100.0f);
+		Mesh->SetPhysicsLinearVelocity(InitialVelocityUU);
 	}
 }
 
@@ -199,7 +217,8 @@ void APhysicalAirplane::Tick(float DeltaTime)
 			}
 
 			const float ActualThrust = MaxStaticThrust * CurrentThrottle * ThrustMultiplier;
-			Mesh->AddForce(GetActorForwardVector() * ActualThrust);
+			const FVector ThrustLocationWorld = GetActorTransform().TransformPosition(EngineThrustOffsetLocal);
+			Mesh->AddForceAtLocation(GetActorForwardVector() * ActualThrust, ThrustLocationWorld);
 		}
 
 		UE_LOG(LogUAV, Log, TEXT("%s Location: %s"), *GetName(), *GetActorLocation().ToString());

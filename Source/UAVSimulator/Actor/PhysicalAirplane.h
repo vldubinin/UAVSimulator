@@ -47,6 +47,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Engine")
 	UCurveFloat* ThrustVsAirspeedCurve = nullptr;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Engine")
+	FVector EngineThrustOffsetLocal = FVector(0.f, 0.f, 0.f);
+
 public:
 	/**
 	 * Головний тік симуляції: обробляє кадр камери, оновлює фізичний стан,
@@ -72,6 +75,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation Settings", meta = (ToolTip = "Увімкнути/вимкнути малювання векторів сил та моментів (Debug Arrows)"))
 	bool bVisualizeForces = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation Settings", meta = (ToolTip = "Початкова швидкість літака при старті симуляції (м/с)"))
+	float InitialSpeedMs = 0.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Engine")
 	float TargetThrottle = 0.0f;
