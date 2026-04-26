@@ -36,7 +36,15 @@ PhysicalAirplane (APawn)
 ```
 Each sub-surface reads its airfoil polar from a DataTable, computes angle of attack from the local airflow vector, looks up CL/CD, and applies force+torque to the aircraft's rigid body. Control surfaces (`EFlapType`: Aileron, Elevator, Rudder) can be deflected by pilot input.
 
-`PhysicalAirplane` also tracks bound vortex filaments (`FBoundVortex`) and trailing wake nodes (`FTrailingVortexNode`) for vortex-based induced drag. Wake data is pushed each tick to the `FlowVisualizer` (`UNiagaraComponent`) via `SendWakeDataToNiagara()`.
+`PhysicalAirplane` also tracks bound vortex filaments (`FBoundVortex`) and trailing wake nodes (`FTrailingVortexNode`). These are **visualization only** — forces come exclusively from DataTable polar lookups, not from the VLM. Wake geometry is pushed each tick to the `FlowVisualizer` (`UNiagaraComponent`) via `SendWakeDataToNiagara()`, where GPU-side Custom HLSL computes Bio-Savart induction for ribbon rendering. See `Docs/Niagara_VLM_Setup.md` (Ukrainian) for Niagara User Parameter bindings and scratch-pad HLSL setup.
+
+### Two-Phase Actor Initialization
+
+`APhysicalAirplane` initializes in two stages:
+- **`OnConstruction`** (runs in-editor on placement or transform change): collects all `AerodynamicSurfaceSC` and `ControlSurfaceSC` children, resolves center of mass from the static mesh, passes CoM to each surface, and draws debug crosshairs/labels.
+- **`BeginPlay`** (runtime, physics engine active): re-initializes surfaces with the physics-accurate CoM, sets global time dilation from `DebugSimulatorSpeed`, and spawns Niagara flow visualizer components.
+
+Code that depends on physics state (velocity, angular velocity) must run in `BeginPlay` or later — `OnConstruction` runs before the physics engine is active.
 
 ### Force Calculation Pattern
 `AerodynamicForce` struct holds `PositionalForce` (lift + drag) and `RotationalForce` (torque + r × F). Dynamic pressure = `0.5 * ρ * V²`. Forces are in world space after transforming from surface-local coordinates.
@@ -110,4 +118,6 @@ No automated test framework is set up. Testing is done by running the editor and
 - UI-facing property names and some comments are in **Ukrainian** (the development team's language).
 - `Tools/Airfoil/airfoil.py` requires `airfoilprep` Python package; `Tools/PyInstall/` and `Tools/OpenVSP/install_to_py.bat` handle dependency setup.
 - SU2 hardcoded defaults (set in `RunSU2Calculation`): CoreNumber=4, HingeLocation=0.75, FlapStep=1.0, RmsQuality=-4, Resume=true.
+- `AerodynamicToolRunner` enforces a **45-character max on temp directory paths** — XFoil and SU2 binaries fail silently on longer Windows paths. Keep the project root path short.
+- Standalone SU2 (no Unreal required): `Tools/SU2/run_unrealless.bat` wraps `unrealless_run.py` / `unrealless_run_list.py`.
 - The large file `Saved/Cesium/...` (SQLite cache ~305 MB) is geospatial tile cache — do not commit.
