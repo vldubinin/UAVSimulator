@@ -12,8 +12,11 @@ class UAVSIMULATOR_API AerodynamicProfileLookup
 {
 public:
 	/**
-	 * Find the aerodynamic profile row for the given flap deflection angle.
-	 * Returns nullptr if the table is null or the row is missing.
+	 * Знаходить рядок полярного профілю для заданого кута відхилення закрилка.
+	 * Ім'я рядка формується як "FLAP_{FlapAngle}_Deg" (наприклад, "FLAP_0_Deg").
+	 * @param Table     — DataTable з полярними характеристиками профілю; nullptr — повертає nullptr.
+	 * @param FlapAngle — кут відхилення закрилка в градусах (ціле число).
+	 * @return Вказівник на FAerodynamicProfileRow або nullptr якщо таблиця або рядок відсутні.
 	 */
 	static FAerodynamicProfileRow* FindProfile(UDataTable* Table, int32 FlapAngle);
 };

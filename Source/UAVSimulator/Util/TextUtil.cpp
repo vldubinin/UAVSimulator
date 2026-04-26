@@ -5,8 +5,8 @@
 
 FString TextUtil::RemoveAfterSymbol(FString Text, TCHAR Symbol)
 {
-
 	int32 LastSlashIndex;
+	// FindLastChar знаходить останнє входження символу; усікаємо рядок до цієї позиції (не включно)
 	if (Text.FindLastChar(Symbol, LastSlashIndex))
 	{
 		Text = Text.Left(LastSlashIndex);

@@ -13,11 +13,15 @@ FString AerodynamicToolRunner::GetOrCreateWorkDir()
 	const int32 PathLen = 45;
 	IFileManager& FileManager = IFileManager::Get();
 	FString Path = FileManager.ConvertToAbsolutePathForExternalAppForRead(*FPaths::ProjectDir());
+
+	// Скорочуємо шлях до 45 символів щоб уникнути обмежень командного рядка
 	while (Path.Len() > PathLen)
 	{
 		Path = TextUtil::RemoveAfterSymbol(Path, '/');
 	}
 	Path = FPaths::Combine(Path, TEXT("us_tmp"));
+
+	// Створюємо директорію якщо вона ще не існує
 	if (!FileManager.DirectoryExists(*Path))
 	{
 		FileManager.MakeDirectory(*Path, false);
@@ -28,6 +32,7 @@ FString AerodynamicToolRunner::GetOrCreateWorkDir()
 bool AerodynamicToolRunner::CleanWorkDir()
 {
 	FString Path = GetOrCreateWorkDir();
+	// Видаляємо рекурсивно (true) але не лише вміст — разом з самою директорією
 	return IFileManager::Get().DeleteDirectory(*Path, false, true);
 }
 
@@ -46,8 +51,10 @@ FString AerodynamicToolRunner::CopyToWorkDir(FString SourcePath, FString Name)
 
 FString AerodynamicToolRunner::SavePolarFile(TMap<float, FPolarRow> Polar)
 {
+	// Заголовок у форматі airfoilprep (утиліта Viterna-екстраполяції)
 	FString Content = TEXT("! \"Airfoil, OSU data at Re = .75 Million, Clean roughness\"\n1 NumTabs         \n0.75 Re\n");
 
+	// Сортуємо за кутом атаки для коректного відображення у файлі
 	TArray<float> SortedKeys;
 	Polar.GetKeys(SortedKeys);
 	SortedKeys.Sort();
@@ -67,9 +74,12 @@ bool AerodynamicToolRunner::RunPythonScript(FString Command)
 {
 	FPythonCommandEx PythonCommand;
 	PythonCommand.Command = Command;
+	// ExecuteFile — виконує файл скрипту, а не рядок коду
 	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteFile;
 
 	const bool bSuccess = IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
+
+	// Перенаправляємо весь вивід Python у LogUAV
 	for (const FPythonLogOutputEntry& Entry : PythonCommand.LogOutput)
 	{
 		if (Entry.Type == EPythonLogOutputType::Error)
@@ -86,6 +96,7 @@ bool AerodynamicToolRunner::RunPythonScript(FString Command)
 
 TMap<float, FPolarRow> AerodynamicToolRunner::ParsePolarFile(FString Path, int32 AoAIdx, int32 ClIdx, int32 CdIdx, int32 CmIdx)
 {
+	// Регулярний вираз відбирає лише рядки з числовими даними (пропускає заголовки)
 	const FRegexPattern RegexPattern(TEXT("^(\\s*-?\\d+\\.\\d+\\s*)+$"));
 	TMap<float, FPolarRow> Polar;
 
@@ -98,8 +109,9 @@ TMap<float, FPolarRow> AerodynamicToolRunner::ParsePolarFile(FString Path, int32
 	for (const FString& Line : Lines)
 	{
 		FRegexMatcher Matcher(RegexPattern, Line);
-		if (!Matcher.FindNext()) continue;
+		if (!Matcher.FindNext()) continue;  // Пропускаємо нечислові рядки
 
+		// Нормалізуємо роздільники і розбиваємо на стовпці
 		FString Normalized = Line.TrimStartAndEnd();
 		Normalized.ReplaceCharInline('\t', ' ');
 		TArray<FString> Parts;
@@ -117,6 +129,7 @@ TMap<float, FPolarRow> AerodynamicToolRunner::ParsePolarFile(FString Path, int32
 
 FString AerodynamicToolRunner::GetOwnerFolderName(UObject* ContextObject)
 {
+	// Формат пакету: "/Game/Airplane/<FolderName>/...", витягуємо перший сегмент після "/Game/Airplane/"
 	FString PackageName = ContextObject->GetClass()->GetPackage()->GetName();
 	PackageName.RemoveFromStart("/Game/Airplane/");
 	return TextUtil::RemoveAfterSymbol(PackageName, '/');

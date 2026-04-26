@@ -17,12 +17,24 @@ class UAVSIMULATOR_API UUAVPhysicsStateComponent : public UActorComponent
 public:
 	UUAVPhysicsStateComponent();
 
-	/** Refresh all physics state values from the owner's static mesh component. Call from Tick. */
+	/**
+	 * Оновлює всі кешовані значення фізичного стану з StaticMeshComponent власника.
+	 * Якщо фізична симуляція вимкнена — кутова швидкість та центр мас скидаються до нуля.
+	 * Напрямок набігаючого потоку завжди оновлюється з вектора швидкості актора.
+	 * Необхідно викликати один раз на початку кожного тіку перед зчитуванням геттерів.
+	 */
 	void Update();
 
+	/** @return Лінійна швидкість mesh у cm/s (світові координати). */
 	FVector GetLinearVelocity()   const { return LinearVelocity;        }
+
+	/** @return Кутова швидкість mesh у рад/с (світові координати). */
 	FVector GetAngularVelocity()  const { return AngularVelocity;       }
+
+	/** @return Центр мас mesh у світових координатах (cm). */
 	FVector GetCenterOfMass()     const { return CenterOfMassInWorld;   }
+
+	/** @return Нормалізований вектор набігаючого потоку (протилежний до вектора швидкості); нульовий вектор якщо ЛА стоїть на місці. */
 	FVector GetAirflowDirection() const { return AirflowDirection;      }
 
 private:

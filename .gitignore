@@ -84,3 +84,17 @@ Tools/OpenVSP/OpenVSP-3.45.4-win64/*
 
 # Cesium cache
 *.sqlite
+
+#Log
+*.log
+
+#SU2
+Tools/SU2/*.cfg
+Tools/SU2/*.su2
+Tools/SU2/*.vtu
+Tools/SU2/*.csv
+Tools/SU2/visualisation/*
+Tools/SU2/SU2-v8.4.0-win64/*
+Tools/SU2/__pycache__/*
+Tools/SU2/.claude/*
+Tools/SU2/*.dat

@@ -5,6 +5,7 @@
 
 FChord AerodynamicUtil::FindChord(TArray<FAirfoilPointData> Points, FVector Offset)
 {
+	// Шукаємо крайні точки по осі X — це передня (MaxX) та задня (MinX) кромки
 	FAirfoilPointData MinXPoint = Points[0];
 	FAirfoilPointData MaxXPoint = Points[0];
 
@@ -14,6 +15,7 @@ FChord AerodynamicUtil::FindChord(TArray<FAirfoilPointData> Points, FVector Offs
 		if (Points[i].X > MaxXPoint.X) MaxXPoint = Points[i];
 	}
 
+	// Зберігаємо Y = 0 (2D-профіль), додаємо зміщення
 	FVector MinPosition = FVector(MinXPoint.X, 0, MinXPoint.Z) + Offset;
 	FVector MaxPosition = FVector(MaxXPoint.X, 0, MaxXPoint.Z) + Offset;
 	return FChord(MinPosition, MaxPosition);
@@ -21,6 +23,7 @@ FChord AerodynamicUtil::FindChord(TArray<FAirfoilPointData> Points, FVector Offs
 
 FChord AerodynamicUtil::FindChord(TArray<FVector> Points)
 {
+	// Для 3D-масиву: StartPoint = MaxX (передня кромка), EndPoint = MinX (задня кромка)
 	FVector MinXPoint = Points[0];
 	FVector MaxXPoint = Points[0];
 
@@ -38,6 +41,7 @@ TArray<FAirfoilPointData> AerodynamicUtil::Scale(const TArray<FAirfoilPointData>
 	TArray<FAirfoilPointData> ScaledPoints;
 	ScaledPoints.Reserve(Points.Num());
 
+	// Масштабування відносно середини хорди як центру (не відносно початку координат)
 	FChord ChordPosition = FindChord(Points);
 	const FVector Pivot = FVector(
 		(ChordPosition.StartPoint.X + ChordPosition.EndPoint.X) / 2.0f,
@@ -58,6 +62,7 @@ TArray<FAirfoilPointData> AerodynamicUtil::Scale(const TArray<FAirfoilPointData>
 
 TArray<FAirfoilPointData> AerodynamicUtil::NormalizePoints(TArray<FAirfoilPointData> Points)
 {
+	// Інверсія X приводить профіль у правостороннє представлення (передня кромка → +X)
 	TArray<FAirfoilPointData> NormalizedPoints;
 	for (FAirfoilPointData Point : Points)
 	{
@@ -71,12 +76,14 @@ TArray<FAirfoilPointData> AerodynamicUtil::NormalizePoints(TArray<FAirfoilPointD
 
 TArray<FVector> AerodynamicUtil::ConvertTo3DPoints(TArray<FAirfoilPointData> Profile, float ChordLength, float ExpectedChordLength, FVector Offset)
 {
+	// Масштабуємо профіль до цільової довжини хорди, потім переводимо в 3D
 	TArray<FAirfoilPointData> ScaledProfile = AerodynamicUtil::Scale(Profile, ExpectedChordLength / ChordLength);
 	return AdaptTo(ScaledProfile, Offset);
 }
 
 TArray<FVector> AerodynamicUtil::AdaptTo(TArray<FAirfoilPointData> Points, FVector Offset)
 {
+	// Встановлюємо Y = 0 (профіль лежить у площині XZ) і додаємо зміщення секції
 	TArray<FVector> Result;
 	for (FAirfoilPointData Point : Points)
 	{
