@@ -34,6 +34,8 @@ public:
 	 */
 	void ProcessFrame();
 
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
 protected:
 	/**
 	 * Знаходить USceneCaptureComponent2D на власнику, створює UTextureRenderTarget2D

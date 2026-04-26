@@ -26,7 +26,6 @@ void AAirplane::BeginPlay()
 void AAirplane::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	if (CameraComp) CameraComp->ProcessFrame();
 }
 
 UTexture2D* AAirplane::GetCameraOutputTexture() const

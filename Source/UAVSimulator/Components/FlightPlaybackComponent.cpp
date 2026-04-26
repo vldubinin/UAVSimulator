@@ -2,6 +2,7 @@
 
 #include "FlightPlaybackComponent.h"
 #include "UAVSimulator/Components/FlightDynamicsComponent.h"
+#include "UAVSimulator/Components/UAVCameraComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/StaticMeshComponent.h"
 
@@ -44,6 +45,15 @@ void UFlightPlaybackComponent::StartPlayback()
 	{
 		FlightDynamics->SetComponentTickEnabled(false);
 		FlightDynamics->SetActive(false);
+	}
+
+	// Disable camera processing on the target — it is never viewed during playback.
+	TArray<UUAVCameraComponent*> Cameras;
+	Owner->GetComponents<UUAVCameraComponent>(Cameras);
+	for (UUAVCameraComponent* Cam : Cameras)
+	{
+		Cam->SetComponentTickEnabled(false);
+		Cam->SetActive(false);
 	}
 }
 
