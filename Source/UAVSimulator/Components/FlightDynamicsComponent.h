@@ -47,6 +47,8 @@ public:
 	/** Replicates the old OnConstruction editor visualization: gathers surfaces, initializes CoM, draws thrust-point markers. */
 	void UpdateEditorVisualization(class UStaticMeshComponent* Mesh);
 
+	FControlInputState GetControlState() const { return ControlState; }
+
 	UFUNCTION(BlueprintCallable, CallInEditor, meta = (DisplayName = "Розрахувати поляри для ЛА"), Category = "Автоматизація")
 	void GenerateAerodynamicPhysicalConfigutation();
 
