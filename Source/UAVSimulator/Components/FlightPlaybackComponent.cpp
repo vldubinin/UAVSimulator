@@ -64,7 +64,7 @@ void UFlightPlaybackComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 		const TArray<FFlightFrame>& Frames = LoadedScenario->FlightFrames;
 		if (Frames.Num() > 0)
 		{
-			GetOwner()->SetActorLocationAndRotation(Frames.Last().Location, Frames.Last().Rotation);
+			GetOwner()->SetActorLocationAndRotation(Frames.Last().Location + PlaybackOffset, Frames.Last().Rotation);
 		}
 		return;
 	}
@@ -98,5 +98,5 @@ void UFlightPlaybackComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 		FrameB.Rotation.Quaternion(),
 		Alpha).Rotator();
 
-	GetOwner()->SetActorLocationAndRotation(InterpLocation, InterpRotation);
+	GetOwner()->SetActorLocationAndRotation(InterpLocation + PlaybackOffset, InterpRotation);
 }

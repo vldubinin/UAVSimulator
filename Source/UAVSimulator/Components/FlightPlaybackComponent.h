@@ -21,6 +21,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Playback")
 	FString SaveSlotName = TEXT("TargetScenario_1");
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Playback")
+	FVector PlaybackOffset = FVector::ZeroVector;
+
 	UFUNCTION(BlueprintCallable, Category = "Playback")
 	void StartPlayback();
 

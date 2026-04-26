@@ -6,12 +6,36 @@
 #include "GameFramework/GameModeBase.h"
 #include "UAVSimulatorGameModeBase.generated.h"
 
-/**
- * 
- */
+class AAirplane;
+
+UENUM(BlueprintType)
+enum class ESimulatorMode : uint8
+{
+	RecordTarget     UMETA(DisplayName = "Record Target"),
+	PlaybackAndTrack UMETA(DisplayName = "Playback and Track"),
+};
+
 UCLASS()
 class UAVSIMULATOR_API AUAVSimulatorGameModeBase : public AGameModeBase
 {
 	GENERATED_BODY()
-	
+
+public:
+	virtual void BeginPlay() override;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulator")
+	ESimulatorMode CurrentSimulatorMode = ESimulatorMode::RecordTarget;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulator")
+	TSubclassOf<AAirplane> TargetAirplaneClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulator")
+	TSubclassOf<AAirplane> TrackerAirplaneClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulator")
+	FString ScenarioSlotName = TEXT("TargetScenario_1");
+
+	/** Distance in cm to shift the replayed target trajectory ahead of the tracker's starting position. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulator")
+	float TargetSpawnOffsetDistance = 5000.0f;
 };

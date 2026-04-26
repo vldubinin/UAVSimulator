@@ -30,6 +30,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Recording")
 	void StopRecordingAndSave();
 
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
 private:
 	float CurrentRecordTime = 0.f;
 

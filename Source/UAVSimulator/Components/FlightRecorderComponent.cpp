@@ -44,6 +44,12 @@ void UFlightRecorderComponent::RecordFrame()
 	RecordedFrames.Add(Frame);
 }
 
+void UFlightRecorderComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	StopRecordingAndSave();
+	Super::EndPlay(EndPlayReason);
+}
+
 void UFlightRecorderComponent::StopRecordingAndSave()
 {
 	GetWorld()->GetTimerManager().ClearTimer(RecordTimerHandle);
