@@ -5,8 +5,17 @@
 #include "UAVSimulator/Components/FlightRecorderComponent.h"
 #include "UAVSimulator/Components/FlightPlaybackComponent.h"
 #include "UAVSimulator/Save/FlightScenarioSave.h"
+#include "UAVSimulator/Subsystem/UAVSimulationSubsystem.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerStart.h"
+
+void AUAVSimulatorGameModeBase::UpdateVisualSettings()
+{
+	if (UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>())
+	{
+		Subsystem->SetVisualSettings(bEnableVisualsForPlayer, bEnableVisualsForTarget);
+	}
+}
 
 void AUAVSimulatorGameModeBase::BeginPlay()
 {
@@ -85,4 +94,8 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 			}
 		}
 	}
+
+	// Broadcast visual settings AFTER all actors are spawned and possessed so that
+	// every airplane's BeginPlay has already subscribed to the delegate.
+	UpdateVisualSettings();
 }

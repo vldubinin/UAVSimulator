@@ -38,4 +38,14 @@ public:
 	/** Distance in cm to shift the replayed target trajectory ahead of the tracker's starting position. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulator")
 	float TargetSpawnOffsetDistance = 5000.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|VFX")
+	bool bEnableVisualsForPlayer = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|VFX")
+	bool bEnableVisualsForTarget = false;
+
+	/** Pushes the current flag values to UUAVSimulationSubsystem and broadcasts to all airplanes. */
+	UFUNCTION(BlueprintCallable, Category = "Simulation|VFX")
+	void UpdateVisualSettings();
 };

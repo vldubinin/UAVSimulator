@@ -2,6 +2,9 @@
 
 #include "Airplane.h"
 #include "Components/StaticMeshComponent.h"
+#include "UAVSimulator/Subsystem/UAVSimulationSubsystem.h"
+#include "UAVSimulator/SceneComponent/AerodynamicSurface/AerodynamicSurfaceSC.h"
+#include "UAVSimulator/Components/FlightPlaybackComponent.h"
 
 AAirplane::AAirplane()
 {
@@ -21,6 +24,32 @@ void AAirplane::OnConstruction(const FTransform& Transform)
 void AAirplane::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>())
+	{
+		Subsystem->OnVisualSettingsChanged.AddUObject(this, &AAirplane::RefreshVisualEffects);
+		RefreshVisualEffects();
+	}
+}
+
+void AAirplane::RefreshVisualEffects()
+{
+	UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>();
+	if (!Subsystem) return;
+
+	// Role check: player = locally controlled pawn; target = running a recorded playback.
+	const bool bIsPlayer = IsLocallyControlled();
+	const bool bIsTarget = FindComponentByClass<UFlightPlaybackComponent>() != nullptr;
+
+	const bool bActive = (bIsPlayer && Subsystem->bEnableVisualsForPlayer)
+	                  || (bIsTarget && Subsystem->bEnableVisualsForTarget);
+
+	TArray<UAerodynamicSurfaceSC*> Surfaces;
+	GetComponents<UAerodynamicSurfaceSC>(Surfaces);
+	for (UAerodynamicSurfaceSC* Surface : Surfaces)
+	{
+		Surface->SetNiagaraActive(bActive);
+	}
 }
 
 void AAirplane::Tick(float DeltaTime)

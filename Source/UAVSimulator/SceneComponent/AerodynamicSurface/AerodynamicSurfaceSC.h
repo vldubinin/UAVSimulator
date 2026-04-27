@@ -51,6 +51,9 @@ public:
 	 */
 	AerodynamicForce CalculateForcesOnSurface(FVector CenterOfMass, FVector LinearVelocity, FVector AngularVelocity, FVector AirflowDirection, ControlInputState ControlState, bool bVisualizeForces);
 
+	/** Activates or deactivates all UNiagaraComponents attached to this surface. */
+	void SetNiagaraActive(bool bActive);
+
 private:
 	/**
 	 * Читає усі рядки з DataTable Profile та повертає масив точок профілю крила.

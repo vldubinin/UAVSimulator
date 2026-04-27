@@ -3,6 +3,7 @@
 
 #include "AerodynamicSurfaceSC.h"
 #include "UAVSimulator/UAVSimulator.h"
+#include "NiagaraComponent.h"
 
 
 
@@ -43,6 +44,24 @@ AerodynamicForce UAerodynamicSurfaceSC::CalculateForcesOnSurface(FVector CenterO
 		TotalAerodynamicForceForAllSubSurfaces.RotationalForce += SubSurfaceForces.RotationalForce;
 	}
 	return TotalAerodynamicForceForAllSubSurfaces;
+}
+
+void UAerodynamicSurfaceSC::SetNiagaraActive(bool bActive)
+{
+	for (USceneComponent* Child : GetAttachChildren())
+	{
+		if (UNiagaraComponent* NiagaraComp = Cast<UNiagaraComponent>(Child))
+		{
+			if (bActive)
+			{
+				NiagaraComp->Activate();
+			}
+			else
+			{
+				NiagaraComp->Deactivate();
+			}
+		}
+	}
 }
 
 void UAerodynamicSurfaceSC::DestroySubsurfaces()

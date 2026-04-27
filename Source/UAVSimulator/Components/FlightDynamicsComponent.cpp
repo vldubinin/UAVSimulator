@@ -64,6 +64,8 @@ void UFlightDynamicsComponent::BeginPlay()
 				NiagaraComp->SetFloatParameter(FName("ProbeHeight"), 2.0f);
 			}
 
+			// Start inactive — UUAVSimulationSubsystem controls visibility via UAerodynamicSurfaceSC::SetNiagaraActive.
+			NiagaraComp->bAutoActivate = false;
 			NiagaraComp->RegisterComponent();
 			ActiveFlowVisualizers.Add(NiagaraComp);
 		}
