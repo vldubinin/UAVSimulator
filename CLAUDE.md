@@ -25,21 +25,83 @@ Unreal Engine 5.7 UAV (Unmanned Aerial Vehicle) flight dynamics simulator. Writt
 
 ## Architecture
 
-### Physics Model: PhysicalAirplane + AerodynamicSurfaceSC
+### Main Actor: AAirplane
 
-Hierarchical surface decomposition:
-```
-PhysicalAirplane (APawn)
-└── AerodynamicSurfaceSC[]          # wings, tail surfaces
-    └── SubAerodynamicSurfaceSC[]   # span-wise segments
-        └── ControlSurfaceSC        # ailerons, elevators, rudders
-```
-Each sub-surface reads its airfoil polar from a DataTable, computes angle of attack from the local airflow vector, looks up CL/CD, and applies force+torque to the aircraft's rigid body. Control surfaces (`EFlapType`: Aileron, Elevator, Rudder) can be deflected by pilot input.
+`AAirplane` (`Actor/Airplane.h/cpp`) is the sole aircraft pawn. `PhysicalAirplane` has been deleted — do not reference it. The actor owns two CDO components:
 
-`PhysicalAirplane` also tracks bound vortex filaments (`FBoundVortex`) and trailing wake nodes (`FTrailingVortexNode`) for vortex-based induced drag. Wake data is pushed each tick to the `FlowVisualizer` (`UNiagaraComponent`) via `SendWakeDataToNiagara()`.
+- **`UFlightDynamicsComponent`** — all aerodynamics, physics forces, vortex wake, engine thrust
+- **`UUAVCameraComponent`** — onboard OpenCV camera (is a `UActorComponent`, not a `USceneComponent`; cannot be attached to a scene hierarchy)
+
+### Aerodynamic Surface Hierarchy
+
+```
+AAirplane (APawn)
+└── UAerodynamicSurfaceSC[]          # wings, tail surfaces (USceneComponent)
+    └── USubAerodynamicSurfaceSC[]   # span-wise segments
+        └── UControlSurfaceSC        # ailerons, elevators, rudders
+```
+
+Each `USubAerodynamicSurfaceSC` reads its airfoil polar from a DataTable, computes AoA from the local airflow vector, looks up CL/CD, and applies force+torque via `FAerodynamicForce`. Control surfaces (`EFlapType`: Aileron, Elevator, Rudder) can be deflected by pilot input.
+
+After each `CalculateForcesOnSubSurface` call, the sub-surface caches two public fields for downstream use:
+- `CurrentWorldCoP` — world-space center of pressure
+- `CurrentGamma` — bound vortex circulation (m²/s) via Kutta-Joukowski: `Γ = L / (ρ · V · b)`
+
+`UAerodynamicSurfaceSC` aggregates these via `GetSubSurfacePositions()` / `GetSubSurfaceGammas()`. `UFlightDynamicsComponent` further aggregates across all surfaces via `GetAllVortexPositions()` / `GetAllVortexGammas()`.
+
+### Two-Phase Actor Initialization
+
+`AAirplane` initializes in two stages:
+- **`OnConstruction`** (runs in-editor on placement or transform change): collects `AerodynamicSurfaceSC` / `ControlSurfaceSC` children, resolves CoM from static mesh, draws debug labels.
+- **`BeginPlay`** (runtime, physics active): re-initializes surfaces with physics-accurate CoM, sets time dilation from `DebugSimulatorSpeed`, spawns Niagara flow visualizers.
+
+Code that reads velocity or angular velocity must run in `BeginPlay` or later.
+
+### FlightDynamicsComponent Public API
+
+Getters backed by `UUAVPhysicsStateComponent` (updated at the top of each tick):
+- `GetAirspeed()` — speed in m/s
+- `GetAngleOfAttack()` — body-level AoA in degrees (velocity vs. actor forward)
+- `GetRelativeWindVector()` — normalized airflow direction (opposite to velocity)
+- `GetAllVortexPositions()` — flat array of `CurrentWorldCoP` from all sub-surfaces
+- `GetAllVortexGammas()` — flat array of `CurrentGamma` from all sub-surfaces
+
+These are only valid after `UFlightDynamicsComponent` has ticked in the current frame. Any component that reads them must call `AddTickPrerequisiteComponent(DynamicsComp)` in `BeginPlay`.
+
+### VFX Data Pipeline
+
+`UAerodynamicVFXComponent` (`Components/AerodynamicVFXComponent.cpp`) is a `USceneComponent` that drives the Niagara VLM visualization:
+
+1. **Lazy spawn** — Niagara is not spawned in `BeginPlay`. `TickComponent` checks `ShouldShowVLMVFX()` on the GameMode and `IsLocallyControlled()` on the owning pawn each tick. The system spawns on the first tick both conditions are true, and is destroyed if either becomes false. This handles deferred `Possess` calls correctly.
+2. **Coordinate conversion** — `GetAllVortexPositions()` returns world-space coordinates. Before passing to Niagara (which is attached with `KeepRelativeOffset`), each position is converted to actor-local space via `GetActorTransform().Inverse().TransformPosition(...)`.
+3. **Per-tick push** — scalars (`AoA`, `Airspeed`, `AirflowDirection`) via `SetVariableFloat`/`SetVariableVec3`; arrays (`WakePositions`, `WakeGammas`) via `UNiagaraDataInterfaceArrayFunctionLibrary`.
+
+### Simulator Modes (AUAVSimulatorGameModeBase)
+
+`ESimulatorMode` controls `BeginPlay` behavior:
+
+- **`RecordTarget`** — spawns `TargetAirplaneClass` at `PlayerStart`, dynamically attaches `UFlightRecorderComponent`, calls `StartRecording()`.
+- **`PlaybackAndTrack`** — loads `FlightScenarioSave` from `ScenarioSlotName`, spawns both target and tracker airplanes. The target gets a dynamic `UFlightPlaybackComponent`; the player controller possesses the tracker.
+
+**Critical:** dynamically created components (`NewObject<UFlightPlaybackComponent>`) must call `AddInstanceComponent(Comp)` on the owning actor **before** `RegisterComponent()`, otherwise the engine skips their `TickComponent`.
+
+### Playback Subsystem
+
+`UFlightPlaybackComponent::StartPlayback()` disables competing systems on the target airplane in this order:
+1. `UStaticMeshComponent::SetSimulatePhysics(false)` — stops the physics solver from fighting playback transforms
+2. `UUAVPhysicsStateComponent::SetComponentTickEnabled(false)` — stops the custom physics cache from overwriting state
+3. `UFlightDynamicsComponent::SetComponentTickEnabled(false)` + `SetActive(false)` — silences force application
+4. `UUAVCameraComponent::SetComponentTickEnabled(false)` + `SetActive(false)` — camera is unused during playback
+
+`TickComponent` interpolates between recorded `FFlightFrame` samples using `FQuat::Slerp` for rotation and `FMath::Lerp` for position, applying `PlaybackOffset` to shift the trajectory.
+
+### Physics State Cache
+
+`UUAVPhysicsStateComponent` caches `LinearVelocity`, `AngularVelocity`, `CenterOfMassInWorld`, and `AirflowDirection` each tick. Call `Update()` once per tick before reading any getter. It is a subobject of `UFlightDynamicsComponent` and is updated at the top of its `TickComponent`.
 
 ### Force Calculation Pattern
-`AerodynamicForce` struct holds `PositionalForce` (lift + drag) and `RotationalForce` (torque + r × F). Dynamic pressure = `0.5 * ρ * V²`. Forces are in world space after transforming from surface-local coordinates.
+
+`FAerodynamicForce` holds `PositionalForce` (lift + drag) and `RotationalForce` (torque + r × F). Dynamic pressure = `0.5 * ρ * V²`. Forces are computed in Newtons and converted to Unreal internal units (`kg·cm/s²`) via `NewtonsToKiloCentimeter` before being applied to the mesh.
 
 ### Aerodynamic Data Pipeline
 
@@ -53,40 +115,43 @@ Each sub-surface reads its airfoil polar from a DataTable, computes angle of att
 2. `sweep.py` runs a full flap-angle polar sweep using SU2-v8.4.0; results cached in `Tools/SU2/logs/`
 3. `su2_unreal_import.py` creates DataTable assets under `/Game/` automatically
 4. Asset naming: dots in floats become dashes — e.g. `/Game/WingProfile/NACA_0009/DT_naca0009_0-75_-40-0_40-0`
-5. For standalone runs (without Unreal): use `Tools/SU2/unrealless_run.py` or `unrealless_run_list.py`
 
 **Common final step:** Import `.dat` files into Unreal via the custom **AirfoilImporter** plugin → becomes a `DataTable` of `FAerodynamicProfileRow` (CL/CD/Cm curves keyed by flap angle)
 
 ### Computer Vision
-`UUAVCameraComponent` (in `Components/`) manages the onboard camera: it owns the `USceneCaptureComponent2D` (640×480, B8G8R8A8), runs OpenCV processing each frame (flip + text overlay), and exposes a `UTexture2D* OutputTexture` to bind in widgets or materials.
+`UUAVCameraComponent` (in `Components/`) manages the onboard camera: owns `USceneCaptureComponent2D` (640×480, B8G8R8A8), runs OpenCV processing each frame (flip + text overlay), exposes `UTexture2D* OutputTexture`. It is a `UActorComponent`, not a `USceneComponent` — it has no transform and cannot be placed in the scene hierarchy.
 
 ### Utility Class Responsibilities
-The `Util/` directory has single-responsibility helpers:
 
 | Class | Role |
 |-------|------|
 | `AerodynamicPhysicsLibrary` | Stateless aerodynamics math (BlueprintFunctionLibrary): AoA, lift, drag, torque, unit conversions |
-| `AerodynamicPhysicalCalculationUtil` | Orchestrates polar generation: dispatches to XFoil (`CalculatePolar`) or SU2 (`RunSU2Calculation`); finds profile `.dat` files; builds/attaches asset paths |
+| `AerodynamicPhysicalCalculationUtil` | Orchestrates polar generation: dispatches to XFoil (`CalculatePolar`) or SU2 (`RunSU2Calculation`) |
 | `AerodynamicProfileLookup` | DataTable row lookup; row naming convention: `FLAP_{angle}_Deg` |
 | `AerodynamicToolRunner` | Low-level I/O + external process execution (Python/XFoil/OpenVSP), polar file parsing |
 | `AerodynamicUtil` | Airfoil geometry utilities: chord finding, profile scaling/normalization, 2D→3D conversion |
 | `ControlInputMapper` | Maps normalized input [-1,1] to flap deflection angles; resolves per-`EFlapType` with mirror support |
 | `CoordinateTransformUtil` | Local-to-world coordinate conversion for positions and `FChord` objects |
 | `AerodynamicDebugRenderer` | Viewport visualizations: surface outlines, splines, flap hinges, force arrows, labels |
-| `TextUtil` | String helper: `RemoveAfterSymbol` strips the last occurrence of a delimiter and everything after it |
+| `TextUtil` | `RemoveAfterSymbol` strips the last occurrence of a delimiter and everything after it |
 
 ### Key Files
+
 | File | Role |
 |------|------|
-| `Actor/PhysicalAirplane.h/cpp` | Main aircraft pawn; control inputs, vortex wake tracking, Niagara wake visualization |
-| `Components/UAVCameraComponent.h/cpp` | Onboard camera + OpenCV processing component |
-| `Components/UAVPhysicsStateComponent.h/cpp` | Per-tick physics state cache (velocity, CoM, airflow); call `Update()` before reading |
-| `SceneComponent/AerodynamicSurface/AerodynamicSurfaceSC.h/cpp` | Per-surface lift/drag computation |
-| `SceneComponent/SubAerodynamicSurface/SubAerodynamicSurfaceSC.h/cpp` | Per-segment forces, reads DataTable |
+| `Actor/Airplane.h/cpp` | Main aircraft pawn; owns `FlightDynamicsComponent` and `UAVCameraComponent` |
+| `Components/FlightDynamicsComponent.h/cpp` | All aerodynamics, physics forces, vortex wake, Niagara flow visualizers |
+| `Components/AerodynamicVFXComponent.cpp` | Niagara VLM VFX: lazy spawn, local-space coordinate conversion, per-tick data push |
+| `Components/UAVPhysicsStateComponent.h/cpp` | Per-tick physics state cache; call `Update()` before reading |
+| `Components/FlightPlaybackComponent.h/cpp` | Interpolated playback of recorded `FFlightFrame` data; disables physics/dynamics on owner |
+| `Components/FlightRecorderComponent.h/cpp` | Records flight frames to `UFlightScenarioSave` save game |
+| `Components/UAVCameraComponent.h/cpp` | Onboard camera + OpenCV processing (`UActorComponent`, no scene transform) |
+| `SceneComponent/AerodynamicSurface/AerodynamicSurfaceSC.h/cpp` | Per-surface force aggregation; builds and owns `USubAerodynamicSurfaceSC` children |
+| `SceneComponent/SubAerodynamicSurface/SubAerodynamicSurfaceSC.h/cpp` | Per-segment forces, DataTable lookup; exposes `CurrentWorldCoP` and `CurrentGamma` |
 | `SceneComponent/ControlSurface/ControlSurfaceSC.h/cpp` | Deflectable control surfaces |
+| `UAVSimulatorGameModeBase.h/cpp` | Simulator mode dispatch: `RecordTarget` vs `PlaybackAndTrack` |
 | `Structure/AerodynamicSurfaceStructure.h` | `FAerodynamicSurfaceStructure` USTRUCT: chord size, offsets, flap range, DataTable ref, `EFlapType` |
 | `Entity/VortexEntities.h` | `FBoundVortex` and `FTrailingVortexNode` structs for vortex wake |
-| `Entity/` | Plain C++ structs (POD): `AerodynamicForce`, `Chord`, `PolarRow`, `ControlInputState`, etc. |
 | `Plugins/AirfoilImporter/` | Custom editor plugin: `.dat` → DataTable factory |
 
 ## Physics Configuration
@@ -95,19 +160,15 @@ The `Util/` directory has single-responsibility helpers:
 - Max substeps: 16
 - Max substep delta time: 0.0013 s (≈769 Hz)
 
-Simulation speed can be scaled at runtime via `DebugSimulatorSpeed` on `PhysicalAirplane` (uses Unreal time dilation).
-
-## Debug & Development
-
-`PhysicalAirplane` exposes:
-- `DebugConsoleLogs` — prints force values to output log
-- `bDrawDebugMarkers` — draws force vectors in viewport
-
-No automated test framework is set up. Testing is done by running the editor and observing simulation behavior with debug markers enabled.
+Simulation speed can be scaled at runtime via `DebugSimulatorSpeed` on `UFlightDynamicsComponent`.
 
 ## Notes
 
 - UI-facing property names and some comments are in **Ukrainian** (the development team's language).
 - `Tools/Airfoil/airfoil.py` requires `airfoilprep` Python package; `Tools/PyInstall/` and `Tools/OpenVSP/install_to_py.bat` handle dependency setup.
 - SU2 hardcoded defaults (set in `RunSU2Calculation`): CoreNumber=4, HingeLocation=0.75, FlapStep=1.0, RmsQuality=-4, Resume=true.
+- `AerodynamicToolRunner` enforces a **45-character max on temp directory paths** — XFoil and SU2 binaries fail silently on longer Windows paths.
+- Standalone SU2 (no Unreal required): `Tools/SU2/run_unrealless.bat` wraps `unrealless_run.py` / `unrealless_run_list.py`.
 - The large file `Saved/Cesium/...` (SQLite cache ~305 MB) is geospatial tile cache — do not commit.
+- `APawn` does not initialize a `RootComponent` by default. When adding `USceneComponent` subobjects to `AAirplane` or any `APawn` subclass, always create an explicit root first (`CreateDefaultSubobject<USceneComponent>(TEXT("DefaultRoot"))`, assign to `RootComponent`) before calling `SetupAttachment`.
+- `GEngine->AddOnScreenDebugMessage` requires the `Key` argument to be explicitly cast to `uint64` to avoid overload ambiguity in UE5: use `(uint64)GetOwner()->GetUniqueID()` or `(uint64)-1`.

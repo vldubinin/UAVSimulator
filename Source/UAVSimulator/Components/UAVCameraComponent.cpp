@@ -4,8 +4,7 @@
 
 UUAVCameraComponent::UUAVCameraComponent()
 {
-	// Компонент обробляє кадри лише за явним викликом ProcessFrame — власний тік не потрібен
-	PrimaryComponentTick.bCanEverTick = false;
+	PrimaryComponentTick.bCanEverTick = true;
 	CaptureComponent  = nullptr;
 	RenderTarget      = nullptr;
 	UpdateRegion      = nullptr;
@@ -40,7 +39,31 @@ void UUAVCameraComponent::BeginPlay()
 	OutputTexture = UTexture2D::CreateTransient(CVWidth, CVHeight, PF_B8G8R8A8);
 	OutputTexture->UpdateResource();
 
+	if (FTexture2DMipMap* Mip = &OutputTexture->GetPlatformData()->Mips[0])
+	{
+		void* Data = Mip->BulkData.Lock(LOCK_READ_WRITE);
+		FMemory::Memset(Data, 0, CVWidth * CVHeight * 4);
+		Mip->BulkData.Unlock();
+	}
+	OutputTexture->UpdateResource();
+
 	UpdateRegion = new FUpdateTextureRegion2D(0, 0, 0, 0, CVWidth, CVHeight);
+}
+
+void UUAVCameraComponent::SetCameraProcessingEnabled(bool bEnable)
+{
+	bIsProcessingEnabled = bEnable;
+	if (CaptureComponent)
+	{
+		CaptureComponent->bCaptureEveryFrame = bEnable;
+	}
+}
+
+void UUAVCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	if (!bIsProcessingEnabled) return;
+	ProcessFrame();
 }
 
 void UUAVCameraComponent::ProcessFrame()

@@ -34,6 +34,10 @@ public:
 	 */
 	void ProcessFrame();
 
+	void SetCameraProcessingEnabled(bool bEnable);
+
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
 protected:
 	/**
 	 * Знаходить USceneCaptureComponent2D на власнику, створює UTextureRenderTarget2D
@@ -62,6 +66,8 @@ private:
 	FUpdateTextureRegion2D* UpdateRegion;
 
 	cv::Mat ProcessedFrameBuffer;
+
+	bool bIsProcessingEnabled = false;
 
 	static constexpr int32 CVWidth  = 640;
 	static constexpr int32 CVHeight = 480;
