@@ -287,6 +287,15 @@ void UFlightDynamicsComponent::SendWakeDataToNiagara()
 {
 	if (ActiveFlowVisualizers.Num() == 0) return;
 
+	const bool bActive = ActiveFlowVisualizers[0]->IsActive();
+
+	for (UNiagaraComponent* Visualizer : ActiveFlowVisualizers)
+	{
+		Visualizer->SetVisibility(bActive);
+	}
+
+	if (!bActive) return;
+
 	TArray<FVector> FlatWakePositions;
 	TArray<float>   FlatWakeGammas;
 
@@ -312,12 +321,6 @@ void UFlightDynamicsComponent::SendWakeDataToNiagara()
 
 	for (UNiagaraComponent* Visualizer : ActiveFlowVisualizers)
 	{
-		if (Visualizer->IsVisible() != bVisualizeParticles)
-		{
-			Visualizer->SetVisibility(bVisualizeParticles);
-		}
-		if (!bVisualizeParticles) continue;
-
 		UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(Visualizer, FName("WakePositions"), FlatWakePositions);
 		UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloat(Visualizer,  FName("WakeGammas"),    FlatWakeGammas);
 	}

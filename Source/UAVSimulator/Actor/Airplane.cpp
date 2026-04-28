@@ -32,6 +32,12 @@ void AAirplane::BeginPlay()
 	}
 }
 
+void AAirplane::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+	RefreshVisualEffects();
+}
+
 void AAirplane::RefreshVisualEffects()
 {
 	UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>();

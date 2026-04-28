@@ -57,10 +57,6 @@ public:
 	float DebugSimulatorSpeed = 1.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation Settings",
-		meta = (ToolTip = "Увімкнути/вимкнути димові лінії (Niagara)"))
-	bool bVisualizeParticles = true;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation Settings",
 		meta = (ToolTip = "Увімкнути/вимкнути малювання векторів сил та моментів (Debug Arrows)"))
 	bool bVisualizeForces = false;
 
