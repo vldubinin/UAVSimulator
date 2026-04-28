@@ -58,7 +58,7 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation Settings",
 		meta = (ToolTip = "Увімкнути/вимкнути димові лінії (Niagara)"))
-	bool bVisualizeParticles = true;
+	bool bVisualizeParticles = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation Settings",
 		meta = (ToolTip = "Увімкнути/вимкнути малювання векторів сил та моментів (Debug Arrows)"))
