@@ -56,6 +56,11 @@ void AAirplane::RefreshVisualEffects()
 	{
 		Surface->SetNiagaraActive(bActive);
 	}
+
+	if (CameraComp)
+	{
+		CameraComp->SetCameraProcessingEnabled(bIsPlayer);
+	}
 }
 
 void AAirplane::Tick(float DeltaTime)
@@ -65,5 +70,9 @@ void AAirplane::Tick(float DeltaTime)
 
 UTexture2D* AAirplane::GetCameraOutputTexture() const
 {
-	return CameraComp ? CameraComp->OutputTexture : nullptr;
+	if (IsLocallyControlled() && CameraComp)
+	{
+		return CameraComp->OutputTexture;
+	}
+	return nullptr;
 }
