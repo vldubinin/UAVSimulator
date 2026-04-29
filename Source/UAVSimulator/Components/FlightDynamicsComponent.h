@@ -49,6 +49,9 @@ public:
 
 	FControlInputState GetControlState() const { return ControlState; }
 
+	float GetAngleOfAttack() const;
+	FVector GetLeftWingtipWorldPosition() const;
+
 	UFUNCTION(BlueprintCallable, CallInEditor, meta = (DisplayName = "Розрахувати поляри для ЛА"), Category = "Автоматизація")
 	void GenerateAerodynamicPhysicalConfigutation();
 

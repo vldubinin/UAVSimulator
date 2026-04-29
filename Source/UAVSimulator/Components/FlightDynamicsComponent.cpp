@@ -326,6 +326,24 @@ void UFlightDynamicsComponent::SendWakeDataToNiagara()
 	}
 }
 
+float UFlightDynamicsComponent::GetAngleOfAttack() const
+{
+	if (!PhysicsState) return 0.f;
+	const FVector Vel = PhysicsState->GetLinearVelocity();
+	if (Vel.IsNearlyZero()) return 0.f;
+	AActor* Owner = GetOwner();
+	if (!Owner) return 0.f;
+	const float Dot = FVector::DotProduct(Owner->GetActorForwardVector(), Vel.GetSafeNormal());
+	return FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(Dot, -1.f, 1.f)));
+}
+
+FVector UFlightDynamicsComponent::GetLeftWingtipWorldPosition() const
+{
+	if (CurrentBoundVortices.Num() > 0)
+		return CurrentBoundVortices[0].StartPoint;
+	return FVector::ZeroVector;
+}
+
 FVector UFlightDynamicsComponent::GetInducedVelocity(const FVector& TargetPosCm) const
 {
 	FVector Vind_ms = FVector::ZeroVector;
