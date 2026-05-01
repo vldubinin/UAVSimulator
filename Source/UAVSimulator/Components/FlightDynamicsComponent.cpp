@@ -4,9 +4,6 @@
 #include "UAVSimulator/UAVSimulator.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/StaticMeshComponent.h"
-#include "NiagaraComponent.h"
-#include "NiagaraDataInterfaceArrayFunctionLibrary.h"
-#include "NiagaraSystem.h"
 #include "Curves/CurveFloat.h"
 #include "UAVSimulator/Util/AerodynamicDebugRenderer.h"
 
@@ -36,39 +33,6 @@ void UFlightDynamicsComponent::BeginPlay()
 	for (UAerodynamicSurfaceSC* Surface : Surfaces)
 	{
 		Surface->OnConstruction(CoM, ControlSurfaces);
-	}
-
-	if (FlowVisualizerSystem)
-	{
-		for (UAerodynamicSurfaceSC* Surface : Surfaces)
-		{
-			if (!Surface->GetName().Contains(TEXT("Wing")) && !Surface->GetName().Contains(TEXT("TailHorizontal"))) continue;
-
-			UNiagaraComponent* NiagaraComp = NewObject<UNiagaraComponent>(Owner);
-			NiagaraComp->SetAsset(FlowVisualizerSystem);
-			NiagaraComp->SetupAttachment(Surface);
-
-			float SpanCm = 0.0f;
-			for (const auto& Form : Surface->SurfaceForm) { SpanCm += FMath::Abs(Form.Offset.Y); }
-			if (Surface->Mirror) SpanCm *= 2.0f;
-
-			if (Surface->GetName().Contains(TEXT("TailHorizontal")))
-			{
-				NiagaraComp->SetRelativeLocation(FVector(100.0f, 0.0f, 0.0f));
-				NiagaraComp->SetFloatParameter(FName("SurfaceSpan"), SpanCm * 1.5f);
-				NiagaraComp->SetFloatParameter(FName("ProbeHeight"), 150.0f);
-			}
-			else
-			{
-				NiagaraComp->SetFloatParameter(FName("SurfaceSpan"), SpanCm);
-				NiagaraComp->SetFloatParameter(FName("ProbeHeight"), 2.0f);
-			}
-
-			// Start inactive — UUAVSimulationSubsystem controls visibility via UAerodynamicSurfaceSC::SetNiagaraActive.
-			NiagaraComp->bAutoActivate = false;
-			NiagaraComp->RegisterComponent();
-			ActiveFlowVisualizers.Add(NiagaraComp);
-		}
 	}
 
 	if (InitialSpeedMs > 0.1f && Mesh)
@@ -216,7 +180,6 @@ void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 	}
 
 	UpdateVortexWake();
-	SendWakeDataToNiagara();
 
 	// Скидаємо стан керування після застосування — нові значення надійдуть наступного тіку
 	ControlState = FControlInputState();
@@ -283,47 +246,22 @@ void UFlightDynamicsComponent::UpdateVortexWake()
 	}
 }
 
-void UFlightDynamicsComponent::SendWakeDataToNiagara()
+float UFlightDynamicsComponent::GetAngleOfAttack() const
 {
-	if (ActiveFlowVisualizers.Num() == 0) return;
+	if (!PhysicsState) return 0.f;
+	const FVector Vel = PhysicsState->GetLinearVelocity();
+	if (Vel.IsNearlyZero()) return 0.f;
+	AActor* Owner = GetOwner();
+	if (!Owner) return 0.f;
+	const float Dot = FVector::DotProduct(Owner->GetActorForwardVector(), Vel.GetSafeNormal());
+	return FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(Dot, -1.f, 1.f)));
+}
 
-	const bool bActive = ActiveFlowVisualizers[0]->IsActive();
-
-	for (UNiagaraComponent* Visualizer : ActiveFlowVisualizers)
-	{
-		Visualizer->SetVisibility(bActive);
-	}
-
-	if (!bActive) return;
-
-	TArray<FVector> FlatWakePositions;
-	TArray<float>   FlatWakeGammas;
-
-	int32 TotalNodes = 0;
-	for (const auto& Line : VortexWakeLines) TotalNodes += Line.Num() + 1;
-	FlatWakePositions.Reserve(TotalNodes);
-	FlatWakeGammas.Reserve(TotalNodes);
-
-	for (const auto& Line : VortexWakeLines)
-	{
-		for (const FTrailingVortexNode& Node : Line)
-		{
-			FlatWakePositions.Add(Node.Position);
-			FlatWakeGammas.Add(Node.Gamma);
-		}
-		if (Line.Num() > 0)
-		{
-			// Sentinel node far above the last real node signals end-of-line to the Niagara ribbon
-			FlatWakePositions.Add(Line.Last().Position + FVector(0, 0, 100000.0f));
-			FlatWakeGammas.Add(0.0f);
-		}
-	}
-
-	for (UNiagaraComponent* Visualizer : ActiveFlowVisualizers)
-	{
-		UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(Visualizer, FName("WakePositions"), FlatWakePositions);
-		UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloat(Visualizer,  FName("WakeGammas"),    FlatWakeGammas);
-	}
+FVector UFlightDynamicsComponent::GetLeftWingtipWorldPosition() const
+{
+	if (CurrentBoundVortices.Num() > 0)
+		return CurrentBoundVortices[0].StartPoint;
+	return FVector::ZeroVector;
 }
 
 FVector UFlightDynamicsComponent::GetInducedVelocity(const FVector& TargetPosCm) const

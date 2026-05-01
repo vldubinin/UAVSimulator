@@ -14,8 +14,6 @@
 
 #include "FlightDynamicsComponent.generated.h"
 
-class UNiagaraComponent;
-class UNiagaraSystem;
 class UCurveFloat;
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
@@ -48,6 +46,10 @@ public:
 	void UpdateEditorVisualization(class UStaticMeshComponent* Mesh);
 
 	FControlInputState GetControlState() const { return ControlState; }
+
+	float GetAngleOfAttack() const;
+	FVector GetLeftWingtipWorldPosition() const;
+	const TArray<TArray<FTrailingVortexNode>>& GetVortexWakeLines() const { return VortexWakeLines; }
 
 	UFUNCTION(BlueprintCallable, CallInEditor, meta = (DisplayName = "Розрахувати поляри для ЛА"), Category = "Автоматизація")
 	void GenerateAerodynamicPhysicalConfigutation();
@@ -83,13 +85,6 @@ public:
 	void UpdateThrottleControl(float Throttle);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VLM",
-		meta = (ToolTip = "Шаблон Niagara системи для генерації на крилах"))
-	UNiagaraSystem* FlowVisualizerSystem;
-
-	UPROPERTY(Transient)
-	TArray<UNiagaraComponent*> ActiveFlowVisualizers;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VLM",
 		meta = (ToolTip = "Максимальна кількість вузлів в одній лінії вихорового сліду."))
 	int32 MaxWakeLength = 100;
 
@@ -120,6 +115,5 @@ private:
 	TArray<TArray<FTrailingVortexNode>> VortexWakeLines;
 
 	void UpdateVortexWake();
-	void SendWakeDataToNiagara();
 	FVector GetInducedVelocity(const FVector& TargetPosCm) const;
 };

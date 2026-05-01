@@ -49,11 +49,13 @@ After each `CalculateForcesOnSubSurface` call, the sub-surface caches two public
 
 `UAerodynamicSurfaceSC` aggregates these via `GetSubSurfacePositions()` / `GetSubSurfaceGammas()`. `UFlightDynamicsComponent` further aggregates across all surfaces via `GetAllVortexPositions()` / `GetAllVortexGammas()`.
 
-### Two-Phase Actor Initialization
+### Actor Initialization
 
 `AAirplane` initializes in two stages:
-- **`OnConstruction`** (runs in-editor on placement or transform change): collects `AerodynamicSurfaceSC` / `ControlSurfaceSC` children, resolves CoM from static mesh, draws debug labels.
-- **`BeginPlay`** (runtime, physics active): re-initializes surfaces with physics-accurate CoM, sets time dilation from `DebugSimulatorSpeed`, spawns Niagara flow visualizers.
+- **`OnConstruction`** (runs in-editor on placement or transform change): calls `FlightDynamics->UpdateEditorVisualization(Mesh)` to refresh in-editor surface overlays.
+- **`BeginPlay`** (runtime, physics active): subscribes to `UUAVSimulationSubsystem::OnVisualSettingsChanged` and calls `RefreshVisualEffects()` to set initial VFX state.
+
+`AAirplane::RefreshVisualEffects()` determines each airplane's role (player = `IsLocallyControlled()`, target = has `UFlightPlaybackComponent`), then enables/disables Niagara on each `UAerodynamicSurfaceSC` via `SetNiagaraActive()` and enables/disables camera processing via `UUAVCameraComponent::SetCameraProcessingEnabled()`. It is also called from `PossessedBy()` to handle deferred possession.
 
 Code that reads velocity or angular velocity must run in `BeginPlay` or later.
 
@@ -63,18 +65,24 @@ Getters backed by `UUAVPhysicsStateComponent` (updated at the top of each tick):
 - `GetAirspeed()` — speed in m/s
 - `GetAngleOfAttack()` — body-level AoA in degrees (velocity vs. actor forward)
 - `GetRelativeWindVector()` — normalized airflow direction (opposite to velocity)
+- `GetLeftWingtipWorldPosition()` — world-space position of the left wingtip
 - `GetAllVortexPositions()` — flat array of `CurrentWorldCoP` from all sub-surfaces
 - `GetAllVortexGammas()` — flat array of `CurrentGamma` from all sub-surfaces
 
 These are only valid after `UFlightDynamicsComponent` has ticked in the current frame. Any component that reads them must call `AddTickPrerequisiteComponent(DynamicsComp)` in `BeginPlay`.
 
-### VFX Data Pipeline
+### VFX Architecture
 
-`UAerodynamicVFXComponent` (`Components/AerodynamicVFXComponent.cpp`) is a `USceneComponent` that drives the Niagara VLM visualization:
+**Activation control** is driven by `UUAVSimulationSubsystem` (a `UWorldSubsystem`):
+- `bEnableVisualsForPlayer` and `bEnableVisualsForTarget` flags live on the subsystem.
+- `AUAVSimulatorGameModeBase::UpdateVisualSettings()` pushes the GameMode's flag values to the subsystem and broadcasts `OnVisualSettingsChanged`.
+- Every `AAirplane` subscribes to this delegate in `BeginPlay` and calls `RefreshVisualEffects()`, which calls `UAerodynamicSurfaceSC::SetNiagaraActive(bool)` on each surface component.
+- `UpdateVisualSettings()` is called *after* all actors are spawned and possessed so every airplane has already subscribed.
 
-1. **Lazy spawn** — Niagara is not spawned in `BeginPlay`. `TickComponent` checks `ShouldShowVLMVFX()` on the GameMode and `IsLocallyControlled()` on the owning pawn each tick. The system spawns on the first tick both conditions are true, and is destroyed if either becomes false. This handles deferred `Possess` calls correctly.
-2. **Coordinate conversion** — `GetAllVortexPositions()` returns world-space coordinates. Before passing to Niagara (which is attached with `KeepRelativeOffset`), each position is converted to actor-local space via `GetActorTransform().Inverse().TransformPosition(...)`.
-3. **Per-tick push** — scalars (`AoA`, `Airspeed`, `AirflowDirection`) via `SetVariableFloat`/`SetVariableVec3`; arrays (`WakePositions`, `WakeGammas`) via `UNiagaraDataInterfaceArrayFunctionLibrary`.
+**`UAeroVisualizerComponent`** (`Components/AeroVisualizerComponent.h/cpp`) is a `USceneComponent` that drives a single Niagara wake-vortex effect per surface:
+1. **Eager spawn** — Niagara spawns unconditionally in `BeginPlay` (activation is gated by `SetNiagaraActive` at the surface level, not by this component).
+2. **Coordinate conversion** — `GetLeftWingtipWorldPosition()` returns a world-space point, which is converted to actor-local space via `GetActorTransform().InverseTransformPosition(...)` before being pushed to Niagara.
+3. **Per-tick push** — `VortexLocalPosition` (FVector) and `Intensity` (AoA float) via `SetVariableVec3` / `SetVariableFloat`.
 
 ### Simulator Modes (AUAVSimulatorGameModeBase)
 
@@ -83,7 +91,7 @@ These are only valid after `UFlightDynamicsComponent` has ticked in the current 
 - **`RecordTarget`** — spawns `TargetAirplaneClass` at `PlayerStart`, dynamically attaches `UFlightRecorderComponent`, calls `StartRecording()`.
 - **`PlaybackAndTrack`** — loads `FlightScenarioSave` from `ScenarioSlotName`, spawns both target and tracker airplanes. The target gets a dynamic `UFlightPlaybackComponent`; the player controller possesses the tracker.
 
-**Critical:** dynamically created components (`NewObject<UFlightPlaybackComponent>`) must call `AddInstanceComponent(Comp)` on the owning actor **before** `RegisterComponent()`, otherwise the engine skips their `TickComponent`.
+The GameMode calls `UpdateVisualSettings()` after all actors are spawned and possessed so every airplane's `BeginPlay` has already subscribed to the delegate before the first broadcast.
 
 ### Playback Subsystem
 
@@ -139,9 +147,10 @@ These are only valid after `UFlightDynamicsComponent` has ticked in the current 
 
 | File | Role |
 |------|------|
-| `Actor/Airplane.h/cpp` | Main aircraft pawn; owns `FlightDynamicsComponent` and `UAVCameraComponent` |
-| `Components/FlightDynamicsComponent.h/cpp` | All aerodynamics, physics forces, vortex wake, Niagara flow visualizers |
-| `Components/AerodynamicVFXComponent.cpp` | Niagara VLM VFX: lazy spawn, local-space coordinate conversion, per-tick data push |
+| `Actor/Airplane.h/cpp` | Main aircraft pawn; owns `FlightDynamicsComponent` and `UAVCameraComponent`; `RefreshVisualEffects()` toggles VFX per role |
+| `Components/FlightDynamicsComponent.h/cpp` | All aerodynamics, physics forces, vortex wake |
+| `Components/AeroVisualizerComponent.h/cpp` | Niagara wake-vortex VFX: spawns in BeginPlay, pushes wingtip position + AoA each tick |
+| `Subsystem/UAVSimulationSubsystem.h/cpp` | World subsystem; holds VFX enable flags, broadcasts `OnVisualSettingsChanged` |
 | `Components/UAVPhysicsStateComponent.h/cpp` | Per-tick physics state cache; call `Update()` before reading |
 | `Components/FlightPlaybackComponent.h/cpp` | Interpolated playback of recorded `FFlightFrame` data; disables physics/dynamics on owner |
 | `Components/FlightRecorderComponent.h/cpp` | Records flight frames to `UFlightScenarioSave` save game |
