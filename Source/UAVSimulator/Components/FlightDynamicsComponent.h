@@ -49,6 +49,7 @@ public:
 
 	float GetAngleOfAttack() const;
 	FVector GetLeftWingtipWorldPosition() const;
+	const TArray<TArray<FTrailingVortexNode>>& GetVortexWakeLines() const { return VortexWakeLines; }
 
 	UFUNCTION(BlueprintCallable, CallInEditor, meta = (DisplayName = "Розрахувати поляри для ЛА"), Category = "Автоматизація")
 	void GenerateAerodynamicPhysicalConfigutation();

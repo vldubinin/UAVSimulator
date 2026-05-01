@@ -20,14 +20,17 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
-	UPROPERTY(EditDefaultsOnly, Category = "VFX")
-	UNiagaraSystem* WakeVortexSystemAsset;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VFX")
+	UNiagaraSystem* FlowVisualizerSystem;
+
+private:
+	UPROPERTY(Transient)
+	TArray<UNiagaraComponent*> ActiveFlowVisualizers;
 
 	UPROPERTY(Transient)
-	UNiagaraComponent* WakeVortexComponent;
+	UFlightDynamicsComponent* FlightDynamicsComp;
 
-	UPROPERTY(Transient)
-	UFlightDynamicsComponent* FlightDynamicsRef;
+	void UpdateNiagaraWakeData();
 
 public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
