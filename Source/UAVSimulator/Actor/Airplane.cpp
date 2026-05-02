@@ -73,10 +73,15 @@ void AAirplane::RefreshConfigurations()
 		CameraComp->SetCameraProcessingEnabled(bCameraActive);
 	}
 
-	// Widget is only relevant for the locally controlled (player) pawn.
-	if (bCameraActive && IsLocallyControlled() && CameraWidgetClass && !CameraWidget)
+	if (bCameraActive && CameraWidgetClass && !CameraWidget)
 	{
-		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		// For a locally controlled pawn use its own PC; for the target use the world's first PC
+		// so the tracking player sees the target camera feed on their HUD.
+		APlayerController* PC = IsLocallyControlled()
+			? Cast<APlayerController>(GetController())
+			: GetWorld()->GetFirstPlayerController();
+
+		if (PC)
 		{
 			CameraWidget = CreateWidget<UUserWidget>(PC, CameraWidgetClass);
 			if (CameraWidget) CameraWidget->AddToViewport();
@@ -96,9 +101,5 @@ void AAirplane::Tick(float DeltaTime)
 
 UTexture2D* AAirplane::GetCameraOutputTexture() const
 {
-	if (IsLocallyControlled() && CameraComp)
-	{
-		return CameraComp->OutputTexture;
-	}
-	return nullptr;
+	return CameraComp ? CameraComp->OutputTexture : nullptr;
 }
