@@ -29,6 +29,16 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// Push all flags to the subsystem before any actors are spawned so that
+	// RefreshConfigurations() called during BeginPlay/PossessedBy reads the correct values.
+	if (UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>())
+	{
+		Subsystem->bEnableVisualsForPlayer = bEnableVisualsForPlayer;
+		Subsystem->bEnableVisualsForTarget = bEnableVisualsForTarget;
+		Subsystem->bEnableCameraForPlayer  = bEnableCameraForPlayer;
+		Subsystem->bEnableCameraForTarget  = bEnableCameraForTarget;
+	}
+
 	AActor* PlayerStartActor = UGameplayStatics::GetActorOfClass(GetWorld(), APlayerStart::StaticClass());
 	FTransform SpawnTransform = PlayerStartActor
 		? PlayerStartActor->GetActorTransform()
@@ -47,6 +57,8 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 
 		AAirplane* TargetAirplane = GetWorld()->SpawnActor<AAirplane>(TargetAirplaneClass, SpawnTransform, SpawnParams);
 		if (!TargetAirplane) return;
+
+		TargetAirplane->Tags.Add(FName("Player"));
 
 		UFlightRecorderComponent* Recorder = NewObject<UFlightRecorderComponent>(TargetAirplane);
 		Recorder->SaveSlotName = ScenarioSlotName;
@@ -77,12 +89,14 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 		// Tracker starts exactly where the recording began.
 		AAirplane* TrackerAirplane = GetWorld()->SpawnActor<AAirplane>(
 			TrackerAirplaneClass, InitialLocation, InitialRotation, SpawnParams);
+		if (TrackerAirplane) TrackerAirplane->Tags.Add(FName("Player"));
 
 		// Target replays its recorded path shifted forward along the initial heading.
 		const FVector Offset = InitialRotation.Vector() * TargetSpawnOffsetDistance;
 
 		AAirplane* TargetAirplane = GetWorld()->SpawnActor<AAirplane>(
 			TargetAirplaneClass, InitialLocation + Offset, InitialRotation, SpawnParams);
+		if (TargetAirplane) TargetAirplane->Tags.Add(FName("Target"));
 
 		if (TargetAirplane)
 		{
@@ -125,6 +139,7 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 
 		AAirplane* TargetAirplane = GetWorld()->SpawnActor<AAirplane>(
 			TargetAirplaneClass, InitialLocation, InitialRotation, SpawnParams);
+		if (TargetAirplane) TargetAirplane->Tags.Add(FName("Target"));
 
 		if (TargetAirplane)
 		{
@@ -136,8 +151,9 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 		}
 	}
 
-	// Broadcast visual settings AFTER all actors are spawned and possessed so that
-	// every airplane's BeginPlay has already subscribed to the delegate.
-	UpdateVisualSettings();
+	// Broadcast AFTER all actors are spawned and possessed so that
+	// every airplane's BeginPlay has already subscribed to the delegates.
+	// Camera is broadcast first since widget creation depends on it.
 	UpdateCameraSettings();
+	UpdateVisualSettings();
 }

@@ -9,6 +9,8 @@
 
 #include "Airplane.generated.h"
 
+class UUserWidget;
+
 UCLASS()
 class UAVSIMULATOR_API AAirplane : public APawn
 {
@@ -30,9 +32,16 @@ public:
 
 	void RefreshConfigurations();
 
+	/** Widget class to instantiate when the camera is active for this airplane. Set in Blueprint. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Computer Vision")
+	TSubclassOf<UUserWidget> CameraWidgetClass;
+
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Computer Vision", meta = (AllowPrivateAccess = "true"))
-	UUAVCameraComponent* CameraComp;
+	UUAVCameraComponent* CameraComp = nullptr;
+
+	UPROPERTY()
+	UUserWidget* CameraWidget = nullptr;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Flight", meta = (AllowPrivateAccess = "true"))
 	UFlightDynamicsComponent* FlightDynamics;

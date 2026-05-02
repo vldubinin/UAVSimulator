@@ -2,16 +2,17 @@
 
 #include "Airplane.h"
 #include "Components/StaticMeshComponent.h"
+#include "Blueprint/UserWidget.h"
+#include "GameFramework/PlayerController.h"
 #include "UAVSimulator/Subsystem/UAVSimulationSubsystem.h"
 #include "UAVSimulator/SceneComponent/AerodynamicSurface/AerodynamicSurfaceSC.h"
-#include "UAVSimulator/Components/FlightPlaybackComponent.h"
 
 AAirplane::AAirplane()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
-	CameraComp    = CreateDefaultSubobject<UUAVCameraComponent>(TEXT("CameraComp"));
 	FlightDynamics = CreateDefaultSubobject<UFlightDynamicsComponent>(TEXT("FlightDynamics"));
+	// CameraComp is not a CDO — created dynamically in RefreshConfigurations when camera is enabled.
 }
 
 void AAirplane::OnConstruction(const FTransform& Transform)
@@ -28,6 +29,7 @@ void AAirplane::BeginPlay()
 	if (UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>())
 	{
 		Subsystem->OnVisualSettingsChanged.AddUObject(this, &AAirplane::RefreshConfigurations);
+		Subsystem->OnCameraSettingsChanged.AddUObject(this, &AAirplane::RefreshConfigurations);
 		RefreshConfigurations();
 	}
 }
@@ -43,9 +45,8 @@ void AAirplane::RefreshConfigurations()
 	UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>();
 	if (!Subsystem) return;
 
-	// Role check: player = locally controlled pawn; target = running a recorded playback.
-	const bool bIsPlayer = IsLocallyControlled();
-	const bool bIsTarget = FindComponentByClass<UFlightPlaybackComponent>() != nullptr;
+	const bool bIsPlayer = ActorHasTag(FName("Player"));
+	const bool bIsTarget = ActorHasTag(FName("Target"));
 
 	const bool bNiagaraActive = (bIsPlayer && Subsystem->bEnableVisualsForPlayer)
 	                  || (bIsTarget && Subsystem->bEnableVisualsForTarget);
@@ -60,9 +61,31 @@ void AAirplane::RefreshConfigurations()
 		Surface->SetNiagaraActive(bNiagaraActive);
 	}
 
+	// Create the camera component only when it is actually needed.
+	if (bCameraActive && !CameraComp)
+	{
+		CameraComp = NewObject<UUAVCameraComponent>(this, TEXT("CameraComp"));
+		CameraComp->RegisterComponent();
+	}
+
 	if (CameraComp)
 	{
 		CameraComp->SetCameraProcessingEnabled(bCameraActive);
+	}
+
+	// Widget is only relevant for the locally controlled (player) pawn.
+	if (bCameraActive && IsLocallyControlled() && CameraWidgetClass && !CameraWidget)
+	{
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			CameraWidget = CreateWidget<UUserWidget>(PC, CameraWidgetClass);
+			if (CameraWidget) CameraWidget->AddToViewport();
+		}
+	}
+	else if (!bCameraActive && CameraWidget)
+	{
+		CameraWidget->RemoveFromParent();
+		CameraWidget = nullptr;
 	}
 }
 
