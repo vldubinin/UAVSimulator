@@ -13,6 +13,8 @@
 
 #include "UAVCameraComponent.generated.h"
 
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnCameraFrameReady, TArrayView<const uint8> /* BGRAData */);
+
 /**
  * Manages the onboard camera: render target, OpenCV image processing, and output texture.
  * Add this component to the aircraft pawn. It will find the first USceneCaptureComponent2D
@@ -49,6 +51,10 @@ public:
 	/** Оброблена вихідна текстура — прив'яжіть у віджеті або матеріалі. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Computer Vision")
 	UTexture2D* OutputTexture;
+
+	/** Broadcast after every processed frame with raw BGRA pixels (640×480×4 bytes).
+	 *  Subscribe here to receive frames without coupling to this component's internals. */
+	FOnCameraFrameReady OnFrameReady;
 
 private:
 	/**

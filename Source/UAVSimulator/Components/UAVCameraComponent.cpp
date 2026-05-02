@@ -83,21 +83,17 @@ void UUAVCameraComponent::ProcessFrame()
 
 	// Обгортаємо буфер у cv::Mat без копіювання (BGRA, 4 канали)
 	cv::Mat FrameBGRA(CVHeight, CVWidth, CV_8UC4, ColorBuffer.GetData());
-	cv::Mat CameraFrame;
-	// Горизонтальне дзеркалювання (параметр 1 = по осі Y)
-	cv::flip(FrameBGRA, CameraFrame, 1);
 
-	// Накладаємо текстову мітку по центру кадру
-	const std::string LabelText = "VIRTUAL CAM";
-	const int FontFace = cv::FONT_HERSHEY_SIMPLEX;
-	const double FontScale = 1.0;
-	const int Thickness = 2;
-	int Baseline = 0;
-	cv::Size TextSize = cv::getTextSize(LabelText, FontFace, FontScale, Thickness, &Baseline);
-	cv::Point TextOrg((CameraFrame.cols - TextSize.width) / 2, (CameraFrame.rows + TextSize.height) / 2);
-	cv::putText(CameraFrame, LabelText, TextOrg, FontFace, FontScale, cv::Scalar(251, 205, 210), Thickness, cv::LINE_AA);
+	ProcessedFrameBuffer = FrameBGRA;
 
-	ProcessedFrameBuffer = CameraFrame;
+	if (OnFrameReady.IsBound())
+	{
+		OnFrameReady.Broadcast(TArrayView<const uint8>(
+			ProcessedFrameBuffer.data,
+			static_cast<int32>(ProcessedFrameBuffer.total() * ProcessedFrameBuffer.elemSize())
+		));
+	}
+
 	UploadToTexture();
 }
 
