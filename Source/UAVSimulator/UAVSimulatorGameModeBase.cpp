@@ -94,6 +94,55 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 			}
 		}
 	}
+	else if (CurrentSimulatorMode == ESimulatorMode::Playback)
+	{
+		if (!TargetAirplaneClass || !TrackerAirplaneClass)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TargetAirplaneClass or TrackerAirplaneClass is not set."));
+			return;
+		}
+
+		UFlightScenarioSave* LoadedScenario = Cast<UFlightScenarioSave>(
+			UGameplayStatics::LoadGameFromSlot(ScenarioSlotName, /*UserIndex=*/0));
+
+		if (!LoadedScenario || LoadedScenario->FlightFrames.Num() == 0)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: Failed to load scenario from slot '%s'."), *ScenarioSlotName);
+			return;
+		}
+
+		const FFlightFrame& FirstFrame = LoadedScenario->FlightFrames[0];
+		const FVector       InitialLocation = FirstFrame.Location;
+		const FRotator      InitialRotation = FirstFrame.Rotation;
+
+		// Tracker starts exactly where the recording began.
+		AAirplane* TrackerAirplane = GetWorld()->SpawnActor<AAirplane>(
+			TrackerAirplaneClass, InitialLocation, InitialRotation, SpawnParams);
+
+		// Target replays its recorded path shifted forward along the initial heading.
+		const FVector Offset = InitialRotation.Vector() * TargetSpawnOffsetDistance;
+
+		AAirplane* TargetAirplane = GetWorld()->SpawnActor<AAirplane>(
+			TargetAirplaneClass, InitialLocation + Offset, InitialRotation, SpawnParams);
+
+		if (TargetAirplane)
+		{
+			UFlightPlaybackComponent* Playback = NewObject<UFlightPlaybackComponent>(TargetAirplane);
+			Playback->SaveSlotName = ScenarioSlotName;
+			Playback->PlaybackOffset = Offset;
+			Playback->RegisterComponent();
+			Playback->StartPlayback();
+		}
+
+		// Give the player controller the tracker so the camera follows the chasing airplane.
+		if (TrackerAirplane)
+		{
+			if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+			{
+				PC->Possess(TrackerAirplane);
+			}
+		}
+	}
 
 	// Broadcast visual settings AFTER all actors are spawned and possessed so that
 	// every airplane's BeginPlay has already subscribed to the delegate.
