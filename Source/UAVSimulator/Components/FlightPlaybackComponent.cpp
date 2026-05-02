@@ -46,15 +46,6 @@ void UFlightPlaybackComponent::StartPlayback()
 		FlightDynamics->SetComponentTickEnabled(false);
 		FlightDynamics->SetActive(false);
 	}
-
-	// Disable camera processing on the target — it is never viewed during playback.
-	TArray<UUAVCameraComponent*> Cameras;
-	Owner->GetComponents<UUAVCameraComponent>(Cameras);
-	for (UUAVCameraComponent* Cam : Cameras)
-	{
-		Cam->SetComponentTickEnabled(false);
-		Cam->SetActive(false);
-	}
 }
 
 void UFlightPlaybackComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)

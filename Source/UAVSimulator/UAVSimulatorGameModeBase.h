@@ -49,4 +49,14 @@ public:
 	/** Pushes the current flag values to UUAVSimulationSubsystem and broadcasts to all airplanes. */
 	UFUNCTION(BlueprintCallable, Category = "Simulation|VFX")
 	void UpdateVisualSettings();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Camera")
+	bool bEnableCameraForPlayer = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Camera")
+	bool bEnableCameraForTarget = false;
+
+	/** Pushes the current flag values to UUAVSimulationSubsystem and broadcasts to all airplanes. */
+	UFUNCTION(BlueprintCallable, Category = "Simulation|Camera")
+	void UpdateCameraSettings();
 };

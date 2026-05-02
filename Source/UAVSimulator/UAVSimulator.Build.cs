@@ -12,7 +12,7 @@ public class UAVSimulator : ModuleRules
 
         PublicDependencyModuleNames.AddRange(new string[] {
 			"Core", "CoreUObject", "Engine", "InputCore", "AirfoilImporter",
-            "RenderCore", "RHI", "OpenCVHelper", "OpenCV", "Niagara"
+            "RenderCore", "RHI", "OpenCVHelper", "OpenCV", "Niagara", "UMG"
         });
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "AssetTools", "UnrealEd", "PythonScriptPlugin" });

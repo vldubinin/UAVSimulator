@@ -53,6 +53,8 @@ void UUAVCameraComponent::BeginPlay()
 void UUAVCameraComponent::SetCameraProcessingEnabled(bool bEnable)
 {
 	bIsProcessingEnabled = bEnable;
+	SetActive(bEnable);
+	SetComponentTickEnabled(bEnable);
 	if (CaptureComponent)
 	{
 		CaptureComponent->bCaptureEveryFrame = bEnable;

@@ -8,3 +8,10 @@ void UUAVSimulationSubsystem::SetVisualSettings(bool bInPlayer, bool bInTarget)
 	bEnableVisualsForTarget = bInTarget;
 	OnVisualSettingsChanged.Broadcast();
 }
+
+void UUAVSimulationSubsystem::SetCameraSettings(bool bInPlayer, bool bInTarget)
+{
+	bEnableCameraForPlayer = bInPlayer;
+	bEnableCameraForTarget = bInTarget;
+	OnCameraSettingsChanged.Broadcast();
+}
