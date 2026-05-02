@@ -84,7 +84,7 @@ void UAerodynamicSurfaceSC::BuildSubsurfaces(FVector CenterOfMass, int32 Directi
 		return;  // Таблиця профілю не налаштована
 	}
 
-	Chord ProfileChord = AerodynamicUtil::FindChord(Points);
+	FChord ProfileChord = AerodynamicUtil::FindChord(Points);
 	if (FMath::IsNearlyZero(ProfileChord.Length))
 	{
 		return;  // Профіль вироджений — хорда має нульову довжину

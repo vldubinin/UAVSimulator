@@ -29,6 +29,3 @@ struct UAVSIMULATOR_API FChord
 		, Length(InEndPoint.X - InStartPoint.X)
 	{}
 };
-
-// Compatibility alias — remove once all call sites use FChord
-using Chord = FChord;
