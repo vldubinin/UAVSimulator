@@ -28,8 +28,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Computer Vision")
 	UTexture2D* GetCameraOutputTexture() const;
 
-	/** Re-evaluates this airplane's role and toggles surface Niagara VFX accordingly. */
-	void RefreshVisualEffects();
+	void RefreshConfigurations();
 
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Computer Vision", meta = (AllowPrivateAccess = "true"))

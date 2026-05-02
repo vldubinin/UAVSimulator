@@ -27,18 +27,18 @@ void AAirplane::BeginPlay()
 
 	if (UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>())
 	{
-		Subsystem->OnVisualSettingsChanged.AddUObject(this, &AAirplane::RefreshVisualEffects);
-		RefreshVisualEffects();
+		Subsystem->OnVisualSettingsChanged.AddUObject(this, &AAirplane::RefreshConfigurations);
+		RefreshConfigurations();
 	}
 }
 
 void AAirplane::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
-	RefreshVisualEffects();
+	RefreshConfigurations();
 }
 
-void AAirplane::RefreshVisualEffects()
+void AAirplane::RefreshConfigurations()
 {
 	UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>();
 	if (!Subsystem) return;
@@ -47,19 +47,22 @@ void AAirplane::RefreshVisualEffects()
 	const bool bIsPlayer = IsLocallyControlled();
 	const bool bIsTarget = FindComponentByClass<UFlightPlaybackComponent>() != nullptr;
 
-	const bool bActive = (bIsPlayer && Subsystem->bEnableVisualsForPlayer)
+	const bool bNiagaraActive = (bIsPlayer && Subsystem->bEnableVisualsForPlayer)
 	                  || (bIsTarget && Subsystem->bEnableVisualsForTarget);
+
+	const bool bCameraActive = (bIsPlayer && Subsystem->bEnableCameraForPlayer)
+	                  || (bIsTarget && Subsystem->bEnableCameraForTarget);
 
 	TArray<UAerodynamicSurfaceSC*> Surfaces;
 	GetComponents<UAerodynamicSurfaceSC>(Surfaces);
 	for (UAerodynamicSurfaceSC* Surface : Surfaces)
 	{
-		Surface->SetNiagaraActive(bActive);
+		Surface->SetNiagaraActive(bNiagaraActive);
 	}
 
 	if (CameraComp)
 	{
-		CameraComp->SetCameraProcessingEnabled(bIsPlayer);
+		CameraComp->SetCameraProcessingEnabled(bCameraActive);
 	}
 }
 

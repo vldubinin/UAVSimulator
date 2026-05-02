@@ -17,6 +17,14 @@ void AUAVSimulatorGameModeBase::UpdateVisualSettings()
 	}
 }
 
+void AUAVSimulatorGameModeBase::UpdateCameraSettings()
+{
+	if (UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>())
+	{
+		Subsystem->SetCameraSettings(bEnableCameraForPlayer, bEnableCameraForTarget);
+	}
+}
+
 void AUAVSimulatorGameModeBase::BeginPlay()
 {
 	Super::BeginPlay();
@@ -96,9 +104,9 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 	}
 	else if (CurrentSimulatorMode == ESimulatorMode::Playback)
 	{
-		if (!TargetAirplaneClass || !TrackerAirplaneClass)
+		if (!TargetAirplaneClass)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TargetAirplaneClass or TrackerAirplaneClass is not set."));
+			UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TargetAirplaneClass is not set."));
 			return;
 		}
 
@@ -115,36 +123,21 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 		const FVector       InitialLocation = FirstFrame.Location;
 		const FRotator      InitialRotation = FirstFrame.Rotation;
 
-		// Tracker starts exactly where the recording began.
-		AAirplane* TrackerAirplane = GetWorld()->SpawnActor<AAirplane>(
-			TrackerAirplaneClass, InitialLocation, InitialRotation, SpawnParams);
-
-		// Target replays its recorded path shifted forward along the initial heading.
-		const FVector Offset = InitialRotation.Vector() * TargetSpawnOffsetDistance;
-
 		AAirplane* TargetAirplane = GetWorld()->SpawnActor<AAirplane>(
-			TargetAirplaneClass, InitialLocation + Offset, InitialRotation, SpawnParams);
+			TargetAirplaneClass, InitialLocation, InitialRotation, SpawnParams);
 
 		if (TargetAirplane)
 		{
 			UFlightPlaybackComponent* Playback = NewObject<UFlightPlaybackComponent>(TargetAirplane);
 			Playback->SaveSlotName = ScenarioSlotName;
-			Playback->PlaybackOffset = Offset;
+			Playback->PlaybackOffset = FVector();
 			Playback->RegisterComponent();
 			Playback->StartPlayback();
-		}
-
-		// Give the player controller the tracker so the camera follows the chasing airplane.
-		if (TrackerAirplane)
-		{
-			if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
-			{
-				PC->Possess(TrackerAirplane);
-			}
 		}
 	}
 
 	// Broadcast visual settings AFTER all actors are spawned and possessed so that
 	// every airplane's BeginPlay has already subscribed to the delegate.
 	UpdateVisualSettings();
+	UpdateCameraSettings();
 }
