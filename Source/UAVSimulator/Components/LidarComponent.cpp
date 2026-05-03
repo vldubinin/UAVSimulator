@@ -23,8 +23,6 @@ void ULidarComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActor
 	{
 		ScanAccumulator -= ScanInterval;
 		Scan();
-		if (OnSensorDataReady.IsBound())
-			BroadcastSensorFrame();
 	}
 }
 
@@ -43,6 +41,7 @@ const TMap<FString, float>& ULidarComponent::Scan()
 	UWorld* World = GetWorld();
 	if (!World) return LatestScanResults;
 
+	LatestScanTimestamp = World->GetTimeSeconds();
 	LatestScanResults.Reset();
 
 	const FVector    Origin    = GetComponentLocation();
@@ -82,7 +81,6 @@ const TMap<FString, float>& ULidarComponent::Scan()
 			const FString& Name     = HitActor->GetName();
 			const float    Distance = Hit.Distance;
 
-			// Keep the closest hit per actor across all rays
 			float* Stored = LatestScanResults.Find(Name);
 			if (!Stored)
 				LatestScanResults.Add(Name, Distance);
@@ -95,11 +93,13 @@ const TMap<FString, float>& ULidarComponent::Scan()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sensor frame serialization
+// IUAVSensorInterface — called on game thread by SensorBusComponent
 // ─────────────────────────────────────────────────────────────────────────────
 
-void ULidarComponent::BroadcastSensorFrame()
+bool ULidarComponent::GetLatestFrame(FSensorFrame& OutFrame)
 {
+	if (LatestScanResults.IsEmpty()) return false;
+
 	TSharedRef<FJsonObject> JsonObj = MakeShared<FJsonObject>();
 	for (const TPair<FString, float>& Pair : LatestScanResults)
 		JsonObj->SetNumberField(Pair.Key, Pair.Value);
@@ -110,10 +110,9 @@ void ULidarComponent::BroadcastSensorFrame()
 
 	FTCHARToUTF8 Utf8(*JsonString);
 
-	FSensorFrame Frame;
-	Frame.Topic     = GetSensorTopic();
-	Frame.Timestamp = GetWorld()->GetTimeSeconds();
-	Frame.Payload.Append(reinterpret_cast<const uint8*>(Utf8.Get()), Utf8.Length());
-
-	OnSensorDataReady.Broadcast(Frame);
+	OutFrame.Topic     = GetSensorTopic();
+	OutFrame.Timestamp = LatestScanTimestamp;
+	OutFrame.Payload.Reset();
+	OutFrame.Payload.Append(reinterpret_cast<const uint8*>(Utf8.Get()), Utf8.Length());
+	return true;
 }

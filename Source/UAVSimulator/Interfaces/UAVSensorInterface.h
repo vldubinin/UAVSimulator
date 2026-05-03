@@ -5,8 +5,6 @@
 #include "UAVSimulator/Structure/SensorFrame.h"
 #include "UAVSensorInterface.generated.h"
 
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnSensorDataReady, const FSensorFrame&);
-
 UINTERFACE(MinimalAPI, NotBlueprintable)
 class UUAVSensorInterface : public UInterface { GENERATED_BODY() };
 
@@ -14,9 +12,13 @@ class UAVSIMULATOR_API IUAVSensorInterface
 {
 	GENERATED_BODY()
 public:
-	/** Returns the sensor's ZMQ topic name (e.g. "camera", "imu"). */
+	/** Returns the sensor's topic name (e.g. "camera", "lidar"). */
 	virtual FString GetSensorTopic() const = 0;
 
-	/** Returns the delegate that fires when a new encoded frame is ready. */
-	virtual FOnSensorDataReady& GetOnSensorDataReady() = 0;
+	/**
+	 * Fills OutFrame with the most recently prepared data and returns true.
+	 * Returns false if the sensor has not produced any data yet.
+	 * Called on the game thread by SensorBusComponent each bus tick.
+	 */
+	virtual bool GetLatestFrame(FSensorFrame& OutFrame) = 0;
 };

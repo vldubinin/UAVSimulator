@@ -16,9 +16,12 @@
 
 /**
  * Manages the onboard camera: render target, OpenCV image processing, JPEG encoding,
- * and output texture. Implements IUAVSensorInterface — subscribe to OnSensorDataReady
- * to receive JPEG-encoded frames. Add this component to the aircraft pawn; it will find
- * the first USceneCaptureComponent2D on the owner at BeginPlay.
+ * and output texture. Implements IUAVSensorInterface — SensorBusComponent calls
+ * GetLatestFrame() each bus tick to retrieve the most recently encoded JPEG frame.
+ *
+ * JPEG encoding runs on a dedicated background thread so the game thread is never
+ * stalled by compression. The latest encoded result is double-buffered and read
+ * under a mutex by GetLatestFrame().
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API UUAVCameraComponent : public UActorComponent, public IUAVSensorInterface
@@ -35,7 +38,7 @@ public:
 
 	// ── IUAVSensorInterface ───────────────────────────────────────────────────
 	virtual FString GetSensorTopic() const override { return TEXT("camera"); }
-	virtual FOnSensorDataReady& GetOnSensorDataReady() override { return OnSensorDataReady; }
+	virtual bool GetLatestFrame(FSensorFrame& OutFrame) override;
 
 protected:
 	virtual void BeginPlay() override;
@@ -46,16 +49,14 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Computer Vision")
 	UTexture2D* OutputTexture;
 
-	/** JPEG quality for frames sent over the sensor bus (1–100). */
+	/** JPEG quality for encoded frames (1–100). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Streaming", meta = (ClampMin = 1, ClampMax = 100))
 	int32 JpegQuality = 80;
 
-	/** Maximum frames per second forwarded to the sensor bus. Excess frames are dropped. */
+	/** Maximum JPEG encodes per second. Acts as a CPU budget cap; the bus reads
+	 *  at its own rate independently. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Streaming", meta = (ClampMin = 1, ClampMax = 120))
-	int32 MaxStreamFPS = 30;
-
-	/** Fires on the game thread with a JPEG-encoded FSensorFrame after each encoded frame. */
-	FOnSensorDataReady OnSensorDataReady;
+	int32 MaxEncodeFPS = 30;
 
 private:
 	void UploadToTexture();
@@ -74,16 +75,24 @@ private:
 	static constexpr int32 CVWidth  = 640;
 	static constexpr int32 CVHeight = 480;
 
-	// ── JPEG encoding thread ──────────────────────────────────────────────────
+	// ── Encode input (game thread → encoder thread) ───────────────────────────
 	TArray<uint8>    PendingBGRA;
-	bool             bHasPendingFrame = false;
-	FCriticalSection FrameMutex;
+	double           PendingTimestamp  = 0.0;   // world time of the captured frame
+	bool             bHasPendingFrame  = false;
+	FCriticalSection FrameMutex;                 // guards PendingBGRA / PendingTimestamp / bHasPendingFrame
 
+	// ── Encode output (encoder thread → game thread) ──────────────────────────
+	TArray<uint8>    LatestEncodedPayload;
+	double           LatestEncodedTimestamp = 0.0;
+	bool             bHasLatestFrame  = false;
+	FCriticalSection LatestFrameMutex;           // guards the three fields above
+
+	// ── Encoder thread ────────────────────────────────────────────────────────
 	FEvent*          FrameReadyEvent = nullptr;
 	FThreadSafeBool  bEncoderRunning;
 	FRunnable*       EncoderRunnable = nullptr;
 	FRunnableThread* EncoderThread   = nullptr;
 
-	double MinSendInterval   = 1.0 / 30.0;
-	double LastFrameSentTime = 0.0;
+	double MinEncodeInterval   = 1.0 / 30.0;
+	double LastEncodeTime      = 0.0;
 };

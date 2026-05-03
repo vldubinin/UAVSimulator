@@ -5,7 +5,6 @@
 #include "IImageWrapper.h"
 #include "IImageWrapperModule.h"
 #include "Modules/ModuleManager.h"
-#include "Async/Async.h"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Minimal FRunnable wrapper
@@ -71,9 +70,8 @@ void UUAVCameraComponent::BeginPlay()
 
 	UpdateRegion = new FUpdateTextureRegion2D(0, 0, 0, 0, CVWidth, CVHeight);
 
-	// ── Encoding thread ───────────────────────────────────────────────────────
-	MinSendInterval   = 1.0 / FMath::Max(MaxStreamFPS, 1);
-	LastFrameSentTime = -MinSendInterval;
+	MinEncodeInterval = 1.0 / FMath::Max(MaxEncodeFPS, 1);
+	LastEncodeTime    = -MinEncodeInterval;
 	PendingBGRA.SetNumUninitialized(CVWidth * CVHeight * 4);
 
 	FrameReadyEvent = FPlatformProcess::GetSynchEventFromPool(/*bIsManualReset=*/false);
@@ -143,15 +141,16 @@ void UUAVCameraComponent::ProcessFrame()
 	ProcessedFrameBuffer = FrameBGRA;
 
 	// Post to encoding thread at the configured FPS cap
-	if (OnSensorDataReady.IsBound() && FrameReadyEvent)
+	if (FrameReadyEvent)
 	{
 		const double Now = FPlatformTime::Seconds();
-		if ((Now - LastFrameSentTime) >= MinSendInterval)
+		if ((Now - LastEncodeTime) >= MinEncodeInterval)
 		{
-			LastFrameSentTime = Now;
+			LastEncodeTime = Now;
 			{
 				FScopeLock Lock(&FrameMutex);
 				FMemory::Memcpy(PendingBGRA.GetData(), ProcessedFrameBuffer.data, CVWidth * CVHeight * 4);
+				PendingTimestamp = GetWorld()->GetTimeSeconds();
 				bHasPendingFrame = true;
 			}
 			FrameReadyEvent->Trigger();
@@ -162,12 +161,29 @@ void UUAVCameraComponent::ProcessFrame()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// JPEG encoding thread — encodes off game thread, broadcasts on game thread
+// IUAVSensorInterface — called on game thread by SensorBusComponent
+// ─────────────────────────────────────────────────────────────────────────────
+
+bool UUAVCameraComponent::GetLatestFrame(FSensorFrame& OutFrame)
+{
+	FScopeLock Lock(&LatestFrameMutex);
+	if (!bHasLatestFrame) return false;
+
+	OutFrame.Topic     = GetSensorTopic();
+	OutFrame.Timestamp = LatestEncodedTimestamp;
+	OutFrame.Payload   = LatestEncodedPayload;
+	return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Encoder thread — compresses BGRA to JPEG, stores result in LatestEncodedPayload
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UUAVCameraComponent::EncoderLoop()
 {
 	TArray<uint8> LocalBGRA;
+	double        LocalTimestamp = 0.0;
+
 	IImageWrapperModule& IWM = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
 	TSharedPtr<IImageWrapper> Wrapper = IWM.CreateImageWrapper(EImageFormat::JPEG);
 
@@ -181,6 +197,7 @@ void UUAVCameraComponent::EncoderLoop()
 			if (!bHasPendingFrame) continue;
 			Swap(LocalBGRA, PendingBGRA);
 			PendingBGRA.SetNumUninitialized(CVWidth * CVHeight * 4);
+			LocalTimestamp   = PendingTimestamp;
 			bHasPendingFrame = false;
 		}
 
@@ -190,22 +207,14 @@ void UUAVCameraComponent::EncoderLoop()
 			continue;
 
 		const TArray64<uint8>& Compressed = Wrapper->GetCompressed(JpegQuality);
-		TArray<uint8> JpegBytes;
-		JpegBytes.Append(Compressed.GetData(), static_cast<int32>(Compressed.Num()));
 
-		// Marshal to game thread so delegate subscribers don't need to worry about thread safety
-		TWeakObjectPtr<UUAVCameraComponent> WeakThis(this);
-		AsyncTask(ENamedThreads::GameThread, [WeakThis, Jpeg = MoveTemp(JpegBytes)]() mutable
 		{
-			UUAVCameraComponent* Self = WeakThis.Get();
-			if (!Self || !Self->OnSensorDataReady.IsBound()) return;
-
-			FSensorFrame Frame;
-			Frame.Topic     = Self->GetSensorTopic();
-			Frame.Timestamp = Self->GetWorld() ? Self->GetWorld()->GetTimeSeconds() : 0.0;
-			Frame.Payload   = MoveTemp(Jpeg);
-			Self->OnSensorDataReady.Broadcast(Frame);
-		});
+			FScopeLock Lock(&LatestFrameMutex);
+			LatestEncodedPayload.Reset();
+			LatestEncodedPayload.Append(Compressed.GetData(), static_cast<int32>(Compressed.Num()));
+			LatestEncodedTimestamp = LocalTimestamp;
+			bHasLatestFrame        = true;
+		}
 	}
 }
 

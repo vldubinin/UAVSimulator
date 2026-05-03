@@ -22,7 +22,6 @@ def _distance_color(dist_cm: float):
 def render_lidar_panel(scan_results: dict) -> np.ndarray:
     panel = np.full((_PANEL_H, _PANEL_W, 3), 18, dtype=np.uint8)
 
-    # Header
     cv2.putText(panel, "UAV LiDAR", (10, 28),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 220, 220), 2, cv2.LINE_AA)
     count_label = f"{len(scan_results)} object(s)"
@@ -35,25 +34,20 @@ def render_lidar_panel(scan_results: dict) -> np.ndarray:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (80, 80, 80), 1, cv2.LINE_AA)
         return panel
 
-    # Sort closest first, cap rows
     sorted_hits = sorted(scan_results.items(), key=lambda x: x[1])[:_MAX_ROWS]
-
     bar_max_w = _PANEL_W - 22
     y = 62
     for name, dist_cm in sorted_hits:
         dist_m = dist_cm / 100.0
         color = _distance_color(dist_cm)
 
-        # Distance bar (background track)
         cv2.rectangle(panel, (10, y - 13), (10 + bar_max_w, y + 3), (35, 35, 35), -1)
         bar_w = max(2, int((min(dist_cm, _MAX_RANGE_CM) / _MAX_RANGE_CM) * bar_max_w))
         cv2.rectangle(panel, (10, y - 13), (10 + bar_w, y + 3), color, -1)
 
-        # Label
         label = f"{name[:28]}:  {dist_m:.1f} m"
         cv2.putText(panel, label, (13, y),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.42, (220, 220, 220), 1, cv2.LINE_AA)
-
         y += 24
 
     if len(scan_results) > _MAX_ROWS:
@@ -70,11 +64,10 @@ def render_lidar_panel(scan_results: dict) -> np.ndarray:
 context = zmq.Context()
 socket = context.socket(zmq.SUB)
 socket.connect("tcp://127.0.0.1:5555")
-socket.setsockopt_string(zmq.SUBSCRIBE, "")  # receive all topics
+socket.setsockopt_string(zmq.SUBSCRIBE, "")
 
 print("Waiting for sensor data from Unreal Engine...")
-print("  camera → JPEG frames")
-print("  lidar  → JSON distance map")
+print("Message format: [JSON envelope] [payload_0] ... [payload_N]")
 print("Press 'q' to quit.\n")
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -85,26 +78,42 @@ latest_camera_frame = None
 latest_lidar_data: dict = {}
 
 while True:
-    # Poll up to 1 ms so the display loop stays responsive regardless of sensor rate
+    # Poll up to 1 ms so the display stays responsive regardless of bus rate
     if socket.poll(timeout=1):
         parts = socket.recv_multipart()
-        if len(parts) != 2:
+
+        # Expect at least the envelope + one payload
+        if len(parts) < 2:
             continue
 
-        topic = parts[0].decode("utf-8", errors="replace")
-        payload = parts[1]
+        try:
+            envelope = json.loads(parts[0].decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            print(f"[bus] envelope parse error: {e}")
+            continue
 
-        if topic == "camera":
-            arr = np.frombuffer(payload, np.uint8)
-            frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-            if frame is not None:
-                latest_camera_frame = frame
+        sensors = envelope.get("sensors", [])
 
-        elif topic == "lidar":
-            try:
-                latest_lidar_data = json.loads(payload.decode("utf-8"))
-            except (json.JSONDecodeError, UnicodeDecodeError) as e:
-                print(f"[lidar] parse error: {e}")
+        # parts[1..N] correspond 1-to-1 with envelope["sensors"][0..N-1]
+        for i, sensor_info in enumerate(sensors):
+            payload_index = i + 1
+            if payload_index >= len(parts):
+                break
+
+            topic   = sensor_info.get("topic", "")
+            payload = parts[payload_index]
+
+            if topic == "camera":
+                arr   = np.frombuffer(payload, np.uint8)
+                frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+                if frame is not None:
+                    latest_camera_frame = frame
+
+            elif topic == "lidar":
+                try:
+                    latest_lidar_data = json.loads(payload.decode("utf-8"))
+                except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                    print(f"[lidar] payload parse error: {e}")
 
     if latest_camera_frame is not None:
         cv2.imshow("UAV Camera", latest_camera_frame)

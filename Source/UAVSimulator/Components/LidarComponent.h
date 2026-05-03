@@ -7,12 +7,11 @@
 
 /**
  * LiDAR sensor mounted at a configurable position on the aircraft.
- * Each scan fires rays in a spherical pattern and returns a map of
- * actor name → closest hit distance (in Unreal cm).
+ * Each scan fires rays in a spherical pattern and populates LatestScanResults:
+ *   actor name → closest hit distance (in Unreal cm).
  *
- * Implements IUAVSensorInterface — attach a SensorBusComponent to the owner
- * to have scan results forwarded to Python over ZMQ as a JSON object:
- *   { "ActorName": distance_cm, ... }
+ * Implements IUAVSensorInterface — SensorBusComponent calls GetLatestFrame()
+ * each bus tick to retrieve the scan results as a JSON-encoded payload.
  *
  * As a USceneComponent the sensor can be placed anywhere in the actor's
  * component hierarchy and its transform is used as the scan origin.
@@ -29,12 +28,12 @@ public:
 
 	// ── IUAVSensorInterface ───────────────────────────────────────────────────
 	virtual FString GetSensorTopic() const override { return TEXT("lidar"); }
-	virtual FOnSensorDataReady& GetOnSensorDataReady() override { return OnSensorDataReady; }
+	virtual bool GetLatestFrame(FSensorFrame& OutFrame) override;
 
 	/**
-	 * Runs a full scan immediately (game thread). Populates LatestScanResults
+	 * Runs a full scan immediately on the game thread, updates LatestScanResults,
 	 * and returns a reference to it. Called automatically by TickComponent at
-	 * ScanRate Hz; can also be triggered from Blueprint.
+	 * ScanRate Hz; can also be triggered directly from Blueprint.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Lidar")
 	const TMap<FString, float>& Scan();
@@ -42,9 +41,6 @@ public:
 	/** Most recent scan results: actor name → closest hit distance in Unreal cm. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Lidar")
 	TMap<FString, float> LatestScanResults;
-
-	/** Fires on the game thread after each scan with a JSON-encoded FSensorFrame. */
-	FOnSensorDataReady OnSensorDataReady;
 
 	// ── Scan parameters ───────────────────────────────────────────────────────
 
@@ -73,11 +69,8 @@ public:
 	TEnumAsByte<ECollisionChannel> CollisionChannel = ECC_Visibility;
 
 private:
-	/** Returns the vertical angle in degrees for layer index V. */
-	float GetVerticalAngle(int32 V) const;
+	float  GetVerticalAngle(int32 V) const;
 
-	/** Serializes LatestScanResults to JSON and broadcasts OnSensorDataReady. */
-	void BroadcastSensorFrame();
-
-	float ScanAccumulator = 0.0f;
+	float  ScanAccumulator      = 0.0f;
+	double LatestScanTimestamp  = 0.0;   // world time when Scan() last completed
 };

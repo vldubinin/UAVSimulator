@@ -1,7 +1,11 @@
 #include "SensorBusComponent.h"
 #include "UAVSimulator/Interfaces/UAVSensorInterface.h"
+#include "UAVSimulator/Structure/SensorFrame.h"
 #include "GameFramework/Actor.h"
-#include "HAL/RunnableThread.h"
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
 
 THIRD_PARTY_INCLUDES_START
 #include <zmq.hpp>
@@ -26,29 +30,12 @@ struct FZmqSocketState
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Minimal FRunnable wrapper
-// ─────────────────────────────────────────────────────────────────────────────
-
-namespace
-{
-	class FLambdaRunnable final : public FRunnable
-	{
-	public:
-		explicit FLambdaRunnable(TUniqueFunction<void()> InBody)
-			: Body(MoveTemp(InBody)) {}
-		virtual uint32 Run() override { Body(); return 0; }
-	private:
-		TUniqueFunction<void()> Body;
-	};
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
 
 USensorBusComponent::USensorBusComponent()
 {
-	PrimaryComponentTick.bCanEverTick = false;
+	PrimaryComponentTick.bCanEverTick = true;
 }
 
 void USensorBusComponent::BeginPlay()
@@ -65,11 +52,6 @@ void USensorBusComponent::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("SensorBusComponent: ZMQ bind failed — %hs"), E.what());
 		return;
 	}
-
-	FrameReadyEvent = FPlatformProcess::GetSynchEventFromPool(/*bIsManualReset=*/false);
-	bSenderRunning  = true;
-	SenderRunnable  = new FLambdaRunnable([this]() { SenderLoop(); });
-	SenderThread    = FRunnableThread::Create(SenderRunnable, TEXT("UAV_SensorBusSender"), 0, TPri_BelowNormal);
 
 	// Build the sensor list: use explicit Sensors array or auto-discover on owner
 	TArray<UActorComponent*> Resolved;
@@ -91,48 +73,21 @@ void USensorBusComponent::BeginPlay()
 
 	for (UActorComponent* Comp : Resolved)
 	{
-		IUAVSensorInterface* Sensor = Cast<IUAVSensorInterface>(Comp);
-		if (!Sensor)
+		if (!Cast<IUAVSensorInterface>(Comp))
 		{
 			UE_LOG(LogTemp, Warning, TEXT("SensorBusComponent: %s does not implement IUAVSensorInterface, skipped."),
 				*Comp->GetName());
 			continue;
 		}
-		Sensor->GetOnSensorDataReady().AddUObject(this, &USensorBusComponent::OnSensorFrame);
-		UE_LOG(LogTemp, Log, TEXT("SensorBusComponent: subscribed to sensor '%s' on %s"),
-			*Sensor->GetSensorTopic(), *GetOwner()->GetName());
+		ResolvedSensors.Add(Comp);
+		UE_LOG(LogTemp, Log, TEXT("SensorBusComponent: registered sensor '%s' on %s"),
+			*Cast<IUAVSensorInterface>(Comp)->GetSensorTopic(), *GetOwner()->GetName());
 	}
 }
 
 void USensorBusComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	// Unsubscribe from all sensors regardless of how Sensors was populated
-	if (AActor* Owner = GetOwner())
-	{
-		for (UActorComponent* Comp : Owner->GetComponents())
-		{
-			if (IUAVSensorInterface* Sensor = Cast<IUAVSensorInterface>(Comp))
-				Sensor->GetOnSensorDataReady().RemoveAll(this);
-		}
-	}
-
-	if (SenderThread)
-	{
-		bSenderRunning = false;
-		FrameReadyEvent->Trigger();
-		SenderThread->WaitForCompletion();
-		delete SenderThread;
-		SenderThread = nullptr;
-	}
-
-	delete SenderRunnable;
-	SenderRunnable = nullptr;
-
-	if (FrameReadyEvent)
-	{
-		FPlatformProcess::ReturnSynchEventToPool(FrameReadyEvent);
-		FrameReadyEvent = nullptr;
-	}
+	ResolvedSensors.Empty();
 
 	delete ZmqState;
 	ZmqState = nullptr;
@@ -141,44 +96,87 @@ void USensorBusComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Game-thread callback — enqueues frame for the sender thread
+// Tick
 // ─────────────────────────────────────────────────────────────────────────────
 
-void USensorBusComponent::OnSensorFrame(const FSensorFrame& Frame)
+void USensorBusComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
-	if (!ZmqState || !bSenderRunning) return;
-	PendingFrames.Enqueue(Frame);
-	FrameReadyEvent->Trigger();
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	BusAccumulator += DeltaTime;
+	const float BusInterval = 1.0f / FMath::Max(BusRate, 0.1f);
+	if (BusAccumulator >= BusInterval)
+	{
+		BusAccumulator -= BusInterval;
+		CollectAndSend();
+	}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sender thread — dequeues frames and sends as ZMQ multipart [topic][payload]
+// CollectAndSend — the core of the synchronous pipeline
 // ─────────────────────────────────────────────────────────────────────────────
 
-void USensorBusComponent::SenderLoop()
+void USensorBusComponent::CollectAndSend()
 {
-	while (bSenderRunning)
+	if (!ZmqState) return;
+
+	// ── 1. Poll every sensor for its latest frame ─────────────────────────────
+	TArray<FSensorFrame> Frames;
+	for (const TWeakObjectPtr<UActorComponent>& WeakComp : ResolvedSensors)
 	{
-		FrameReadyEvent->Wait(200);
-		if (!bSenderRunning) break;
+		UActorComponent* Comp = WeakComp.Get();
+		if (!Comp) continue;
+
+		IUAVSensorInterface* Sensor = Cast<IUAVSensorInterface>(Comp);
+		if (!Sensor) continue;
 
 		FSensorFrame Frame;
-		while (PendingFrames.Dequeue(Frame))
-		{
-			if (Frame.Payload.Num() == 0) continue;
+		if (Sensor->GetLatestFrame(Frame))
+			Frames.Add(MoveTemp(Frame));
+	}
 
-			const auto TopicUtf8 = StringCast<ANSICHAR>(*Frame.Topic);
-			try
-			{
-				zmq::message_t TopicMsg(TopicUtf8.Get(), static_cast<size_t>(TopicUtf8.Length()));
-				zmq::message_t PayloadMsg(Frame.Payload.GetData(), static_cast<size_t>(Frame.Payload.Num()));
-				ZmqState->Socket.send(TopicMsg, ZMQ_SNDMORE | ZMQ_DONTWAIT);
-				ZmqState->Socket.send(PayloadMsg, ZMQ_DONTWAIT);
-			}
-			catch (const zmq::error_t&)
-			{
-				// Ignore EAGAIN (high-water mark reached)
-			}
+	if (Frames.IsEmpty()) return;
+
+	// ── 2. Build JSON envelope ────────────────────────────────────────────────
+	// {"timestamp": <bus_time>, "sensors": [{"topic": "...", "timestamp": <sensor_time>}, ...]}
+	TSharedRef<FJsonObject> EnvelopeObj = MakeShared<FJsonObject>();
+	EnvelopeObj->SetNumberField(TEXT("timestamp"), GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0);
+
+	TArray<TSharedPtr<FJsonValue>> SensorEntries;
+	for (const FSensorFrame& Frame : Frames)
+	{
+		TSharedRef<FJsonObject> Entry = MakeShared<FJsonObject>();
+		Entry->SetStringField(TEXT("topic"),     Frame.Topic);
+		Entry->SetNumberField(TEXT("timestamp"), Frame.Timestamp);
+		SensorEntries.Add(MakeShared<FJsonValueObject>(Entry));
+	}
+	EnvelopeObj->SetArrayField(TEXT("sensors"), SensorEntries);
+
+	FString EnvelopeStr;
+	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&EnvelopeStr);
+	FJsonSerializer::Serialize(EnvelopeObj, Writer);
+
+	FTCHARToUTF8 EnvelopeUtf8(*EnvelopeStr);
+
+	// ── 3. Send as a single atomic ZMQ multipart message ─────────────────────
+	// Part 0:   JSON envelope
+	// Part 1..N: raw payload for each sensor (same order as envelope "sensors" array)
+	try
+	{
+		zmq::message_t EnvelopeMsg(EnvelopeUtf8.Get(), static_cast<size_t>(EnvelopeUtf8.Length()));
+		ZmqState->Socket.send(EnvelopeMsg, ZMQ_SNDMORE | ZMQ_DONTWAIT);
+
+		for (int32 i = 0; i < Frames.Num(); ++i)
+		{
+			const FSensorFrame& Frame   = Frames[i];
+			const bool          bIsLast = (i == Frames.Num() - 1);
+			const int           Flags   = bIsLast ? ZMQ_DONTWAIT : (ZMQ_SNDMORE | ZMQ_DONTWAIT);
+			zmq::message_t PayloadMsg(Frame.Payload.GetData(), static_cast<size_t>(Frame.Payload.Num()));
+			ZmqState->Socket.send(PayloadMsg, Flags);
 		}
+	}
+	catch (const zmq::error_t&)
+	{
+		// Drop on HWM — receiver is too slow; don't block the game thread
 	}
 }
