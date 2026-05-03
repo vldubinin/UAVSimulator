@@ -13,7 +13,9 @@
       "Bash(xargs grep *)",
       "Bash(xargs head *)",
       "Bash(\"C:/Program Files/Epic Games/UE_5.4/Engine/Binaries/DotNET/UnrealBuildTool/UnrealBuildTool.exe\" -projectfiles -project=\"C:/Users/DubakusPC/Documents/Unreal Projects/UAVSimulator/UAVSimulator.uproject\" -game -rocket -progress)",
-      "Bash(\"C:/Program Files/Epic Games/UE_5.7/Engine/Binaries/DotNET/UnrealBuildTool/UnrealBuildTool.exe\" -projectfiles -project=\"C:/Users/DubakusPC/Documents/Unreal Projects/UAVSimulator/UAVSimulator.uproject\" -game -rocket -progress)"
+      "Bash(\"C:/Program Files/Epic Games/UE_5.7/Engine/Binaries/DotNET/UnrealBuildTool/UnrealBuildTool.exe\" -projectfiles -project=\"C:/Users/DubakusPC/Documents/Unreal Projects/UAVSimulator/UAVSimulator.uproject\" -game -rocket -progress)",
+      "Bash(Remove-Item \"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\\\\Source\\\\UAVSimulator\\\\Components\\\\VideoStreamingComponent.h\" -Force)",
+      "Bash(Remove-Item \"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\\\\Source\\\\UAVSimulator\\\\Components\\\\VideoStreamingComponent.cpp\" -Force)"
     ]
   }
 }

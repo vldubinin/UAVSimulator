@@ -4,6 +4,7 @@
 #include "Components/ActorComponent.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "UAVSimulator/Interfaces/UAVSensorInterface.h"
 
 #include "PreOpenCVHeaders.h"
 #include "OpenCVHelper.h"
@@ -13,55 +14,52 @@
 
 #include "UAVCameraComponent.generated.h"
 
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnCameraFrameReady, TArrayView<const uint8> /* BGRAData */);
-
 /**
- * Manages the onboard camera: render target, OpenCV image processing, and output texture.
- * Add this component to the aircraft pawn. It will find the first USceneCaptureComponent2D
- * on the owner at BeginPlay.
+ * Manages the onboard camera: render target, OpenCV image processing, JPEG encoding,
+ * and output texture. Implements IUAVSensorInterface — subscribe to OnSensorDataReady
+ * to receive JPEG-encoded frames. Add this component to the aircraft pawn; it will find
+ * the first USceneCaptureComponent2D on the owner at BeginPlay.
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
-class UAVSIMULATOR_API UUAVCameraComponent : public UActorComponent
+class UAVSIMULATOR_API UUAVCameraComponent : public UActorComponent, public IUAVSensorInterface
 {
 	GENERATED_BODY()
 
 public:
-	/** Ініціалізує внутрішні вказівники нулями; фактична ініціалізація відбувається у BeginPlay. */
 	UUAVCameraComponent();
 
-	/**
-	 * Захоплює поточний кадр з рендер-таргету, виконує обробку OpenCV
-	 * (дзеркальне відображення, накладення тексту "VIRTUAL CAM") та оновлює OutputTexture.
-	 * Безпечно викликати щотіку; повертається одразу якщо камера не ініціалізована.
-	 */
 	void ProcessFrame();
-
 	void SetCameraProcessingEnabled(bool bEnable);
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
+	// ── IUAVSensorInterface ───────────────────────────────────────────────────
+	virtual FString GetSensorTopic() const override { return TEXT("camera"); }
+	virtual FOnSensorDataReady& GetOnSensorDataReady() override { return OnSensorDataReady; }
+
 protected:
-	/**
-	 * Знаходить USceneCaptureComponent2D на власнику, створює UTextureRenderTarget2D
-	 * (640×480, PF_B8G8R8A8) та вихідну UTexture2D для прив'язки в Blueprint.
-	 */
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 public:
-	/** Оброблена вихідна текстура — прив'яжіть у віджеті або матеріалі. */
+	/** Processed output texture — bind in a widget or material. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Computer Vision")
 	UTexture2D* OutputTexture;
 
-	/** Broadcast after every processed frame with raw BGRA pixels (640×480×4 bytes).
-	 *  Subscribe here to receive frames without coupling to this component's internals. */
-	FOnCameraFrameReady OnFrameReady;
+	/** JPEG quality for frames sent over the sensor bus (1–100). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Streaming", meta = (ClampMin = 1, ClampMax = 100))
+	int32 JpegQuality = 80;
+
+	/** Maximum frames per second forwarded to the sensor bus. Excess frames are dropped. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Streaming", meta = (ClampMin = 1, ClampMax = 120))
+	int32 MaxStreamFPS = 30;
+
+	/** Fires on the game thread with a JPEG-encoded FSensorFrame after each encoded frame. */
+	FOnSensorDataReady OnSensorDataReady;
 
 private:
-	/**
-	 * Копіює дані з ProcessedFrameBuffer у mip-рівень OutputTexture та викликає UpdateResource.
-	 * Викликається лише з ProcessFrame після успішної обробки кадру.
-	 */
 	void UploadToTexture();
+	void EncoderLoop();
 
 	UPROPERTY()
 	USceneCaptureComponent2D* CaptureComponent;
@@ -69,12 +67,23 @@ private:
 	UPROPERTY()
 	UTextureRenderTarget2D* RenderTarget;
 
-	FUpdateTextureRegion2D* UpdateRegion;
-
+	FUpdateTextureRegion2D* UpdateRegion = nullptr;
 	cv::Mat ProcessedFrameBuffer;
-
 	bool bIsProcessingEnabled = false;
 
 	static constexpr int32 CVWidth  = 640;
 	static constexpr int32 CVHeight = 480;
+
+	// ── JPEG encoding thread ──────────────────────────────────────────────────
+	TArray<uint8>    PendingBGRA;
+	bool             bHasPendingFrame = false;
+	FCriticalSection FrameMutex;
+
+	FEvent*          FrameReadyEvent = nullptr;
+	FThreadSafeBool  bEncoderRunning;
+	FRunnable*       EncoderRunnable = nullptr;
+	FRunnableThread* EncoderThread   = nullptr;
+
+	double MinSendInterval   = 1.0 / 30.0;
+	double LastFrameSentTime = 0.0;
 };

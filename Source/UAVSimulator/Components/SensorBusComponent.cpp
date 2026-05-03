@@ -1,21 +1,14 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#include "UAVSimulator/Components/VideoStreamingComponent.h"
-#include "UAVSimulator/Components/UAVCameraComponent.h"
+#include "SensorBusComponent.h"
+#include "UAVSimulator/Interfaces/UAVSensorInterface.h"
 #include "GameFramework/Actor.h"
 #include "HAL/RunnableThread.h"
-
-// Нативні модулі UE для роботи із зображеннями (замість OpenCV)
-#include "IImageWrapper.h"
-#include "IImageWrapperModule.h"
-#include "Modules/ModuleManager.h"
 
 THIRD_PARTY_INCLUDES_START
 #include <zmq.hpp>
 THIRD_PARTY_INCLUDES_END
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ZMQ state — defined here so zmq.hpp never leaks into the component header.
+// ZMQ state — defined here so zmq.hpp never leaks into the header
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct FZmqSocketState
@@ -33,7 +26,7 @@ struct FZmqSocketState
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Minimal FRunnable that delegates to a TUniqueFunction.
+// Minimal FRunnable wrapper
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace
@@ -42,11 +35,8 @@ namespace
 	{
 	public:
 		explicit FLambdaRunnable(TUniqueFunction<void()> InBody)
-			: Body(MoveTemp(InBody)) {
-		}
-
+			: Body(MoveTemp(InBody)) {}
 		virtual uint32 Run() override { Body(); return 0; }
-
 	private:
 		TUniqueFunction<void()> Body;
 	};
@@ -56,57 +46,73 @@ namespace
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
 
-UVideoStreamingComponent::UVideoStreamingComponent()
+USensorBusComponent::USensorBusComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
-void UVideoStreamingComponent::BeginPlay()
+void USensorBusComponent::BeginPlay()
 {
 	Super::BeginPlay();
-
-	MinSendInterval = 1.0 / FMath::Max(MaxStreamFPS, 1);
-	LastFrameSentTime = -MinSendInterval;
-
-	PendingBGRA.SetNumUninitialized(Width * Height * 4);
 
 	try
 	{
 		ZmqState = new FZmqSocketState(Endpoint);
-		UE_LOG(LogTemp, Log, TEXT("VideoStreamingComponent: ZMQ PUB bound to %s"), *Endpoint);
+		UE_LOG(LogTemp, Log, TEXT("SensorBusComponent: ZMQ PUB bound to %s"), *Endpoint);
 	}
 	catch (const zmq::error_t& E)
 	{
-		UE_LOG(LogTemp, Error, TEXT("VideoStreamingComponent: ZMQ bind failed — %hs"), E.what());
+		UE_LOG(LogTemp, Error, TEXT("SensorBusComponent: ZMQ bind failed — %hs"), E.what());
 		return;
 	}
 
 	FrameReadyEvent = FPlatformProcess::GetSynchEventFromPool(/*bIsManualReset=*/false);
-	bSenderRunning = true;
-	SenderRunnable = new FLambdaRunnable([this]() { SenderLoop(); });
-	SenderThread = FRunnableThread::Create(SenderRunnable, TEXT("UAV_VideoStreamSender"),
-		0, TPri_BelowNormal);
+	bSenderRunning  = true;
+	SenderRunnable  = new FLambdaRunnable([this]() { SenderLoop(); });
+	SenderThread    = FRunnableThread::Create(SenderRunnable, TEXT("UAV_SensorBusSender"), 0, TPri_BelowNormal);
 
-	if (UUAVCameraComponent* Cam = GetOwner()->FindComponentByClass<UUAVCameraComponent>())
+	// Build the sensor list: use explicit Sensors array or auto-discover on owner
+	TArray<UActorComponent*> Resolved;
+	if (Sensors.Num() > 0)
 	{
-		Cam->OnFrameReady.AddUObject(this, &UVideoStreamingComponent::OnFrameReady);
-		UE_LOG(LogTemp, Log, TEXT("VideoStreamingComponent: subscribed to camera on %s"),
-			*GetOwner()->GetName());
+		for (const TObjectPtr<UActorComponent>& Comp : Sensors)
+		{
+			if (Comp) Resolved.Add(Comp.Get());
+		}
 	}
-	else
+	else if (AActor* Owner = GetOwner())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("VideoStreamingComponent: no UUAVCameraComponent on %s"),
-			*GetOwner()->GetName());
+		for (UActorComponent* Comp : Owner->GetComponents())
+		{
+			if (Comp && Comp->Implements<UUAVSensorInterface>())
+				Resolved.Add(Comp);
+		}
+	}
+
+	for (UActorComponent* Comp : Resolved)
+	{
+		IUAVSensorInterface* Sensor = Cast<IUAVSensorInterface>(Comp);
+		if (!Sensor)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("SensorBusComponent: %s does not implement IUAVSensorInterface, skipped."),
+				*Comp->GetName());
+			continue;
+		}
+		Sensor->GetOnSensorDataReady().AddUObject(this, &USensorBusComponent::OnSensorFrame);
+		UE_LOG(LogTemp, Log, TEXT("SensorBusComponent: subscribed to sensor '%s' on %s"),
+			*Sensor->GetSensorTopic(), *GetOwner()->GetName());
 	}
 }
 
-void UVideoStreamingComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+void USensorBusComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	// Unsubscribe from all sensors regardless of how Sensors was populated
 	if (AActor* Owner = GetOwner())
 	{
-		if (UUAVCameraComponent* Cam = Owner->FindComponentByClass<UUAVCameraComponent>())
+		for (UActorComponent* Comp : Owner->GetComponents())
 		{
-			Cam->OnFrameReady.RemoveAll(this);
+			if (IUAVSensorInterface* Sensor = Cast<IUAVSensorInterface>(Comp))
+				Sensor->GetOnSensorDataReady().RemoveAll(this);
 		}
 	}
 
@@ -135,71 +141,43 @@ void UVideoStreamingComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Game-thread callback
+// Game-thread callback — enqueues frame for the sender thread
 // ─────────────────────────────────────────────────────────────────────────────
 
-void UVideoStreamingComponent::OnFrameReady(TArrayView<const uint8> BGRAData)
+void USensorBusComponent::OnSensorFrame(const FSensorFrame& Frame)
 {
 	if (!ZmqState || !bSenderRunning) return;
-
-	const double Now = FPlatformTime::Seconds();
-	if ((Now - LastFrameSentTime) < MinSendInterval) return;
-	LastFrameSentTime = Now;
-
-	const int32 CopyBytes = FMath::Min(BGRAData.Num(), PendingBGRA.Num());
-	{
-		FScopeLock Lock(&FrameMutex);
-		FMemory::Memcpy(PendingBGRA.GetData(), BGRAData.GetData(), CopyBytes);
-		bHasPendingFrame = true;
-	}
-
+	PendingFrames.Enqueue(Frame);
 	FrameReadyEvent->Trigger();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sender thread — encodes JPEG and pushes over ZMQ.
+// Sender thread — dequeues frames and sends as ZMQ multipart [topic][payload]
 // ─────────────────────────────────────────────────────────────────────────────
 
-void UVideoStreamingComponent::SenderLoop()
+void USensorBusComponent::SenderLoop()
 {
-	TArray<uint8> LocalBGRA;
-
-	// Ініціалізуємо модуль ImageWrapper один раз для потоку
-	IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
-	TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::JPEG);
-
 	while (bSenderRunning)
 	{
 		FrameReadyEvent->Wait(200);
-
 		if (!bSenderRunning) break;
 
+		FSensorFrame Frame;
+		while (PendingFrames.Dequeue(Frame))
 		{
-			FScopeLock Lock(&FrameMutex);
-			if (!bHasPendingFrame) continue;
-			Swap(LocalBGRA, PendingBGRA);
+			if (Frame.Payload.Num() == 0) continue;
 
-			// Відновлюємо розмір PendingBGRA, оскільки Swap забрав його пам'ять
-			PendingBGRA.SetNumUninitialized(Width * Height * 4);
-			bHasPendingFrame = false;
-		}
-
-		if (LocalBGRA.Num() != Width * Height * 4) continue;
-
-		// Стискаємо сирі BGRA байти у JPEG
-		if (ImageWrapper.IsValid() && ImageWrapper->SetRaw(LocalBGRA.GetData(), LocalBGRA.Num(), Width, Height, ERGBFormat::BGRA, 8))
-		{
-			// Отримуємо масив байтів стисненого JPEG (якість 80)
-			const TArray64<uint8>& JPEGData = ImageWrapper->GetCompressed(80);
-
+			const auto TopicUtf8 = StringCast<ANSICHAR>(*Frame.Topic);
 			try
 			{
-				zmq::message_t Msg(JPEGData.GetData(), static_cast<size_t>(JPEGData.Num()));
-				ZmqState->Socket.send(Msg, ZMQ_DONTWAIT);
+				zmq::message_t TopicMsg(TopicUtf8.Get(), static_cast<size_t>(TopicUtf8.Length()));
+				zmq::message_t PayloadMsg(Frame.Payload.GetData(), static_cast<size_t>(Frame.Payload.Num()));
+				ZmqState->Socket.send(TopicMsg, ZMQ_SNDMORE | ZMQ_DONTWAIT);
+				ZmqState->Socket.send(PayloadMsg, ZMQ_DONTWAIT);
 			}
 			catch (const zmq::error_t&)
 			{
-				// Ігноруємо EAGAIN
+				// Ignore EAGAIN (high-water mark reached)
 			}
 		}
 	}
