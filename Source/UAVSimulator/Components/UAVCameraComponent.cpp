@@ -33,7 +33,40 @@ UUAVCameraComponent::UUAVCameraComponent()
 	CaptureComponent = nullptr;
 	RenderTarget     = nullptr;
 	OutputTexture    = nullptr;
+
+	// Compute FOV from SceneCaptureComponent2D's default so the editor shows
+	// meaningful values before the actor is ever placed in a level.
+	ComputeFOV(90.0f);
 }
+
+void UUAVCameraComponent::OnRegister()
+{
+	Super::OnRegister();
+
+	// Try to read the actual FOV from the capture component. In the editor this
+	// runs after native components are registered; Blueprint-added components may
+	// not be here yet, so we fall back to the default (90°) when not found.
+	AActor* Owner = GetOwner();
+	if (Owner)
+	{
+		if (USceneCaptureComponent2D* Comp = Owner->FindComponentByClass<USceneCaptureComponent2D>())
+			ComputeFOV(Comp->FOVAngle);
+	}
+}
+
+#if WITH_EDITOR
+void UUAVCameraComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	AActor* Owner = GetOwner();
+	if (Owner)
+	{
+		if (USceneCaptureComponent2D* Comp = Owner->FindComponentByClass<USceneCaptureComponent2D>())
+			ComputeFOV(Comp->FOVAngle);
+	}
+}
+#endif
 
 void UUAVCameraComponent::BeginPlay()
 {
@@ -49,7 +82,9 @@ void UUAVCameraComponent::BeginPlay()
 		return;
 	}
 
-	UE_LOG(LogUAV, Log, TEXT("UAVCameraComponent: Camera found on %s"), *Owner->GetName());
+	ComputeFOV(CaptureComponent->FOVAngle);
+	UE_LOG(LogUAV, Log, TEXT("UAVCameraComponent: Camera found on %s (HFOV=%.1f° VFOV=%.1f°)"),
+		*Owner->GetName(), HorizontalFOVDeg, VerticalFOVDeg);
 
 	RenderTarget = NewObject<UTextureRenderTarget2D>();
 	RenderTarget->InitCustomFormat(CVWidth, CVHeight, PF_B8G8R8A8, false);
@@ -216,6 +251,21 @@ void UUAVCameraComponent::EncoderLoop()
 			bHasLatestFrame        = true;
 		}
 	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FOV helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+void UUAVCameraComponent::ComputeFOV(float HFovDeg)
+{
+	HorizontalFOVDeg = HFovDeg;
+
+	const float AspectRatio = static_cast<float>(CVWidth) / static_cast<float>(CVHeight);
+	const float HFovRad     = FMath::DegreesToRadians(HFovDeg);
+	VerticalFOVDeg = FMath::RadiansToDegrees(
+		2.0f * FMath::Atan(FMath::Tan(HFovRad * 0.5f) / AspectRatio)
+	);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

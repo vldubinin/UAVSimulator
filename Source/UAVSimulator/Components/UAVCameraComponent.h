@@ -34,11 +34,16 @@ public:
 	void ProcessFrame();
 	void SetCameraProcessingEnabled(bool bEnable);
 
+	virtual void OnRegister() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 	// ── IUAVSensorInterface ───────────────────────────────────────────────────
 	virtual FString GetSensorTopic() const override { return TEXT("camera"); }
 	virtual bool GetLatestFrame(FSensorFrame& OutFrame) override;
+
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 
 protected:
 	virtual void BeginPlay() override;
@@ -48,6 +53,14 @@ public:
 	/** Processed output texture — bind in a widget or material. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Computer Vision")
 	UTexture2D* OutputTexture;
+
+	/** Horizontal FOV of the capture camera in degrees. Derived from USceneCaptureComponent2D::FOVAngle. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Computer Vision")
+	float HorizontalFOVDeg = 0.0f;
+
+	/** Vertical FOV of the capture camera in degrees. Computed from HorizontalFOVDeg and the capture resolution. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Computer Vision")
+	float VerticalFOVDeg = 0.0f;
 
 	/** JPEG quality for encoded frames (1–100). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Streaming", meta = (ClampMin = 1, ClampMax = 100))
@@ -61,6 +74,7 @@ public:
 private:
 	void UploadToTexture();
 	void EncoderLoop();
+	void ComputeFOV(float HFovDeg);
 
 	UPROPERTY()
 	USceneCaptureComponent2D* CaptureComponent;
