@@ -4,17 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
+#include "UAVSimulator/Entity/SimulatorMode.h"
 #include "UAVSimulatorGameModeBase.generated.h"
 
 class AAirplane;
-
-UENUM(BlueprintType)
-enum class ESimulatorMode : uint8
-{
-	RecordTarget     UMETA(DisplayName = "Record Target"),
-	PlaybackAndTrack UMETA(DisplayName = "Playback and Track"),
-	Playback UMETA(DisplayName = "Playback"),
-};
 
 UCLASS()
 class UAVSIMULATOR_API AUAVSimulatorGameModeBase : public AGameModeBase

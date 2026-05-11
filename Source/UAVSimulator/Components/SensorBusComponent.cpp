@@ -6,6 +6,7 @@
 #include "Dom/JsonValue.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+#include "UAVSimulator/Subsystem/UAVSimulationSubsystem.h"
 
 THIRD_PARTY_INCLUDES_START
 #include <zmq.hpp>
@@ -41,6 +42,12 @@ USensorBusComponent::USensorBusComponent()
 void USensorBusComponent::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (!IsEnabledSensors())
+	{
+		SetComponentTickEnabled(false);
+		return;
+	}
 
 	try
 	{
@@ -179,4 +186,25 @@ void USensorBusComponent::CollectAndSend()
 	{
 		// Drop on HWM — receiver is too slow; don't block the game thread
 	}
+}
+
+bool USensorBusComponent::IsEnabledSensors()
+{
+	ESimulatorMode Mode;
+	if (UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>())
+	{
+		Mode = Subsystem->CurrentSimulatorMode;
+	}
+
+	AActor* OwnerActor = GetOwner();
+	bool IsPlayer = OwnerActor && OwnerActor->ActorHasTag(FName("Player"));
+
+	if (Mode == ESimulatorMode::RecordTarget)
+	{
+		return false;
+	}
+	if (Mode == ESimulatorMode::PlaybackAndTrack && !IsPlayer) {
+		return false;
+	}
+	return true;
 }

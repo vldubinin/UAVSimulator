@@ -16,7 +16,9 @@
       "Bash(\"C:/Program Files/Epic Games/UE_5.7/Engine/Binaries/DotNET/UnrealBuildTool/UnrealBuildTool.exe\" -projectfiles -project=\"C:/Users/DubakusPC/Documents/Unreal Projects/UAVSimulator/UAVSimulator.uproject\" -game -rocket -progress)",
       "Bash(Remove-Item \"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\\\\Source\\\\UAVSimulator\\\\Components\\\\VideoStreamingComponent.h\" -Force)",
       "Bash(Remove-Item \"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\\\\Source\\\\UAVSimulator\\\\Components\\\\VideoStreamingComponent.cpp\" -Force)",
-      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\\\\Source\\\\UAVSimulator\\\\Components\\\\\" | Where-Object { $_.Name -match \"\\(Sensor|Camera|Lidar\\)\" } | Select-Object Name)"
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\\\\Source\\\\UAVSimulator\\\\Components\\\\\" | Where-Object { $_.Name -match \"\\(Sensor|Camera|Lidar\\)\" } | Select-Object Name)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\" -Recurse -Directory)",
+      "Bash(Select-Object -First 20)"
     ]
   }
 }

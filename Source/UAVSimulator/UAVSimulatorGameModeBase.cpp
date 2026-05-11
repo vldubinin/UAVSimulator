@@ -33,6 +33,7 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 	// RefreshConfigurations() called during BeginPlay/PossessedBy reads the correct values.
 	if (UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>())
 	{
+		Subsystem->CurrentSimulatorMode    = CurrentSimulatorMode;
 		Subsystem->bEnableVisualsForPlayer = bEnableVisualsForPlayer;
 		Subsystem->bEnableVisualsForTarget = bEnableVisualsForTarget;
 		Subsystem->bEnableCameraForPlayer  = bEnableCameraForPlayer;
@@ -44,8 +45,9 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 		? PlayerStartActor->GetActorTransform()
 		: FTransform::Identity;
 
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	// SpawnActorDeferred lets us set Tags before FinishSpawning triggers BeginPlay,
+	// so components like USensorBusComponent can read them in their own BeginPlay.
+	constexpr ESpawnActorCollisionHandlingMethod AlwaysSpawn = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
 	if (CurrentSimulatorMode == ESimulatorMode::RecordTarget)
 	{
@@ -55,10 +57,11 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 			return;
 		}
 
-		AAirplane* TargetAirplane = GetWorld()->SpawnActor<AAirplane>(TargetAirplaneClass, SpawnTransform, SpawnParams);
+		AAirplane* TargetAirplane = GetWorld()->SpawnActorDeferred<AAirplane>(
+			TargetAirplaneClass, SpawnTransform, nullptr, nullptr, AlwaysSpawn);
 		if (!TargetAirplane) return;
-
 		TargetAirplane->Tags.Add(FName("Player"));
+		TargetAirplane->FinishSpawning(SpawnTransform);
 
 		UFlightRecorderComponent* Recorder = NewObject<UFlightRecorderComponent>(TargetAirplane);
 		Recorder->SaveSlotName = ScenarioSlotName;
@@ -82,21 +85,24 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 			return;
 		}
 
-		const FFlightFrame& FirstFrame   = LoadedScenario->FlightFrames[0];
+		const FFlightFrame& FirstFrame      = LoadedScenario->FlightFrames[0];
 		const FVector       InitialLocation = FirstFrame.Location;
 		const FRotator      InitialRotation = FirstFrame.Rotation;
+		const FVector       Offset          = InitialRotation.Vector() * TargetSpawnOffsetDistance;
 
-		// Tracker starts exactly where the recording began.
-		AAirplane* TrackerAirplane = GetWorld()->SpawnActor<AAirplane>(
-			TrackerAirplaneClass, InitialLocation, InitialRotation, SpawnParams);
+		const FTransform TrackerTransform(InitialRotation, InitialLocation);
+		AAirplane* TrackerAirplane = GetWorld()->SpawnActorDeferred<AAirplane>(
+			TrackerAirplaneClass, TrackerTransform, nullptr, nullptr, AlwaysSpawn);
 		if (TrackerAirplane) TrackerAirplane->Tags.Add(FName("Player"));
 
-		// Target replays its recorded path shifted forward along the initial heading.
-		const FVector Offset = InitialRotation.Vector() * TargetSpawnOffsetDistance;
-
-		AAirplane* TargetAirplane = GetWorld()->SpawnActor<AAirplane>(
-			TargetAirplaneClass, InitialLocation + Offset, InitialRotation, SpawnParams);
+		const FTransform TargetTransform(InitialRotation, InitialLocation + Offset);
+		AAirplane* TargetAirplane = GetWorld()->SpawnActorDeferred<AAirplane>(
+			TargetAirplaneClass, TargetTransform, nullptr, nullptr, AlwaysSpawn);
 		if (TargetAirplane) TargetAirplane->Tags.Add(FName("Target"));
+
+		// Tags are set — now trigger BeginPlay on both actors.
+		if (TrackerAirplane) TrackerAirplane->FinishSpawning(TrackerTransform);
+		if (TargetAirplane)  TargetAirplane->FinishSpawning(TargetTransform);
 
 		if (TargetAirplane)
 		{
@@ -133,18 +139,20 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 			return;
 		}
 
-		const FFlightFrame& FirstFrame = LoadedScenario->FlightFrames[0];
+		const FFlightFrame& FirstFrame      = LoadedScenario->FlightFrames[0];
 		const FVector       InitialLocation = FirstFrame.Location;
 		const FRotator      InitialRotation = FirstFrame.Rotation;
 
-		AAirplane* TargetAirplane = GetWorld()->SpawnActor<AAirplane>(
-			TargetAirplaneClass, InitialLocation, InitialRotation, SpawnParams);
+		const FTransform TargetTransform(InitialRotation, InitialLocation);
+		AAirplane* TargetAirplane = GetWorld()->SpawnActorDeferred<AAirplane>(
+			TargetAirplaneClass, TargetTransform, nullptr, nullptr, AlwaysSpawn);
 		if (TargetAirplane) TargetAirplane->Tags.Add(FName("Target"));
+		if (TargetAirplane) TargetAirplane->FinishSpawning(TargetTransform);
 
 		if (TargetAirplane)
 		{
 			UFlightPlaybackComponent* Playback = NewObject<UFlightPlaybackComponent>(TargetAirplane);
-			Playback->SaveSlotName = ScenarioSlotName;
+			Playback->SaveSlotName   = ScenarioSlotName;
 			Playback->PlaybackOffset = FVector();
 			Playback->RegisterComponent();
 			Playback->StartPlayback();

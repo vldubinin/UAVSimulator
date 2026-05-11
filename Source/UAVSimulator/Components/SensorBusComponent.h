@@ -56,6 +56,8 @@ private:
 	/** Polls every sensor, bundles results, sends one ZMQ multipart message. */
 	void CollectAndSend();
 
+	bool IsEnabledSensors();
+
 	FZmqSocketState* ZmqState = nullptr;
 
 	// Resolved at BeginPlay; iterated each bus tick

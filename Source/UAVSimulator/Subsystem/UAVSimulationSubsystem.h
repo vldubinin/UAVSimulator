@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "UAVSimulator/Entity/SimulatorMode.h"
 #include "UAVSimulationSubsystem.generated.h"
 
 DECLARE_MULTICAST_DELEGATE(FOnVisualSettingsChanged);
@@ -15,6 +16,8 @@ class UAVSIMULATOR_API UUAVSimulationSubsystem : public UWorldSubsystem
 	GENERATED_BODY()
 
 public:
+	ESimulatorMode CurrentSimulatorMode = ESimulatorMode::RecordTarget;
+
 	bool bEnableVisualsForPlayer = true;
 	bool bEnableVisualsForTarget = false;
 	bool bEnableCameraForPlayer = true;
