@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Components/SceneComponent.h"
 #include "UAVSimulator/Interfaces/UAVSensorInterface.h"
+#include "UAVSimulator/Util/SensorUtilityLibrary.h"
 #include "LidarComponent.generated.h"
 
 /**

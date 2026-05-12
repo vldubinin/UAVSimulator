@@ -42,50 +42,33 @@ const TMap<FString, float>& ULidarComponent::Scan()
 	if (!World) return LatestScanResults;
 
 	LatestScanTimestamp = World->GetTimeSeconds();
-	LatestScanResults.Reset();
 
-	const FVector    Origin    = GetComponentLocation();
-	const FTransform Transform = GetComponentTransform();
+	TArray<FHitResult> FHitResults = USensorUtilityLibrary::FindActors(
+		this,                    // Контекст для отримання World
+		GetComponentTransform(), // Початкова точка та ротація лідара
+		GetOwner(),              // Ігноруємо сам дрон
+		Range,
+		HorizontalRays,
+		VerticalLayers,
+		VerticalFOVDeg,
+		CollisionChannel
+	);
 
-	FCollisionQueryParams QueryParams;
-	QueryParams.AddIgnoredActor(GetOwner());
-	QueryParams.bTraceComplex = false;
-
-	const float HStep = 360.0f / FMath::Max(HorizontalRays, 1);
-
-	for (int32 V = 0; V < VerticalLayers; ++V)
+	for (FHitResult Hit : FHitResults)
 	{
-		const float VAngleRad = FMath::DegreesToRadians(GetVerticalAngle(V));
-		const float CosV      = FMath::Cos(VAngleRad);
-		const float SinV      = FMath::Sin(VAngleRad);
+		const AActor* HitActor = Hit.GetActor();
 
-		for (int32 H = 0; H < HorizontalRays; ++H)
+		const FString& Name = HitActor->GetName();
+		const float    Distance = Hit.Distance;
+
+		float* Stored = LatestScanResults.Find(Name);
+		if (!Stored)
 		{
-			const float HAngleRad = FMath::DegreesToRadians(H * HStep);
-
-			// Direction in component-local space (X = forward, Y = right, Z = up)
-			const FVector LocalDir(
-				CosV * FMath::Cos(HAngleRad),
-				CosV * FMath::Sin(HAngleRad),
-				SinV
-			);
-			const FVector WorldDir = Transform.TransformVectorNoScale(LocalDir);
-
-			FHitResult Hit;
-			if (!World->LineTraceSingleByChannel(Hit, Origin, Origin + WorldDir * Range, CollisionChannel, QueryParams))
-				continue;
-
-			const AActor* HitActor = Hit.GetActor();
-			if (!HitActor) continue;
-
-			const FString& Name     = HitActor->GetName();
-			const float    Distance = Hit.Distance;
-
-			float* Stored = LatestScanResults.Find(Name);
-			if (!Stored)
-				LatestScanResults.Add(Name, Distance);
-			else if (Distance < *Stored)
-				*Stored = Distance;
+			LatestScanResults.Add(Name, Distance);
+		}
+		else if (Distance < *Stored)
+		{
+			*Stored = Distance;
 		}
 	}
 
