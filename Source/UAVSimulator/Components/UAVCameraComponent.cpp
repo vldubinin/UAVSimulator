@@ -200,58 +200,54 @@ FBox2D UUAVCameraComponent::GetActorBBoxFromSceneCapture(AActor* ActorForBBox)
 	// Фінальна матриця
 	FMatrix ViewProjectionMatrix = ViewMatrix * ProjectionMatrix;
 
-	// 4. Отримуємо 3D BBox актора та його 8 вершин.
-	// bNonColliding=false: включає лише компоненти з увімкненою колізією (StaticMesh).
-	// Це виключає UNiagaraComponent (wake-vortex), чиї bounds по частинках
-	// різко роздмухують AABB по вертикалі і дають bbox на весь кадр.
-	FBox Actor3DBox = ActorForBBox->GetComponentsBoundingBox(false);
-
-	FVector Vertices[8] = {
-		FVector(Actor3DBox.Min.X, Actor3DBox.Min.Y, Actor3DBox.Min.Z),
-		FVector(Actor3DBox.Min.X, Actor3DBox.Min.Y, Actor3DBox.Max.Z),
-		FVector(Actor3DBox.Min.X, Actor3DBox.Max.Y, Actor3DBox.Min.Z),
-		FVector(Actor3DBox.Min.X, Actor3DBox.Max.Y, Actor3DBox.Max.Z),
-		FVector(Actor3DBox.Max.X, Actor3DBox.Min.Y, Actor3DBox.Min.Z),
-		FVector(Actor3DBox.Max.X, Actor3DBox.Min.Y, Actor3DBox.Max.Z),
-		FVector(Actor3DBox.Max.X, Actor3DBox.Max.Y, Actor3DBox.Min.Z),
-		FVector(Actor3DBox.Max.X, Actor3DBox.Max.Y, Actor3DBox.Max.Z)
-	};
-
-	// 5. Проектуємо кожну 3D вершину у 2D простір екрану
-	bool bAnyVertexInFrontOfCamera = false;
-
-	for (int32 i = 0; i < 8; ++i)
+	// 4–5. Проектуємо OBB кожного colliding-компонента.
+	// Замість world-space AABB (GetComponentsBoundingBox) беремо локальний bounds
+	// кожного компонента і трансформуємо його 8 кутів через ComponentTransform.
+	// Це дає тугіший bbox для повернутих об'єктів (крен/тангаж літака).
+	for (UActorComponent* ActorComp : ActorForBBox->GetComponents())
 	{
-		FVector4 ProjectedV = ViewProjectionMatrix.TransformFVector4(FVector4(Vertices[i], 1.f));
+		UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(ActorComp);
+		if (!PrimComp || !PrimComp->IsCollisionEnabled())
+			continue;
 
-		// Якщо точка знаходиться перед камерою (W > 0)
-		if (ProjectedV.W > 0.0f)
+		FBox LocalBox = PrimComp->CalcLocalBounds().GetBox();
+		FTransform CompTransform = PrimComp->GetComponentTransform();
+
+		FVector LocalCorners[8] = {
+			FVector(LocalBox.Min.X, LocalBox.Min.Y, LocalBox.Min.Z),
+			FVector(LocalBox.Min.X, LocalBox.Min.Y, LocalBox.Max.Z),
+			FVector(LocalBox.Min.X, LocalBox.Max.Y, LocalBox.Min.Z),
+			FVector(LocalBox.Min.X, LocalBox.Max.Y, LocalBox.Max.Z),
+			FVector(LocalBox.Max.X, LocalBox.Min.Y, LocalBox.Min.Z),
+			FVector(LocalBox.Max.X, LocalBox.Min.Y, LocalBox.Max.Z),
+			FVector(LocalBox.Max.X, LocalBox.Max.Y, LocalBox.Min.Z),
+			FVector(LocalBox.Max.X, LocalBox.Max.Y, LocalBox.Max.Z)
+		};
+
+		for (int32 i = 0; i < 8; ++i)
 		{
-			bAnyVertexInFrontOfCamera = true;
-			float RHW = 1.0f / ProjectedV.W;
+			FVector WorldCorner = CompTransform.TransformPosition(LocalCorners[i]);
+			FVector4 ProjectedV = ViewProjectionMatrix.TransformFVector4(FVector4(WorldCorner, 1.f));
 
-			// Конвертуємо у координати пікселів зображення [0..SizeX, 0..SizeY]
-			FVector2D ScreenPos(
-				(ProjectedV.X * RHW + 1.0f) * (SizeX / 2.0f),
-				(1.0f - ProjectedV.Y * RHW) * (SizeY / 2.0f)
-			);
-
-			Result2DBox += ScreenPos; // += автоматично розширює Min та Max обмежувального прямокутника
+			if (ProjectedV.W > 0.0f)
+			{
+				float RHW = 1.0f / ProjectedV.W;
+				FVector2D ScreenPos(
+					(ProjectedV.X * RHW + 1.0f) * (SizeX / 2.0f),
+					(1.0f - ProjectedV.Y * RHW) * (SizeY / 2.0f)
+				);
+				Result2DBox += ScreenPos;
+			}
 		}
 	}
 
-	// 6. Обрізаємо (Clamp) BBox по краях екрану, якщо хоча б одна вершина була валідною
-	if (Result2DBox.bIsValid && bAnyVertexInFrontOfCamera)
+	// 6. Обрізаємо (Clamp) BBox по краях екрану
+	if (Result2DBox.bIsValid)
 	{
 		Result2DBox.Min.X = FMath::Clamp(Result2DBox.Min.X, 0.0f, static_cast<float>(SizeX));
 		Result2DBox.Min.Y = FMath::Clamp(Result2DBox.Min.Y, 0.0f, static_cast<float>(SizeY));
 		Result2DBox.Max.X = FMath::Clamp(Result2DBox.Max.X, 0.0f, static_cast<float>(SizeX));
 		Result2DBox.Max.Y = FMath::Clamp(Result2DBox.Max.Y, 0.0f, static_cast<float>(SizeY));
-	}
-	else
-	{
-		// Якщо всі вершини позаду камери
-		Result2DBox.bIsValid = false;
 	}
 
 	return Result2DBox;
