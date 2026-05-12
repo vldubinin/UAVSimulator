@@ -113,8 +113,6 @@ void UUAVCameraComponent::BeginPlay()
 	bEncoderRunning = true;
 	EncoderRunnable = new FLambdaRunnable([this]() { EncoderLoop(); });
 	EncoderThread   = FRunnableThread::Create(EncoderRunnable, TEXT("UAV_CameraEncoder"), 0, TPri_BelowNormal);
-
-	CollectSceneActorsForBBox();
 }
 
 void UUAVCameraComponent::CollectSceneActorsForBBox()
@@ -202,8 +200,11 @@ FBox2D UUAVCameraComponent::GetActorBBoxFromSceneCapture(AActor* ActorForBBox)
 	// Фінальна матриця
 	FMatrix ViewProjectionMatrix = ViewMatrix * ProjectionMatrix;
 
-	// 4. Отримуємо 3D BBox актора та його 8 вершин
-	FBox Actor3DBox = ActorForBBox->GetComponentsBoundingBox(true);
+	// 4. Отримуємо 3D BBox актора та його 8 вершин.
+	// bNonColliding=false: включає лише компоненти з увімкненою колізією (StaticMesh).
+	// Це виключає UNiagaraComponent (wake-vortex), чиї bounds по частинках
+	// різко роздмухують AABB по вертикалі і дають bbox на весь кадр.
+	FBox Actor3DBox = ActorForBBox->GetComponentsBoundingBox(false);
 
 	FVector Vertices[8] = {
 		FVector(Actor3DBox.Min.X, Actor3DBox.Min.Y, Actor3DBox.Min.Z),
@@ -337,6 +338,7 @@ void UUAVCameraComponent::ProcessFrame()
 
 	UploadToTexture();
 
+	BBoxs.Empty();
 	for (AActor* ActorForBBox : SceneActorsForBBox)
 	{
 		FBox2D Bbox = GetActorBBoxFromSceneCapture(ActorForBBox);
