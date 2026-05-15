@@ -213,20 +213,40 @@ FBox2D UUAVCameraComponent::GetActorBBoxFromSceneCapture(AActor* ActorForBBox)
 		FBox LocalBox = PrimComp->CalcLocalBounds().GetBox();
 		FTransform CompTransform = PrimComp->GetComponentTransform();
 
-		FVector LocalCorners[8] = {
-			FVector(LocalBox.Min.X, LocalBox.Min.Y, LocalBox.Min.Z),
-			FVector(LocalBox.Min.X, LocalBox.Min.Y, LocalBox.Max.Z),
-			FVector(LocalBox.Min.X, LocalBox.Max.Y, LocalBox.Min.Z),
-			FVector(LocalBox.Min.X, LocalBox.Max.Y, LocalBox.Max.Z),
-			FVector(LocalBox.Max.X, LocalBox.Min.Y, LocalBox.Min.Z),
-			FVector(LocalBox.Max.X, LocalBox.Min.Y, LocalBox.Max.Z),
-			FVector(LocalBox.Max.X, LocalBox.Max.Y, LocalBox.Min.Z),
-			FVector(LocalBox.Max.X, LocalBox.Max.Y, LocalBox.Max.Z)
-		};
+		// Find which local axis is most aligned with camera→object direction (depth axis).
+		// Project the 4 corners of the mid-depth cross-section instead of all 8 corners,
+		// so the near-face perspective inflation doesn't dominate the bbox size.
+		FVector LocalCamPos = CompTransform.InverseTransformPosition(ViewLocation);
+		FVector BoxCenter   = (LocalBox.Min + LocalBox.Max) * 0.5f;
+		FVector LocalDir    = BoxCenter - LocalCamPos;
 
-		for (int32 i = 0; i < 8; ++i)
+		int32 DepthAxis = 0;
+		float MaxAbs = FMath::Abs(LocalDir.X);
+		if (FMath::Abs(LocalDir.Y) > MaxAbs) { MaxAbs = FMath::Abs(LocalDir.Y); DepthAxis = 1; }
+		if (FMath::Abs(LocalDir.Z) > MaxAbs) { DepthAxis = 2; }
+
+		const float DepthCenter = (LocalBox.Min[DepthAxis] + LocalBox.Max[DepthAxis]) * 0.5f;
+
+		for (int32 i = 0; i < 4; ++i)
 		{
-			FVector WorldCorner = CompTransform.TransformPosition(LocalCorners[i]);
+			const bool bit0 = (i & 1) != 0;
+			const bool bit1 = (i & 2) != 0;
+
+			FVector c;
+			if (DepthAxis == 0)
+				c = FVector(DepthCenter,
+				            bit0 ? LocalBox.Max.Y : LocalBox.Min.Y,
+				            bit1 ? LocalBox.Max.Z : LocalBox.Min.Z);
+			else if (DepthAxis == 1)
+				c = FVector(bit0 ? LocalBox.Max.X : LocalBox.Min.X,
+				            DepthCenter,
+				            bit1 ? LocalBox.Max.Z : LocalBox.Min.Z);
+			else
+				c = FVector(bit0 ? LocalBox.Max.X : LocalBox.Min.X,
+				            bit1 ? LocalBox.Max.Y : LocalBox.Min.Y,
+				            DepthCenter);
+
+			FVector WorldCorner = CompTransform.TransformPosition(c);
 			FVector4 ProjectedV = ViewProjectionMatrix.TransformFVector4(FVector4(WorldCorner, 1.f));
 
 			if (ProjectedV.W > 0.0f)

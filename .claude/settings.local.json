@@ -18,7 +18,8 @@
       "Bash(Remove-Item \"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\\\\Source\\\\UAVSimulator\\\\Components\\\\VideoStreamingComponent.cpp\" -Force)",
       "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\\\\Source\\\\UAVSimulator\\\\Components\\\\\" | Where-Object { $_.Name -match \"\\(Sensor|Camera|Lidar\\)\" } | Select-Object Name)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\" -Recurse -Directory)",
-      "Bash(Select-Object -First 20)"
+      "Bash(Select-Object -First 20)",
+      "Bash(dir C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Python\\\\Khai\\\\result\\\\Cessna_172_C_1\\\\vis *)"
     ]
   }
 }

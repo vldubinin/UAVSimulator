@@ -1,0 +1,5 @@
+train: ./dataset/Cessna_172_C_1/images/train
+val: ./dataset/Cessna_172_C_1/images/val
+
+nc: 1 # Кількість класів
+names: ['drone'] # Назви класів
