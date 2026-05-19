@@ -4,27 +4,25 @@
 #include "Components/ActorComponent.h"
 #include "UAVSimulator/Interfaces/UAVSensorInterface.h"
 
-#include "SegmentationMaskCameraComponent.generated.h"
+#include "CameraFrameComponent.generated.h"
 
 class UUAVCameraComponent;
 
 /**
- * Sensor adapter that exposes the segmentation mask stream on the
- * "segmentation_mask" topic. Delegates mask retrieval to UAVCameraComponent,
- * which owns the capture and encoding pipeline.
- *
- * Requires UAVCameraComponent::MaskPostProcessMaterial to be set on the same actor.
+ * Sensor adapter that exposes the UAVCameraComponent's RGB stream on the
+ * "camera" topic. Add this alongside UAVCameraComponent and SensorBusComponent
+ * on the same actor.
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
-class UAVSIMULATOR_API USegmentationMaskCameraComponent : public UActorComponent, public IUAVSensorInterface
+class UAVSIMULATOR_API UCameraFrameComponent : public UActorComponent, public IUAVSensorInterface
 {
 	GENERATED_BODY()
 
 public:
-	USegmentationMaskCameraComponent();
+	UCameraFrameComponent();
 
 	// ── IUAVSensorInterface ───────────────────────────────────────────────────
-	virtual FString GetSensorTopic() const override { return TEXT("segmentation_mask"); }
+	virtual FString GetSensorTopic() const override { return TEXT("camera"); }
 	virtual bool GetLatestFrame(FSensorFrame& OutFrame) override;
 
 protected:

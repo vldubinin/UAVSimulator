@@ -4,7 +4,7 @@
 #include "Components/ActorComponent.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "Engine/TextureRenderTarget2D.h"
-#include "UAVSimulator/Interfaces/UAVSensorInterface.h"
+#include "Materials/MaterialInterface.h"
 
 #include "PreOpenCVHeaders.h"
 #include "OpenCVHelper.h"
@@ -15,16 +15,17 @@
 #include "UAVCameraComponent.generated.h"
 
 /**
- * Manages the onboard camera: render target, OpenCV image processing, JPEG encoding,
- * and output texture. Implements IUAVSensorInterface — SensorBusComponent calls
- * GetLatestFrame() each bus tick to retrieve the most recently encoded JPEG frame.
+ * Manages the onboard camera: RGB capture, OpenCV processing, optional segmentation
+ * mask capture, and per-tick stable JPEG payloads for downstream consumers.
  *
- * JPEG encoding runs on a dedicated background thread so the game thread is never
- * stalled by compression. The latest encoded result is double-buffered and read
- * under a mutex by GetLatestFrame().
+ * Call GetRGBFrame() / GetMaskFrame() on the game thread to obtain the latest
+ * JPEG-encoded payload for the current tick. Multiple calls within the same tick
+ * always return the same snapshot.
+ *
+ * JPEG encoding for each stream runs on a dedicated background thread.
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
-class UAVSIMULATOR_API UUAVCameraComponent : public UActorComponent, public IUAVSensorInterface
+class UAVSIMULATOR_API UUAVCameraComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
@@ -34,12 +35,22 @@ public:
 	void ProcessFrame();
 	void SetCameraProcessingEnabled(bool bEnable);
 
+	/**
+	 * Returns the tick-stable JPEG-encoded RGB payload.
+	 * Multiple calls within the same tick return the same snapshot.
+	 * Must be called on the game thread.
+	 */
+	bool GetRGBFrame(TArray<uint8>& OutPayload, double& OutTimestamp) const;
+
+	/**
+	 * Returns the tick-stable JPEG-encoded segmentation mask payload.
+	 * Only produces data when MaskPostProcessMaterial is set.
+	 * Must be called on the game thread.
+	 */
+	bool GetMaskFrame(TArray<uint8>& OutPayload, double& OutTimestamp) const;
+
 	virtual void OnRegister() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-
-	// ── IUAVSensorInterface ───────────────────────────────────────────────────
-	virtual FString GetSensorTopic() const override { return TEXT("camera"); }
-	virtual bool GetLatestFrame(FSensorFrame& OutFrame) override;
 
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -54,11 +65,11 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Computer Vision")
 	UTexture2D* OutputTexture;
 
-	/** Horizontal FOV of the capture camera in degrees. Derived from USceneCaptureComponent2D::FOVAngle. */
+	/** Horizontal FOV of the capture camera in degrees. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Computer Vision")
 	float HorizontalFOVDeg = 0.0f;
 
-	/** Vertical FOV of the capture camera in degrees. Computed from HorizontalFOVDeg and the capture resolution. */
+	/** Vertical FOV of the capture camera in degrees. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Computer Vision")
 	float VerticalFOVDeg = 0.0f;
 
@@ -66,14 +77,20 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Streaming", meta = (ClampMin = 1, ClampMax = 100))
 	int32 JpegQuality = 80;
 
-	/** Maximum JPEG encodes per second. Acts as a CPU budget cap; the bus reads
-	 *  at its own rate independently. */
+	/** Maximum JPEG encodes per second for both streams. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Streaming", meta = (ClampMin = 1, ClampMax = 120))
 	int32 MaxEncodeFPS = 30;
 
+	/** Post-process material that converts the Custom Stencil to a B&W mask.
+	 *  When set, mask capture runs alongside RGB each tick. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Segmentation")
+	UMaterialInterface* MaskPostProcessMaterial = nullptr;
+
 private:
 	void UploadToTexture();
-	void EncoderLoop();
+	void CaptureMask();
+	void RGBEncoderLoop();
+	void MaskEncoderLoop();
 	void ComputeFOV(float HFovDeg);
 
 	UPROPERTY()
@@ -82,6 +99,9 @@ private:
 	UPROPERTY()
 	UTextureRenderTarget2D* RenderTarget;
 
+	UPROPERTY()
+	UTextureRenderTarget2D* MaskRenderTarget;
+
 	FUpdateTextureRegion2D* UpdateRegion = nullptr;
 	cv::Mat ProcessedFrameBuffer;
 	bool bIsProcessingEnabled = false;
@@ -89,24 +109,57 @@ private:
 	static constexpr int32 CVWidth  = 640;
 	static constexpr int32 CVHeight = 480;
 
-	// ── Encode input (game thread → encoder thread) ───────────────────────────
-	TArray<uint8>    PendingBGRA;
-	double           PendingTimestamp  = 0.0;   // world time of the captured frame
-	bool             bHasPendingFrame  = false;
-	FCriticalSection FrameMutex;                 // guards PendingBGRA / PendingTimestamp / bHasPendingFrame
+	// ── RGB encode input (game thread → encoder thread) ───────────────────────
+	TArray<uint8>    PendingRGBBGRA;
+	double           PendingRGBTimestamp  = 0.0;
+	bool             bHasPendingRGBFrame  = false;
+	FCriticalSection RGBFrameMutex;
 
-	// ── Encode output (encoder thread → game thread) ──────────────────────────
-	TArray<uint8>    LatestEncodedPayload;
-	double           LatestEncodedTimestamp = 0.0;
-	bool             bHasLatestFrame  = false;
-	FCriticalSection LatestFrameMutex;           // guards the three fields above
+	// ── RGB encode output (encoder thread → game thread) ─────────────────────
+	TArray<uint8>    LatestRGBPayload;
+	double           LatestRGBTimestamp   = 0.0;
+	bool             bHasLatestRGBFrame   = false;
+	FCriticalSection LatestRGBMutex;
 
-	// ── Encoder thread ────────────────────────────────────────────────────────
-	FEvent*          FrameReadyEvent = nullptr;
-	FThreadSafeBool  bEncoderRunning;
-	FRunnable*       EncoderRunnable = nullptr;
-	FRunnableThread* EncoderThread   = nullptr;
+	// ── RGB encoder thread ────────────────────────────────────────────────────
+	FEvent*          RGBFrameReadyEvent   = nullptr;
+	FThreadSafeBool  bRGBEncoderRunning;
+	FRunnable*       RGBEncoderRunnable   = nullptr;
+	FRunnableThread* RGBEncoderThread     = nullptr;
 
-	double MinEncodeInterval   = 1.0 / 30.0;
-	double LastEncodeTime      = 0.0;
+	double MinEncodeInterval  = 1.0 / 30.0;
+	double LastRGBEncodeTime  = 0.0;
+
+	// ── Tick-stable RGB cache (game thread only, written once per tick) ───────
+	TArray<uint8> TickRGBPayload;
+	double        TickRGBTimestamp  = 0.0;
+	bool          bHasTickRGBFrame  = false;
+
+	// ── Mask capture state ────────────────────────────────────────────────────
+	bool bHasPendingMaskCapture = false;
+
+	// ── Mask encode input (game thread → encoder thread) ─────────────────────
+	TArray<uint8>    PendingMaskBGRA;
+	double           PendingMaskTimestamp  = 0.0;
+	bool             bHasPendingMaskFrame  = false;
+	FCriticalSection MaskFrameMutex;
+
+	// ── Mask encode output (encoder thread → game thread) ────────────────────
+	TArray<uint8>    LatestMaskPayload;
+	double           LatestMaskTimestamp   = 0.0;
+	bool             bHasLatestMaskFrame   = false;
+	FCriticalSection LatestMaskMutex;
+
+	// ── Mask encoder thread ───────────────────────────────────────────────────
+	FEvent*          MaskFrameReadyEvent   = nullptr;
+	FThreadSafeBool  bMaskEncoderRunning;
+	FRunnable*       MaskEncoderRunnable   = nullptr;
+	FRunnableThread* MaskEncoderThread     = nullptr;
+
+	double LastMaskEncodeTime = 0.0;
+
+	// ── Tick-stable mask cache (game thread only, written once per tick) ──────
+	TArray<uint8> TickMaskPayload;
+	double        TickMaskTimestamp  = 0.0;
+	bool          bHasTickMaskFrame  = false;
 };

@@ -1,14 +1,14 @@
-#include "SegmentationMaskCameraComponent.h"
+#include "CameraFrameComponent.h"
 #include "UAVSimulator/Components/UAVCameraComponent.h"
 #include "UAVSimulator/UAVSimulator.h"
 #include "GameFramework/Actor.h"
 
-USegmentationMaskCameraComponent::USegmentationMaskCameraComponent()
+UCameraFrameComponent::UCameraFrameComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
-void USegmentationMaskCameraComponent::BeginPlay()
+void UCameraFrameComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
@@ -18,17 +18,17 @@ void USegmentationMaskCameraComponent::BeginPlay()
 	CameraComp = Owner->FindComponentByClass<UUAVCameraComponent>();
 	if (!CameraComp)
 	{
-		UE_LOG(LogUAV, Error, TEXT("SegmentationMaskCameraComponent: UUAVCameraComponent not found on %s."), *Owner->GetName());
+		UE_LOG(LogUAV, Error, TEXT("CameraFrameComponent: UUAVCameraComponent not found on %s."), *Owner->GetName());
 	}
 }
 
-bool USegmentationMaskCameraComponent::GetLatestFrame(FSensorFrame& OutFrame)
+bool UCameraFrameComponent::GetLatestFrame(FSensorFrame& OutFrame)
 {
 	if (!CameraComp) return false;
 
 	TArray<uint8> Payload;
 	double Timestamp;
-	if (!CameraComp->GetMaskFrame(Payload, Timestamp)) return false;
+	if (!CameraComp->GetRGBFrame(Payload, Timestamp)) return false;
 
 	OutFrame.Topic     = GetSensorTopic();
 	OutFrame.Timestamp = Timestamp;

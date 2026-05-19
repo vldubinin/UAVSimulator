@@ -32,10 +32,8 @@ UUAVCameraComponent::UUAVCameraComponent()
 	PrimaryComponentTick.bCanEverTick = true;
 	CaptureComponent = nullptr;
 	RenderTarget     = nullptr;
+	MaskRenderTarget = nullptr;
 	OutputTexture    = nullptr;
-
-	// Compute FOV from SceneCaptureComponent2D's default so the editor shows
-	// meaningful values before the actor is ever placed in a level.
 	ComputeFOV(90.0f);
 }
 
@@ -43,9 +41,6 @@ void UUAVCameraComponent::OnRegister()
 {
 	Super::OnRegister();
 
-	// Try to read the actual FOV from the capture component. In the editor this
-	// runs after native components are registered; Blueprint-added components may
-	// not be here yet, so we fall back to the default (90°) when not found.
 	AActor* Owner = GetOwner();
 	if (Owner)
 	{
@@ -78,7 +73,7 @@ void UUAVCameraComponent::BeginPlay()
 	CaptureComponent = Owner->FindComponentByClass<USceneCaptureComponent2D>();
 	if (!CaptureComponent)
 	{
-		UE_LOG(LogUAV, Error, TEXT("UAVCameraComponent: USceneCaptureComponent2D not found on %s. Add one in the Blueprint."), *Owner->GetName());
+		UE_LOG(LogUAV, Error, TEXT("UAVCameraComponent: USceneCaptureComponent2D not found on %s."), *Owner->GetName());
 		return;
 	}
 
@@ -86,15 +81,16 @@ void UUAVCameraComponent::BeginPlay()
 	UE_LOG(LogUAV, Log, TEXT("UAVCameraComponent: Camera found on %s (HFOV=%.1f° VFOV=%.1f°)"),
 		*Owner->GetName(), HorizontalFOVDeg, VerticalFOVDeg);
 
+	// RGB render target
 	RenderTarget = NewObject<UTextureRenderTarget2D>();
 	RenderTarget->InitCustomFormat(CVWidth, CVHeight, PF_B8G8R8A8, false);
 	RenderTarget->UpdateResourceImmediate(false);
 	CaptureComponent->TextureTarget = RenderTarget;
 	CaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
 
+	// Output texture
 	OutputTexture = UTexture2D::CreateTransient(CVWidth, CVHeight, PF_B8G8R8A8);
 	OutputTexture->UpdateResource();
-
 	if (FTexture2DMipMap* Mip = &OutputTexture->GetPlatformData()->Mips[0])
 	{
 		void* Data = Mip->BulkData.Lock(LOCK_READ_WRITE);
@@ -105,34 +101,63 @@ void UUAVCameraComponent::BeginPlay()
 
 	UpdateRegion = new FUpdateTextureRegion2D(0, 0, 0, 0, CVWidth, CVHeight);
 
-	MinEncodeInterval = 1.0 / FMath::Max(MaxEncodeFPS, 1);
-	LastEncodeTime    = -MinEncodeInterval;
-	PendingBGRA.SetNumUninitialized(CVWidth * CVHeight * 4);
+	// Mask render target — always allocated; capture is gated on MaskPostProcessMaterial
+	MaskRenderTarget = NewObject<UTextureRenderTarget2D>(this);
+	MaskRenderTarget->InitCustomFormat(CVWidth, CVHeight, PF_B8G8R8A8, false);
+	MaskRenderTarget->UpdateResourceImmediate(false);
 
-	FrameReadyEvent = FPlatformProcess::GetSynchEventFromPool(/*bIsManualReset=*/false);
-	bEncoderRunning = true;
-	EncoderRunnable = new FLambdaRunnable([this]() { EncoderLoop(); });
-	EncoderThread   = FRunnableThread::Create(EncoderRunnable, TEXT("UAV_CameraEncoder"), 0, TPri_BelowNormal);
+	MinEncodeInterval  = 1.0 / FMath::Max(MaxEncodeFPS, 1);
+	LastRGBEncodeTime  = -MinEncodeInterval;
+	LastMaskEncodeTime = -MinEncodeInterval;
+	PendingRGBBGRA.SetNumUninitialized(CVWidth * CVHeight * 4);
+	PendingMaskBGRA.SetNumUninitialized(CVWidth * CVHeight * 4);
+
+	// RGB encoder thread
+	RGBFrameReadyEvent = FPlatformProcess::GetSynchEventFromPool(/*bIsManualReset=*/false);
+	bRGBEncoderRunning = true;
+	RGBEncoderRunnable = new FLambdaRunnable([this]() { RGBEncoderLoop(); });
+	RGBEncoderThread   = FRunnableThread::Create(RGBEncoderRunnable, TEXT("UAV_RGBEncoder"), 0, TPri_BelowNormal);
+
+	// Mask encoder thread
+	MaskFrameReadyEvent = FPlatformProcess::GetSynchEventFromPool(/*bIsManualReset=*/false);
+	bMaskEncoderRunning = true;
+	MaskEncoderRunnable = new FLambdaRunnable([this]() { MaskEncoderLoop(); });
+	MaskEncoderThread   = FRunnableThread::Create(MaskEncoderRunnable, TEXT("UAV_MaskEncoder"), 0, TPri_BelowNormal);
 }
 
 void UUAVCameraComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	if (EncoderThread)
+	if (RGBEncoderThread)
 	{
-		bEncoderRunning = false;
-		FrameReadyEvent->Trigger();
-		EncoderThread->WaitForCompletion();
-		delete EncoderThread;
-		EncoderThread = nullptr;
+		bRGBEncoderRunning = false;
+		if (RGBFrameReadyEvent) RGBFrameReadyEvent->Trigger();
+		RGBEncoderThread->WaitForCompletion();
+		delete RGBEncoderThread;
+		RGBEncoderThread = nullptr;
 	}
+	delete RGBEncoderRunnable;
+	RGBEncoderRunnable = nullptr;
 
-	delete EncoderRunnable;
-	EncoderRunnable = nullptr;
-
-	if (FrameReadyEvent)
+	if (MaskEncoderThread)
 	{
-		FPlatformProcess::ReturnSynchEventToPool(FrameReadyEvent);
-		FrameReadyEvent = nullptr;
+		bMaskEncoderRunning = false;
+		if (MaskFrameReadyEvent) MaskFrameReadyEvent->Trigger();
+		MaskEncoderThread->WaitForCompletion();
+		delete MaskEncoderThread;
+		MaskEncoderThread = nullptr;
+	}
+	delete MaskEncoderRunnable;
+	MaskEncoderRunnable = nullptr;
+
+	if (RGBFrameReadyEvent)
+	{
+		FPlatformProcess::ReturnSynchEventToPool(RGBFrameReadyEvent);
+		RGBFrameReadyEvent = nullptr;
+	}
+	if (MaskFrameReadyEvent)
+	{
+		FPlatformProcess::ReturnSynchEventToPool(MaskFrameReadyEvent);
+		MaskFrameReadyEvent = nullptr;
 	}
 
 	delete UpdateRegion;
@@ -142,7 +167,7 @@ void UUAVCameraComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tick / capture
+// Tick
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UUAVCameraComponent::SetCameraProcessingEnabled(bool bEnable)
@@ -158,8 +183,35 @@ void UUAVCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	if (!bIsProcessingEnabled) return;
+
+	// Snapshot latest encoded results into tick-stable caches before processing.
+	// Consumers calling GetRGBFrame() / GetMaskFrame() this tick see a consistent snapshot.
+	{
+		FScopeLock Lock(&LatestRGBMutex);
+		if (bHasLatestRGBFrame)
+		{
+			TickRGBPayload   = LatestRGBPayload;
+			TickRGBTimestamp = LatestRGBTimestamp;
+			bHasTickRGBFrame = true;
+		}
+	}
+	{
+		FScopeLock Lock(&LatestMaskMutex);
+		if (bHasLatestMaskFrame)
+		{
+			TickMaskPayload   = LatestMaskPayload;
+			TickMaskTimestamp = LatestMaskTimestamp;
+			bHasTickMaskFrame = true;
+		}
+	}
+
 	ProcessFrame();
+	CaptureMask();
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RGB capture
+// ─────────────────────────────────────────────────────────────────────────────
 
 void UUAVCameraComponent::ProcessFrame()
 {
@@ -175,20 +227,19 @@ void UUAVCameraComponent::ProcessFrame()
 	cv::Mat FrameBGRA(CVHeight, CVWidth, CV_8UC4, ColorBuffer.GetData());
 	ProcessedFrameBuffer = FrameBGRA;
 
-	// Post to encoding thread at the configured FPS cap
-	if (FrameReadyEvent)
+	if (RGBFrameReadyEvent)
 	{
 		const double Now = FPlatformTime::Seconds();
-		if ((Now - LastEncodeTime) >= MinEncodeInterval)
+		if ((Now - LastRGBEncodeTime) >= MinEncodeInterval)
 		{
-			LastEncodeTime = Now;
+			LastRGBEncodeTime = Now;
 			{
-				FScopeLock Lock(&FrameMutex);
-				FMemory::Memcpy(PendingBGRA.GetData(), ProcessedFrameBuffer.data, CVWidth * CVHeight * 4);
-				PendingTimestamp = GetWorld()->GetTimeSeconds();
-				bHasPendingFrame = true;
+				FScopeLock Lock(&RGBFrameMutex);
+				FMemory::Memcpy(PendingRGBBGRA.GetData(), ProcessedFrameBuffer.data, CVWidth * CVHeight * 4);
+				PendingRGBTimestamp = GetWorld()->GetTimeSeconds();
+				bHasPendingRGBFrame = true;
 			}
-			FrameReadyEvent->Trigger();
+			RGBFrameReadyEvent->Trigger();
 		}
 	}
 
@@ -196,25 +247,82 @@ void UUAVCameraComponent::ProcessFrame()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// IUAVSensorInterface — called on game thread by SensorBusComponent
+// Mask capture — borrows CaptureComponent for one CaptureScene(), then restores
 // ─────────────────────────────────────────────────────────────────────────────
 
-bool UUAVCameraComponent::GetLatestFrame(FSensorFrame& OutFrame)
+void UUAVCameraComponent::CaptureMask()
 {
-	FScopeLock Lock(&LatestFrameMutex);
-	if (!bHasLatestFrame) return false;
+	if (!CaptureComponent || !MaskRenderTarget || !MaskPostProcessMaterial) return;
 
-	OutFrame.Topic     = GetSensorTopic();
-	OutFrame.Timestamp = LatestEncodedTimestamp;
-	OutFrame.Payload   = LatestEncodedPayload;
+	// Read the mask captured in the previous frame (one-frame delay keeps the
+	// render command from racing with the ReadPixels call).
+	if (bHasPendingMaskCapture && MaskFrameReadyEvent)
+	{
+		const double Now = FPlatformTime::Seconds();
+		if ((Now - LastMaskEncodeTime) >= MinEncodeInterval)
+		{
+			FTextureRenderTargetResource* RTResource = MaskRenderTarget->GameThread_GetRenderTargetResource();
+			if (RTResource)
+			{
+				TArray<FColor> ColorBuffer;
+				RTResource->ReadPixels(ColorBuffer);
+				if (ColorBuffer.Num() == CVWidth * CVHeight)
+				{
+					LastMaskEncodeTime = Now;
+					{
+						FScopeLock Lock(&MaskFrameMutex);
+						FMemory::Memcpy(PendingMaskBGRA.GetData(), ColorBuffer.GetData(), CVWidth * CVHeight * 4);
+						PendingMaskTimestamp = GetWorld()->GetTimeSeconds();
+						bHasPendingMaskFrame = true;
+					}
+					MaskFrameReadyEvent->Trigger();
+				}
+			}
+		}
+	}
+
+	// Borrow CaptureComponent, point it at MaskRenderTarget, inject post-process material.
+	UTextureRenderTarget2D*    OriginalRT         = CaptureComponent->TextureTarget;
+	TArray<FWeightedBlendable> OriginalBlendables = CaptureComponent->PostProcessSettings.WeightedBlendables.Array;
+
+	CaptureComponent->TextureTarget = MaskRenderTarget;
+	CaptureComponent->PostProcessSettings.WeightedBlendables.Array.Add(
+		FWeightedBlendable(1.0f, MaskPostProcessMaterial)
+	);
+	CaptureComponent->CaptureScene();
+
+	// Restore immediately — the render command already holds its own reference.
+	CaptureComponent->TextureTarget                                 = OriginalRT;
+	CaptureComponent->PostProcessSettings.WeightedBlendables.Array = OriginalBlendables;
+
+	bHasPendingMaskCapture = true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Public frame accessors — tick-stable, game thread only
+// ─────────────────────────────────────────────────────────────────────────────
+
+bool UUAVCameraComponent::GetRGBFrame(TArray<uint8>& OutPayload, double& OutTimestamp) const
+{
+	if (!bHasTickRGBFrame) return false;
+	OutPayload   = TickRGBPayload;
+	OutTimestamp = TickRGBTimestamp;
+	return true;
+}
+
+bool UUAVCameraComponent::GetMaskFrame(TArray<uint8>& OutPayload, double& OutTimestamp) const
+{
+	if (!bHasTickMaskFrame) return false;
+	OutPayload   = TickMaskPayload;
+	OutTimestamp = TickMaskTimestamp;
 	return true;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Encoder thread — compresses BGRA to JPEG, stores result in LatestEncodedPayload
+// RGB encoder thread
 // ─────────────────────────────────────────────────────────────────────────────
 
-void UUAVCameraComponent::EncoderLoop()
+void UUAVCameraComponent::RGBEncoderLoop()
 {
 	TArray<uint8> LocalBGRA;
 	double        LocalTimestamp = 0.0;
@@ -222,18 +330,18 @@ void UUAVCameraComponent::EncoderLoop()
 	IImageWrapperModule& IWM = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
 	TSharedPtr<IImageWrapper> Wrapper = IWM.CreateImageWrapper(EImageFormat::JPEG);
 
-	while (bEncoderRunning)
+	while (bRGBEncoderRunning)
 	{
-		FrameReadyEvent->Wait(200);
-		if (!bEncoderRunning) break;
+		RGBFrameReadyEvent->Wait(200);
+		if (!bRGBEncoderRunning) break;
 
 		{
-			FScopeLock Lock(&FrameMutex);
-			if (!bHasPendingFrame) continue;
-			Swap(LocalBGRA, PendingBGRA);
-			PendingBGRA.SetNumUninitialized(CVWidth * CVHeight * 4);
-			LocalTimestamp   = PendingTimestamp;
-			bHasPendingFrame = false;
+			FScopeLock Lock(&RGBFrameMutex);
+			if (!bHasPendingRGBFrame) continue;
+			Swap(LocalBGRA, PendingRGBBGRA);
+			PendingRGBBGRA.SetNumUninitialized(CVWidth * CVHeight * 4);
+			LocalTimestamp      = PendingRGBTimestamp;
+			bHasPendingRGBFrame = false;
 		}
 
 		if (LocalBGRA.Num() != CVWidth * CVHeight * 4) continue;
@@ -244,17 +352,60 @@ void UUAVCameraComponent::EncoderLoop()
 		const TArray64<uint8>& Compressed = Wrapper->GetCompressed(JpegQuality);
 
 		{
-			FScopeLock Lock(&LatestFrameMutex);
-			LatestEncodedPayload.Reset();
-			LatestEncodedPayload.Append(Compressed.GetData(), static_cast<int32>(Compressed.Num()));
-			LatestEncodedTimestamp = LocalTimestamp;
-			bHasLatestFrame = true;
+			FScopeLock Lock(&LatestRGBMutex);
+			LatestRGBPayload.Reset();
+			LatestRGBPayload.Append(Compressed.GetData(), static_cast<int32>(Compressed.Num()));
+			LatestRGBTimestamp = LocalTimestamp;
+			bHasLatestRGBFrame = true;
 		}
 	}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FOV helpers
+// Mask encoder thread
+// ─────────────────────────────────────────────────────────────────────────────
+
+void UUAVCameraComponent::MaskEncoderLoop()
+{
+	TArray<uint8> LocalBGRA;
+	double        LocalTimestamp = 0.0;
+
+	IImageWrapperModule& IWM = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
+	TSharedPtr<IImageWrapper> Wrapper = IWM.CreateImageWrapper(EImageFormat::JPEG);
+
+	while (bMaskEncoderRunning)
+	{
+		MaskFrameReadyEvent->Wait(200);
+		if (!bMaskEncoderRunning) break;
+
+		{
+			FScopeLock Lock(&MaskFrameMutex);
+			if (!bHasPendingMaskFrame) continue;
+			Swap(LocalBGRA, PendingMaskBGRA);
+			PendingMaskBGRA.SetNumUninitialized(CVWidth * CVHeight * 4);
+			LocalTimestamp       = PendingMaskTimestamp;
+			bHasPendingMaskFrame = false;
+		}
+
+		if (LocalBGRA.Num() != CVWidth * CVHeight * 4) continue;
+
+		if (!Wrapper.IsValid() || !Wrapper->SetRaw(LocalBGRA.GetData(), LocalBGRA.Num(), CVWidth, CVHeight, ERGBFormat::BGRA, 8))
+			continue;
+
+		const TArray64<uint8>& Compressed = Wrapper->GetCompressed(JpegQuality);
+
+		{
+			FScopeLock Lock(&LatestMaskMutex);
+			LatestMaskPayload.Reset();
+			LatestMaskPayload.Append(Compressed.GetData(), static_cast<int32>(Compressed.Num()));
+			LatestMaskTimestamp = LocalTimestamp;
+			bHasLatestMaskFrame = true;
+		}
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UUAVCameraComponent::ComputeFOV(float HFovDeg)
@@ -267,10 +418,6 @@ void UUAVCameraComponent::ComputeFOV(float HFovDeg)
 		2.0f * FMath::Atan(FMath::Tan(HFovRad * 0.5f) / AspectRatio)
 	);
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// GPU upload
-// ─────────────────────────────────────────────────────────────────────────────
 
 void UUAVCameraComponent::UploadToTexture()
 {
