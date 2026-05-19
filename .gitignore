@@ -84,6 +84,9 @@ Tools/OpenVSP/OpenVSP-3.45.4-win64/*
 
 # Cesium cache
 *.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
 
 #Log
 *.log

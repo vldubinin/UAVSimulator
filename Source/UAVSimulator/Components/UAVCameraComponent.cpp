@@ -115,164 +115,6 @@ void UUAVCameraComponent::BeginPlay()
 	EncoderThread   = FRunnableThread::Create(EncoderRunnable, TEXT("UAV_CameraEncoder"), 0, TPri_BelowNormal);
 }
 
-void UUAVCameraComponent::CollectSceneActorsForBBox()
-{
-	if (!SceneActorsForBBox.IsEmpty()) {
-		return;
-	}
-
-	TArray<FHitResult> FHitResults = USensorUtilityLibrary::FindActors(
-		this,                    // Контекст для отримання World
-		CaptureComponent->GetComponentTransform(), // Початкова точка та ротація лідара
-		GetOwner(),              // Ігноруємо сам дрон
-		Range,
-		HorizontalRays,
-		VerticalLayers,
-		VerticalFOVDeg,
-		CollisionChannel
-	);
-
-	for (FHitResult Hit : FHitResults)
-	{
-		SceneActorsForBBox.AddUnique(Hit.GetActor());
-	}
-}
-
-FBox2D UUAVCameraComponent::GetActorBBoxFromSceneCapture(AActor* ActorForBBox)
-{
-	FBox2D Result2DBox;
-	Result2DBox.bIsValid = false;
-
-	// Перевірка на валідність компонентів
-	if (!IsValid(CaptureComponent) || !IsValid(CaptureComponent->TextureTarget) || !IsValid(ActorForBBox))
-	{
-		return Result2DBox;
-	}
-
-	// 1. Отримуємо розміри Render Target (зображення)
-	const int32 SizeX = CaptureComponent->TextureTarget->SizeX;
-	const int32 SizeY = CaptureComponent->TextureTarget->SizeY;
-	const float AspectRatio = static_cast<float>(SizeX) / static_cast<float>(SizeY);
-
-	// 2. Розраховуємо View Matrix (Матрицю Виду)
-	FTransform CaptureTransform = CaptureComponent->GetComponentTransform();
-	FVector ViewLocation = CaptureTransform.GetLocation();
-	FRotator ViewRotation = CaptureTransform.GetRotation().Rotator();
-
-	// Трансформація координат Unreal у координати камери
-	FMatrix ViewRotationMatrix = FInverseRotationMatrix(ViewRotation);
-	FMatrix ViewMatrix = FTranslationMatrix(-ViewLocation) * ViewRotationMatrix *
-		FMatrix(
-			FPlane(0, 0, 1, 0),
-			FPlane(1, 0, 0, 0),
-			FPlane(0, 1, 0, 0),
-			FPlane(0, 0, 0, 1)
-		);
-
-	// 3. Розраховуємо Projection Matrix (Матрицю Проекції)
-	FMatrix ProjectionMatrix;
-	if (CaptureComponent->bUseCustomProjectionMatrix)
-	{
-		ProjectionMatrix = CaptureComponent->CustomProjectionMatrix;
-	}
-	else if (CaptureComponent->ProjectionType == ECameraProjectionMode::Perspective)
-	{
-		float FOV = CaptureComponent->FOVAngle * (float)PI / 360.0f;
-		ProjectionMatrix = FReversedZPerspectiveMatrix(
-			FOV,
-			AspectRatio,
-			1.0f,
-			GNearClippingPlane
-		);
-	}
-	else // Orthographic
-	{
-		float OrthoWidth = CaptureComponent->OrthoWidth / 2.0f;
-		float OrthoHeight = OrthoWidth / AspectRatio;
-		ProjectionMatrix = FReversedZOrthoMatrix(
-			OrthoWidth,
-			OrthoHeight,
-			0.5f / OrthoWidth,
-			GNearClippingPlane
-		);
-	}
-
-	// Фінальна матриця
-	FMatrix ViewProjectionMatrix = ViewMatrix * ProjectionMatrix;
-
-	// 4–5. Проектуємо OBB кожного colliding-компонента.
-	// Замість world-space AABB (GetComponentsBoundingBox) беремо локальний bounds
-	// кожного компонента і трансформуємо його 8 кутів через ComponentTransform.
-	// Це дає тугіший bbox для повернутих об'єктів (крен/тангаж літака).
-	for (UActorComponent* ActorComp : ActorForBBox->GetComponents())
-	{
-		UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(ActorComp);
-		if (!PrimComp || !PrimComp->IsCollisionEnabled())
-			continue;
-
-		FBox LocalBox = PrimComp->CalcLocalBounds().GetBox();
-		FTransform CompTransform = PrimComp->GetComponentTransform();
-
-		// Find which local axis is most aligned with camera→object direction (depth axis).
-		// Project the 4 corners of the mid-depth cross-section instead of all 8 corners,
-		// so the near-face perspective inflation doesn't dominate the bbox size.
-		FVector LocalCamPos = CompTransform.InverseTransformPosition(ViewLocation);
-		FVector BoxCenter   = (LocalBox.Min + LocalBox.Max) * 0.5f;
-		FVector LocalDir    = BoxCenter - LocalCamPos;
-
-		int32 DepthAxis = 0;
-		float MaxAbs = FMath::Abs(LocalDir.X);
-		if (FMath::Abs(LocalDir.Y) > MaxAbs) { MaxAbs = FMath::Abs(LocalDir.Y); DepthAxis = 1; }
-		if (FMath::Abs(LocalDir.Z) > MaxAbs) { DepthAxis = 2; }
-
-		const float DepthCenter = (LocalBox.Min[DepthAxis] + LocalBox.Max[DepthAxis]) * 0.5f;
-
-		for (int32 i = 0; i < 4; ++i)
-		{
-			const bool bit0 = (i & 1) != 0;
-			const bool bit1 = (i & 2) != 0;
-
-			FVector c;
-			if (DepthAxis == 0)
-				c = FVector(DepthCenter,
-				            bit0 ? LocalBox.Max.Y : LocalBox.Min.Y,
-				            bit1 ? LocalBox.Max.Z : LocalBox.Min.Z);
-			else if (DepthAxis == 1)
-				c = FVector(bit0 ? LocalBox.Max.X : LocalBox.Min.X,
-				            DepthCenter,
-				            bit1 ? LocalBox.Max.Z : LocalBox.Min.Z);
-			else
-				c = FVector(bit0 ? LocalBox.Max.X : LocalBox.Min.X,
-				            bit1 ? LocalBox.Max.Y : LocalBox.Min.Y,
-				            DepthCenter);
-
-			FVector WorldCorner = CompTransform.TransformPosition(c);
-			FVector4 ProjectedV = ViewProjectionMatrix.TransformFVector4(FVector4(WorldCorner, 1.f));
-
-			if (ProjectedV.W > 0.0f)
-			{
-				float RHW = 1.0f / ProjectedV.W;
-				FVector2D ScreenPos(
-					(ProjectedV.X * RHW + 1.0f) * (SizeX / 2.0f),
-					(1.0f - ProjectedV.Y * RHW) * (SizeY / 2.0f)
-				);
-				Result2DBox += ScreenPos;
-			}
-		}
-	}
-
-	// 6. Обрізаємо (Clamp) BBox по краях екрану
-	if (Result2DBox.bIsValid)
-	{
-		Result2DBox.Min.X = FMath::Clamp(Result2DBox.Min.X, 0.0f, static_cast<float>(SizeX));
-		Result2DBox.Min.Y = FMath::Clamp(Result2DBox.Min.Y, 0.0f, static_cast<float>(SizeY));
-		Result2DBox.Max.X = FMath::Clamp(Result2DBox.Max.X, 0.0f, static_cast<float>(SizeX));
-		Result2DBox.Max.Y = FMath::Clamp(Result2DBox.Max.Y, 0.0f, static_cast<float>(SizeY));
-	}
-
-	return Result2DBox;
-}
-
 void UUAVCameraComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	if (EncoderThread)
@@ -330,8 +172,6 @@ void UUAVCameraComponent::ProcessFrame()
 	RTResource->ReadPixels(ColorBuffer);
 	if (ColorBuffer.Num() == 0) return;
 
-	CollectSceneActorsForBBox();
-
 	cv::Mat FrameBGRA(CVHeight, CVWidth, CV_8UC4, ColorBuffer.GetData());
 	ProcessedFrameBuffer = FrameBGRA;
 
@@ -353,13 +193,6 @@ void UUAVCameraComponent::ProcessFrame()
 	}
 
 	UploadToTexture();
-
-	BBoxs.Empty();
-	for (AActor* ActorForBBox : SceneActorsForBBox)
-	{
-		FBox2D Bbox = GetActorBBoxFromSceneCapture(ActorForBBox);
-		BBoxs.Add(ActorForBBox->GetName(), Bbox);
-	}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -410,74 +243,15 @@ void UUAVCameraComponent::EncoderLoop()
 
 		const TArray64<uint8>& Compressed = Wrapper->GetCompressed(JpegQuality);
 
-		//FString JsonString = FString::Printf(TEXT("{\"fov\": %.1f, \"status\": \"tracking\"}"), HorizontalFOVDeg);
-		FString JsonString = ConvertBBoxMapToJson(BBoxs);
-		FTCHARToUTF8 JsonUtf8(*JsonString);
-		int32 JsonLength = JsonUtf8.Length();
-
 		{
 			FScopeLock Lock(&LatestFrameMutex);
 			LatestEncodedPayload.Reset();
-
-			// 1. Записуємо 4 байти розміру JSON
-			LatestEncodedPayload.Append(reinterpret_cast<const uint8*>(&JsonLength), sizeof(int32));
-
-			// 2. Записуємо самі байти JSON-тексту (якщо він є)
-			if (JsonLength > 0)
-			{
-				LatestEncodedPayload.Append(reinterpret_cast<const uint8*>(JsonUtf8.Get()), JsonLength);
-			}
-
-			// 3. Записуємо байти JPEG зображення
 			LatestEncodedPayload.Append(Compressed.GetData(), static_cast<int32>(Compressed.Num()));
-
 			LatestEncodedTimestamp = LocalTimestamp;
 			bHasLatestFrame = true;
 		}
 	}
 }
-
-FString UUAVCameraComponent::ConvertBBoxMapToJson(const TMap<FString, FBox2D>& BBoxsMap)
-{
-	// Створюємо головний JSON об'єкт, який буде представляти нашу мапу
-	TSharedPtr<FJsonObject> RootJsonObject = MakeShareable(new FJsonObject());
-
-	for (const auto& Pair : BBoxsMap)
-	{
-		// Створюємо JSON об'єкт для конкретного FBox2D
-		TSharedPtr<FJsonObject> BoxJsonObject = MakeShareable(new FJsonObject());
-
-		// Створюємо JSON об'єкт для точки Min
-		TSharedPtr<FJsonObject> MinJsonObject = MakeShareable(new FJsonObject());
-		MinJsonObject->SetNumberField("X", Pair.Value.Min.X);
-		MinJsonObject->SetNumberField("Y", Pair.Value.Min.Y);
-		BoxJsonObject->SetObjectField("Min", MinJsonObject);
-
-		// Створюємо JSON об'єкт для точки Max
-		TSharedPtr<FJsonObject> MaxJsonObject = MakeShareable(new FJsonObject());
-		MaxJsonObject->SetNumberField("X", Pair.Value.Max.X);
-		MaxJsonObject->SetNumberField("Y", Pair.Value.Max.Y);
-		BoxJsonObject->SetObjectField("Max", MaxJsonObject);
-
-		// Додаємо прапорець валідності (за бажанням)
-		BoxJsonObject->SetBoolField("bIsValid", Pair.Value.bIsValid);
-
-		// Додаємо цей Box у головний об'єкт під ключем з TMap (FString)
-		RootJsonObject->SetObjectField(Pair.Key, BoxJsonObject);
-	}
-
-	// Змінна для збереження результату
-	FString OutputJsonString;
-
-	// Створюємо Writer для серіалізації
-	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputJsonString);
-
-	// Серіалізуємо JSON об'єкт у рядок
-	FJsonSerializer::Serialize(RootJsonObject.ToSharedRef(), Writer);
-
-	return OutputJsonString;
-}
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FOV helpers

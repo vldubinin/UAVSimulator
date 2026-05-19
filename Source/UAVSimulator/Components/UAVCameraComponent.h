@@ -5,9 +5,6 @@
 #include "Components/SceneCaptureComponent2D.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "UAVSimulator/Interfaces/UAVSensorInterface.h"
-#include "UAVSimulator/Util/SensorUtilityLibrary.h"
-
-#include "Math/Box2D.h"
 
 #include "PreOpenCVHeaders.h"
 #include "OpenCVHelper.h"
@@ -74,33 +71,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Streaming", meta = (ClampMin = 1, ClampMax = 120))
 	int32 MaxEncodeFPS = 30;
 
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BBox", meta = (ClampMin = 1.0f))
-	float Range = 5000.0f;
-
-	/** Number of rays distributed evenly over a full 360° horizontal sweep. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BBox", meta = (ClampMin = 1))
-	int32 HorizontalRays = 360;
-
-	/** Number of evenly-spaced vertical scan layers. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BBox", meta = (ClampMin = 1))
-	int32 VerticalLayers = 16;
-
-	/** How many full scans are performed per second. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BBox", meta = (ClampMin = 0.1f, ClampMax = 100.0f))
-	float ScanRate = 10.0f;
-
-	/** Collision channel used for ray traces. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BBox")
-	TEnumAsByte<ECollisionChannel> CollisionChannel = ECC_Visibility;
-
 private:
 	void UploadToTexture();
 	void EncoderLoop();
 	void ComputeFOV(float HFovDeg);
-	void CollectSceneActorsForBBox();
-	FBox2D GetActorBBoxFromSceneCapture(AActor* ActorForBBox);
-	FString ConvertBBoxMapToJson(const TMap<FString, FBox2D>& BBoxsMap);
 
 	UPROPERTY()
 	USceneCaptureComponent2D* CaptureComponent;
@@ -135,7 +109,4 @@ private:
 
 	double MinEncodeInterval   = 1.0 / 30.0;
 	double LastEncodeTime      = 0.0;
-
-	TArray<AActor*> SceneActorsForBBox;
-	TMap<FString, FBox2D> BBoxs;
 };
