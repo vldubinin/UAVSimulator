@@ -135,9 +135,6 @@ private:
 	double        TickRGBTimestamp  = 0.0;
 	bool          bHasTickRGBFrame  = false;
 
-	// ── Mask capture state ────────────────────────────────────────────────────
-	bool bHasPendingMaskCapture = false;
-
 	// ── Mask encode input (game thread → encoder thread) ─────────────────────
 	TArray<uint8>    PendingMaskBGRA;
 	double           PendingMaskTimestamp  = 0.0;

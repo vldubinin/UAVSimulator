@@ -247,39 +247,19 @@ void UUAVCameraComponent::ProcessFrame()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Mask capture — borrows CaptureComponent for one CaptureScene(), then restores
+// Mask capture — borrows CaptureComponent for one CaptureScene(), then restores.
+// ReadPixels() flushes the render thread, so the CaptureScene() command is
+// guaranteed to have executed before the pixel read — no cross-tick buffering
+// needed. This keeps the mask frame aligned with the RGB frame from the same tick.
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UUAVCameraComponent::CaptureMask()
 {
 	if (!CaptureComponent || !MaskRenderTarget || !MaskPostProcessMaterial) return;
+	if (!MaskFrameReadyEvent) return;
 
-	// Read the mask captured in the previous frame (one-frame delay keeps the
-	// render command from racing with the ReadPixels call).
-	if (bHasPendingMaskCapture && MaskFrameReadyEvent)
-	{
-		const double Now = FPlatformTime::Seconds();
-		if ((Now - LastMaskEncodeTime) >= MinEncodeInterval)
-		{
-			FTextureRenderTargetResource* RTResource = MaskRenderTarget->GameThread_GetRenderTargetResource();
-			if (RTResource)
-			{
-				TArray<FColor> ColorBuffer;
-				RTResource->ReadPixels(ColorBuffer);
-				if (ColorBuffer.Num() == CVWidth * CVHeight)
-				{
-					LastMaskEncodeTime = Now;
-					{
-						FScopeLock Lock(&MaskFrameMutex);
-						FMemory::Memcpy(PendingMaskBGRA.GetData(), ColorBuffer.GetData(), CVWidth * CVHeight * 4);
-						PendingMaskTimestamp = GetWorld()->GetTimeSeconds();
-						bHasPendingMaskFrame = true;
-					}
-					MaskFrameReadyEvent->Trigger();
-				}
-			}
-		}
-	}
+	const double Now = FPlatformTime::Seconds();
+	if ((Now - LastMaskEncodeTime) < MinEncodeInterval) return;
 
 	// Borrow CaptureComponent, point it at MaskRenderTarget, inject post-process material.
 	UTextureRenderTarget2D*    OriginalRT         = CaptureComponent->TextureTarget;
@@ -295,7 +275,23 @@ void UUAVCameraComponent::CaptureMask()
 	CaptureComponent->TextureTarget                                 = OriginalRT;
 	CaptureComponent->PostProcessSettings.WeightedBlendables.Array = OriginalBlendables;
 
-	bHasPendingMaskCapture = true;
+	// ReadPixels flushes all pending render commands, including the CaptureScene()
+	// above, so MaskRenderTarget is fully populated before we read it.
+	FTextureRenderTargetResource* RTResource = MaskRenderTarget->GameThread_GetRenderTargetResource();
+	if (!RTResource) return;
+
+	TArray<FColor> ColorBuffer;
+	RTResource->ReadPixels(ColorBuffer);
+	if (ColorBuffer.Num() != CVWidth * CVHeight) return;
+
+	LastMaskEncodeTime = Now;
+	{
+		FScopeLock Lock(&MaskFrameMutex);
+		FMemory::Memcpy(PendingMaskBGRA.GetData(), ColorBuffer.GetData(), CVWidth * CVHeight * 4);
+		PendingMaskTimestamp = GetWorld()->GetTimeSeconds();
+		bHasPendingMaskFrame = true;
+	}
+	MaskFrameReadyEvent->Trigger();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
