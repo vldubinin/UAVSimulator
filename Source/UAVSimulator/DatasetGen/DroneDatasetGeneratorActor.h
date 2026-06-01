@@ -68,27 +68,42 @@ public:
 	/** Azimuth sweep step in degrees. 0° starts along the +X axis, increases CCW. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Sweep",
 		meta = (ClampMin = 1.0, ClampMax = 180.0))
-	float AzimuthStep = 30.0f;
+	float AzimuthStep = 45.0f;
 
-	/** Lower elevation bound in degrees (negative = below the equator). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Sweep",
-		meta = (ClampMin = -89.0, ClampMax = 89.0))
-	float ElevationMin = -60.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Sweep",
-		meta = (ClampMin = -89.0, ClampMax = 89.0))
-	float ElevationMax = 60.0f;
-
+	/** Elevation ring spacing in degrees. Rings are placed at −90+step, −90+2·step, …, 90−step.
+	 *  The north (El=90) and south (El=−90) poles are always included as single frames. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Sweep",
 		meta = (ClampMin = 1.0, ClampMax = 89.0))
 	float ElevationStep = 30.0f;
 
 	// ── OpenCV ─────────────────────────────────────────────────────────────────
-	/** Polygon approximation accuracy: fraction of contour arc length.
-	 *  Smaller value → more vertices. */
+
+	/** Kernel size for Gaussian blur applied before thresholding (pixels, must be odd).
+	 *  Smooths jagged silhouette edges; larger values give a softer boundary.
+	 *  Set to 1 to disable blurring. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Processing",
+		meta = (ClampMin = 1, ClampMax = 31))
+	int32 SilhouetteBlurSize = 7;
+
+	/** Morphological close kernel size (pixels).
+	 *  Merges thin protrusions — landing gear legs, antennas, wing struts — into
+	 *  the main silhouette body. Increase if small parts are still detaching. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Processing",
+		meta = (ClampMin = 1, ClampMax = 99))
+	int32 FillGapsSize = 15;
+
+	/** Morphological open kernel size (pixels).
+	 *  Erases isolated blobs that survive the fill-gaps pass.
+	 *  Keep smaller than FillGapsSize to avoid eroding the drone itself. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Processing",
+		meta = (ClampMin = 1, ClampMax = 99))
+	int32 RemoveIslandsSize = 9;
+
+	/** Polygon approximation tolerance: fraction of the contour perimeter.
+	 *  Larger value → fewer vertices, smoother shape. 0.02 is a good starting point. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Processing",
 		meta = (ClampMin = 0.001, ClampMax = 0.5))
-	float PolygonEpsilonFraction = 0.01f;
+	float PolygonSmoothness = 0.02f;
 
 	// ── Output ─────────────────────────────────────────────────────────────────
 	/** Absolute path for the output JSON file, e.g. C:/Datasets/drone.json */
@@ -112,8 +127,8 @@ public:
 private:
 	struct FFrameData
 	{
-		float           Azimuth;
-		float           Elevation;
+		float             Azimuth;
+		float             Elevation;
 		TArray<FVector2D> Polygon;
 	};
 
@@ -124,6 +139,7 @@ private:
 	bool              CaptureMask(AActor* DroneActor, UTextureRenderTarget2D* RT, TArray<FColor>& OutPixels);
 	TArray<FVector2D> ExtractPolygon(const TArray<FColor>& Pixels) const;
 	void              SaveDebugImage(const TArray<FColor>& Pixels, const TArray<FVector2D>& Polygon,
-	                                 float AzimuthDeg, float ElevationDeg, const FString& ImageDir, int FrameId) const;
+	                                 float AzimuthDeg, float ElevationDeg,
+	                                 const FString& ImageDir, int FrameId) const;
 	FString           BuildJson(const FString& ModelName, const TArray<FFrameData>& Frames) const;
 };

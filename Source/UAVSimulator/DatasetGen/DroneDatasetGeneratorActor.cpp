@@ -96,24 +96,35 @@ void ADroneDatasetGeneratorActor::GenerateDataset()
 	const FVector DroneOrigin = Drone->GetActorLocation();
 	TArray<FFrameData> Frames;
 
-	UE_LOG(LogUAV, Log, TEXT("DatasetGenerator: Starting sweep for %s"), *DroneBlueprintClass->GetName());
-	int FrameId = 0;
-	for (float Elev = ElevationMin; Elev <= ElevationMax + KINDA_SMALL_NUMBER; Elev += ElevationStep)
-	{
-		for (float Azim = 0.f; Azim < 360.f - KINDA_SMALL_NUMBER; Azim += AzimuthStep)
-		{
-			PlaceCameraAt(DroneOrigin, Azim, Elev);
+	UE_LOG(LogUAV, Log, TEXT("DatasetGenerator: Starting sweep for %s"),
+		*DroneBlueprintClass->GetName());
 
-			TArray<FColor> Pixels;
-			if (CaptureMask(Drone, RT, Pixels))
-			{
-				TArray<FVector2D> Polygon = ExtractPolygon(Pixels);
-				if (bSaveDebugImages)
-					SaveDebugImage(Pixels, Polygon, Azim, Elev, ImageDir, FrameId++);
-				Frames.Add({ Azim, Elev, MoveTemp(Polygon) });
-			}
+	int FrameId = 0;
+
+	// Captures one camera position and appends a frame if pixels are valid.
+	auto CaptureFrame = [&](float Azim, float Elev)
+	{
+		PlaceCameraAt(DroneOrigin, Azim, Elev);
+		TArray<FColor> Pixels;
+		if (CaptureMask(Drone, RT, Pixels))
+		{
+			TArray<FVector2D> Polygon = ExtractPolygon(Pixels);
+			if (bSaveDebugImages)
+				SaveDebugImage(Pixels, Polygon, Azim, Elev, ImageDir, FrameId++);
+			Frames.Add({ Azim, Elev, MoveTemp(Polygon) });
 		}
-	}
+	};
+
+	// South pole — single frame, azimuth irrelevant.
+	CaptureFrame(0.f, -90.f);
+
+	// Latitude rings from −90+step to 90−step.
+	for (float Elev = -90.f + ElevationStep; Elev < 90.f - KINDA_SMALL_NUMBER; Elev += ElevationStep)
+		for (float Azim = 0.f; Azim < 360.f - KINDA_SMALL_NUMBER; Azim += AzimuthStep)
+			CaptureFrame(Azim, Elev);
+
+	// North pole — single frame.
+	CaptureFrame(0.f, 90.f);
 
 	// ── Cleanup drone ─────────────────────────────────────────────────────────
 	Drone->Destroy();
@@ -217,13 +228,24 @@ TArray<FVector2D> ADroneDatasetGeneratorActor::ExtractPolygon(
 	cv::Mat Gray;
 	cv::cvtColor(BGRA, Gray, cv::COLOR_BGRA2GRAY);
 
+	// Blur — kernel must be odd; clamp to [1, 31].
+	const int BlurK = FMath::Clamp(SilhouetteBlurSize | 1, 1, 31);
+	if (BlurK > 1)
+		cv::GaussianBlur(Gray, Gray, cv::Size(BlurK, BlurK), 0);
+
 	// Otsu finds the optimal threshold between the black background and the drone.
 	cv::Mat Binary;
 	cv::threshold(Gray, Binary, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
 
-	// Close small holes caused by shadowed/dark areas on the drone surface.
-	const cv::Mat Kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(7, 7));
-	cv::morphologyEx(Binary, Binary, cv::MORPH_CLOSE, Kernel);
+	// Close: merge thin protrusions (landing gear, antennas) into the main body.
+	const int CloseK = FMath::Max(FillGapsSize | 1, 1);
+	const cv::Mat CloseKernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(CloseK, CloseK));
+	cv::morphologyEx(Binary, Binary, cv::MORPH_CLOSE, CloseKernel);
+
+	// Open: erase isolated blobs that survived the close pass.
+	const int OpenK = FMath::Max(RemoveIslandsSize | 1, 1);
+	const cv::Mat OpenKernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(OpenK, OpenK));
+	cv::morphologyEx(Binary, Binary, cv::MORPH_OPEN, OpenKernel);
 
 	std::vector<std::vector<cv::Point>> Contours;
 	cv::findContours(Binary, Contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
@@ -240,7 +262,7 @@ TArray<FVector2D> ADroneDatasetGeneratorActor::ExtractPolygon(
 	}
 
 	const double Perimeter = cv::arcLength(Contours[LargestIdx], true);
-	const double Epsilon   = PolygonEpsilonFraction * Perimeter;
+	const double Epsilon   = PolygonSmoothness * Perimeter;
 
 	std::vector<cv::Point> Approx;
 	cv::approxPolyDP(Contours[LargestIdx], Approx, Epsilon, true);
@@ -287,23 +309,20 @@ void ADroneDatasetGeneratorActor::SaveDebugImage(
 		cv::polylines(BGR, ContourVec, /*isClosed=*/true,
 			cv::Scalar(0, 255, 0), 2, cv::LINE_AA);
 
-		// Vertex dots — red filled circles
+		// Vertex dots — small red filled circles
 		for (const cv::Point& Pt : Pts)
-			cv::circle(BGR, Pt, 4, cv::Scalar(0, 0, 255), cv::FILLED, cv::LINE_AA);
+			cv::circle(BGR, Pt, 2, cv::Scalar(0, 0, 255), cv::FILLED, cv::LINE_AA);
 	}
 
-	// Azimuth / elevation label — dark outline then bright fill for readability
-	// on both black and white regions of the mask.
-	const std::string Label = TCHAR_TO_UTF8(
-		*FString::Printf(TEXT("Az: %.0f  El: %.0f"), AzimuthDeg, ElevationDeg));
-	const cv::Point  LabelPos(8, 22);
-	cv::putText(BGR, Label, LabelPos,
-		cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0, 0), 3, cv::LINE_AA);
-	cv::putText(BGR, Label, LabelPos,
-		cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+	// Label: camera position. Dark thick pass first, then bright thin — readable on both backgrounds.
+	const cv::Point Pos(8, 20);
+	const std::string Label = TCHAR_TO_UTF8(*FString::Printf(TEXT("Az: %.0f  El: %.0f"), AzimuthDeg, ElevationDeg));
+	cv::putText(BGR, Label, Pos, cv::FONT_HERSHEY_SIMPLEX, 0.55, cv::Scalar(0,0,0),       3, cv::LINE_AA);
+	cv::putText(BGR, Label, Pos, cv::FONT_HERSHEY_SIMPLEX, 0.55, cv::Scalar(255,255,255), 1, cv::LINE_AA);
 
 	const FString FullPath = FPaths::Combine(ImageDir,
-		FString::Printf(TEXT("%d__az%03d_el%d.png"), FrameId,
+		FString::Printf(TEXT("%04d__az%03d_el%d.png"),
+			FrameId,
 			FMath::RoundToInt(AzimuthDeg), FMath::RoundToInt(ElevationDeg)));
 	cv::imwrite(TCHAR_TO_UTF8(*FullPath), BGR);
 }
@@ -315,17 +334,114 @@ void ADroneDatasetGeneratorActor::SaveDebugImage(
 FString ADroneDatasetGeneratorActor::BuildJson(
 	const FString& ModelName, const TArray<FFrameData>& Frames) const
 {
+	// ── Neighbor lookup ───────────────────────────────────────────────────────
+	// Key: "Az_El" (rounded to nearest degree). Poles always use Az=0.
+	TMap<FString, int32> FrameLookup;
+	FrameLookup.Reserve(Frames.Num());
+
+	auto MakeKey = [](float Az, float El) -> FString
+	{
+		return FString::Printf(TEXT("%.0f_%.0f"), Az, El);
+	};
+
+	for (int32 i = 0; i < Frames.Num(); ++i)
+		FrameLookup.Add(MakeKey(Frames[i].Azimuth, Frames[i].Elevation), i);
+
+	// Actual top/bottom ring elevations — ceiling arithmetic handles the case
+	// where ElevationStep does not evenly divide 90.
+	const int32 NRings       = FMath::CeilToInt(180.f / ElevationStep) - 1;
+	const float TopRingEl    = -90.f + NRings * ElevationStep;
+	const float BottomRingEl = -90.f + ElevationStep;
+
+	// Returns the frame index for the neighbor at (dAz, dEl) from F.
+	// Azimuth wraps [0, 360). Going past ±90 elevation reaches the pole (Az=0).
+	auto FindNeighbor = [&](const FFrameData& F, float dAz, float dEl) -> int32
+	{
+		float NeighEl = F.Elevation + dEl;
+		float NeighAz = F.Azimuth + dAz;
+
+		if (NeighEl >= 90.f - KINDA_SMALL_NUMBER)
+		{
+			NeighEl = 90.f;
+			NeighAz = 0.f;
+		}
+		else if (NeighEl <= -90.f + KINDA_SMALL_NUMBER)
+		{
+			NeighEl = -90.f;
+			NeighAz = 0.f;
+		}
+		else
+		{
+			NeighAz = FMath::Fmod(NeighAz + 360.f, 360.f);
+		}
+
+		const int32* Found = FrameLookup.Find(MakeKey(NeighAz, NeighEl));
+		return Found ? *Found : -1;
+	};
+
+	auto IsPole = [](float El) { return FMath::IsNearlyEqual(FMath::Abs(El), 90.f, 0.5f); };
+
+	// 8 compass directions: (name, dAzimuth, dElevation).
+	const float dAz = AzimuthStep;
+	const float dEl = ElevationStep;
+	struct FDirection { float DAz; float DEl; };
+	const FDirection Directions[] = {
+		{  0.f,  +dEl },
+		{ +dAz,  +dEl },
+		{ +dAz,   0.f },
+		{ +dAz,  -dEl },
+		{  0.f,  -dEl },
+		{ -dAz,  -dEl },
+		{ -dAz,   0.f },
+		{ -dAz,  +dEl },
+	};
+
+	// ── Serialize ─────────────────────────────────────────────────────────────
 	TSharedPtr<FJsonObject> Root = MakeShared<FJsonObject>();
 	Root->SetStringField(TEXT("drone_model"), ModelName);
 
 	TArray<TSharedPtr<FJsonValue>> FrameArray;
-	for (int i = 0; i < Frames.Num(); i++)
+	for (int32 i = 0; i < Frames.Num(); ++i)
 	{
 		const FFrameData& F = Frames[i];
 		TSharedPtr<FJsonObject> FrameObj = MakeShared<FJsonObject>();
+		FrameObj->SetNumberField(TEXT("id"),        i);
 		FrameObj->SetNumberField(TEXT("azimuth"),   F.Azimuth);
 		FrameObj->SetNumberField(TEXT("elevation"), F.Elevation);
-		FrameObj->SetNumberField(TEXT("id"), i);
+
+		TArray<TSharedPtr<FJsonValue>> NeighborArray;
+
+		if (IsPole(F.Elevation))
+		{
+			// Pole frame: all frames in the adjacent latitude ring are neighbors.
+			const float AdjacentEl = F.Elevation > 0.f ? TopRingEl : BottomRingEl;
+			for (int32 j = 0; j < Frames.Num(); ++j)
+			{
+				if (FMath::IsNearlyEqual(Frames[j].Elevation, AdjacentEl, 0.5f))
+				{
+					NeighborArray.Add(MakeShared<FJsonValueNumber>(j));
+				}
+			}
+		}
+		else
+		{
+			// Regular frame: up to 8 directional neighbors, deduplicated by ID.
+			// Near-pole frames have multiple directions that resolve to the same
+			// pole frame; only the first matching direction is kept.
+			TSet<int32> Seen;
+			for (const FDirection& Dir : Directions)
+			{
+				const int32 NId = FindNeighbor(F, Dir.DAz, Dir.DEl);
+				if (NId >= 0 && !Seen.Contains(NId))
+				{
+					Seen.Add(NId);
+					NeighborArray.Add(MakeShared<FJsonValueNumber>(NId));
+				}
+			}
+		}
+
+		FrameObj->SetArrayField(TEXT("neighbors"), NeighborArray);
+
 		TArray<TSharedPtr<FJsonValue>> PolyArray;
 		for (const FVector2D& Pt : F.Polygon)
 		{
