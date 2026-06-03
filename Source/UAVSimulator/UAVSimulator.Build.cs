@@ -15,7 +15,7 @@ public class UAVSimulator : ModuleRules
             "RenderCore", "RHI", "OpenCVHelper", "OpenCV", "Niagara", "UMG", "ZeroMQ", "ImageWrapper", "Json"
         });
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "AssetTools", "UnrealEd", "PythonScriptPlugin" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "AssetTools", "UnrealEd", "PythonScriptPlugin", "CesiumRuntime" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
 		
