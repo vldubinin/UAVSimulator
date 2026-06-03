@@ -6,6 +6,8 @@
 #include "GameFramework/PlayerController.h"
 #include "UAVSimulator/Subsystem/UAVSimulationSubsystem.h"
 #include "UAVSimulator/SceneComponent/AerodynamicSurface/AerodynamicSurfaceSC.h"
+#include "UAVSimulator/UAVSimulatorPlayerController.h"
+#include "UAVSimulator/UI/CameraViewWidget.h"
 
 AAirplane::AAirplane()
 {
@@ -32,6 +34,21 @@ void AAirplane::BeginPlay()
 		Subsystem->OnCameraSettingsChanged.AddUObject(this, &AAirplane::RefreshConfigurations);
 		RefreshConfigurations();
 	}
+}
+
+void AAirplane::CleanupWidgets()
+{
+	if (CameraWidget)
+	{
+		CameraWidget->RemoveFromParent();
+		CameraWidget = nullptr;
+	}
+}
+
+void AAirplane::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	CleanupWidgets();
+	Super::EndPlay(EndPlayReason);
 }
 
 void AAirplane::PossessedBy(AController* NewController)
@@ -84,7 +101,18 @@ void AAirplane::RefreshConfigurations()
 		if (PC)
 		{
 			CameraWidget = CreateWidget<UUserWidget>(PC, CameraWidgetClass);
-			if (CameraWidget) CameraWidget->AddToViewport();
+			if (CameraWidget)
+			{
+				if (UCameraViewWidget* CameraViewWidget = Cast<UCameraViewWidget>(CameraWidget))
+				{
+					CameraViewWidget->SetAirplane(this);
+				}
+				CameraWidget->AddToViewport();
+				if (AUAVSimulatorPlayerController* UAVPC = Cast<AUAVSimulatorPlayerController>(PC))
+				{
+					UAVPC->RegisterCameraWidget(CameraWidget);
+				}
+			}
 		}
 	}
 	else if (!bCameraActive && CameraWidget)

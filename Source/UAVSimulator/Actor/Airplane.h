@@ -22,6 +22,7 @@ public:
 protected:
 	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void PossessedBy(AController* NewController) override;
 
 public:
@@ -31,6 +32,7 @@ public:
 	UTexture2D* GetCameraOutputTexture() const;
 
 	void RefreshConfigurations();
+	void CleanupWidgets();
 
 	/** Widget class to instantiate when the camera is active for this airplane. Set in Blueprint. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Computer Vision")

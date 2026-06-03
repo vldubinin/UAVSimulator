@@ -52,4 +52,15 @@ public:
 	/** Pushes the current flag values to UUAVSimulationSubsystem and broadcasts to all airplanes. */
 	UFUNCTION(BlueprintCallable, Category = "Simulation|Camera")
 	void UpdateCameraSettings();
+
+	/** Spawns actors and starts the simulation. Must be called explicitly (e.g., from the UI). */
+	UFUNCTION(BlueprintCallable, Category = "Simulator")
+	void StartSimulation();
+
+	/** Destroys all spawned airplanes and resets simulation state. */
+	UFUNCTION(BlueprintCallable, Category = "Simulator")
+	void StopSimulation();
+
+	UPROPERTY(BlueprintReadOnly, Category = "Simulator")
+	bool bSimulationStarted = false;
 };
