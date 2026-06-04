@@ -3,6 +3,7 @@
 #include "Components/ComboBoxString.h"
 #include "Components/EditableText.h"
 #include "Components/SpinBox.h"
+#include "Components/TextBlock.h"
 #include "Components/Widget.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -41,6 +42,7 @@ void UScenarioSectionWidget::RefreshOffsetVisibility(ESimulatorMode Mode)
 {
 	const bool bVisible = Mode == ESimulatorMode::PlaybackAndTrack || Mode == ESimulatorMode::Playback;
 	PanelOffsetDistance->SetVisibility(bVisible ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	TargetOffsetDistanceText->SetVisibility(bVisible ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 }
 
 void UScenarioSectionWidget::OnModeSelectionChanged(FString SelectedItem, ESelectInfo::Type /*SelectionType*/)

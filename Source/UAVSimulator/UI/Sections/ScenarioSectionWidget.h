@@ -8,6 +8,7 @@
 class UComboBoxString;
 class UEditableText;
 class USpinBox;
+class UTextBlock;
 class UWidget;
 class AUAVSimulatorGameModeBase;
 
@@ -33,6 +34,9 @@ protected:
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<USpinBox> SpinBoxOffsetDistance;
+
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UTextBlock> TargetOffsetDistanceText;
 
 protected:
 	virtual void OnSectionActivated_Implementation() override;
