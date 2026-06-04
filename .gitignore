@@ -25,6 +25,9 @@
 *.a
 *.lib
 
+# Windows ZeroMQ libraries
+!Plugins/Unreal5ZeroMQ/ThirdParty/libzmq_4.3.1/Windows/x64/*
+
 # Executables
 *.exe
 *.out
