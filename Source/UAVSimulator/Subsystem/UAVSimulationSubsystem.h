@@ -9,6 +9,7 @@
 
 DECLARE_MULTICAST_DELEGATE(FOnVisualSettingsChanged);
 DECLARE_MULTICAST_DELEGATE(FOnCameraSettingsChanged);
+DECLARE_MULTICAST_DELEGATE(FOnSensorSettingsChanged);
 
 UCLASS()
 class UAVSIMULATOR_API UUAVSimulationSubsystem : public UWorldSubsystem
@@ -23,9 +24,15 @@ public:
 	bool bEnableCameraForPlayer = true;
 	bool bEnableCameraForTarget = false;
 
+	bool bEnableSensorAltimeter          = true;
+	bool bEnableSensorCameraInclination  = true;
+	bool bEnableSensorLidar              = true;
+
 	FOnVisualSettingsChanged OnVisualSettingsChanged;
 	FOnCameraSettingsChanged OnCameraSettingsChanged;
+	FOnSensorSettingsChanged OnSensorSettingsChanged;
 
 	void SetVisualSettings(bool bInPlayer, bool bInTarget);
 	void SetCameraSettings(bool bInPlayer, bool bInTarget);
+	void SetSensorSettings(bool bAltimeter, bool bCameraInclination, bool bLidar);
 };

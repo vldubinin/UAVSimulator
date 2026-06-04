@@ -32,6 +32,7 @@ public:
 	UTexture2D* GetCameraOutputTexture() const;
 
 	void RefreshConfigurations();
+	void RefreshSensorSettings();
 	void CleanupWidgets();
 
 	/** Widget class to instantiate when the camera is active for this airplane. Set in Blueprint. */

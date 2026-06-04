@@ -8,6 +8,9 @@
 #include "UAVSimulator/SceneComponent/AerodynamicSurface/AerodynamicSurfaceSC.h"
 #include "UAVSimulator/UAVSimulatorPlayerController.h"
 #include "UAVSimulator/UI/CameraViewWidget.h"
+#include "UAVSimulator/Components/AltimeterComponent.h"
+#include "UAVSimulator/Components/CameraInclinationComponent.h"
+#include "UAVSimulator/Components/LidarComponent.h"
 
 AAirplane::AAirplane()
 {
@@ -32,7 +35,9 @@ void AAirplane::BeginPlay()
 	{
 		Subsystem->OnVisualSettingsChanged.AddUObject(this, &AAirplane::RefreshConfigurations);
 		Subsystem->OnCameraSettingsChanged.AddUObject(this, &AAirplane::RefreshConfigurations);
+		Subsystem->OnSensorSettingsChanged.AddUObject(this, &AAirplane::RefreshSensorSettings);
 		RefreshConfigurations();
+		RefreshSensorSettings();
 	}
 }
 
@@ -125,6 +130,21 @@ void AAirplane::RefreshConfigurations()
 void AAirplane::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+}
+
+void AAirplane::RefreshSensorSettings()
+{
+	UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>();
+	if (!Subsystem) return;
+
+	if (UAltimeterComponent* C = FindComponentByClass<UAltimeterComponent>())
+		C->SetComponentTickEnabled(Subsystem->bEnableSensorAltimeter);
+
+	if (UCameraInclinationComponent* C = FindComponentByClass<UCameraInclinationComponent>())
+		C->SetComponentTickEnabled(Subsystem->bEnableSensorCameraInclination);
+
+	if (ULidarComponent* C = FindComponentByClass<ULidarComponent>())
+		C->SetComponentTickEnabled(Subsystem->bEnableSensorLidar);
 }
 
 UTexture2D* AAirplane::GetCameraOutputTexture() const

@@ -25,6 +25,14 @@ void AUAVSimulatorGameModeBase::UpdateCameraSettings()
 	}
 }
 
+void AUAVSimulatorGameModeBase::UpdateSensorSettings()
+{
+	if (UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>())
+	{
+		Subsystem->SetSensorSettings(bEnableSensorAltimeter, bEnableSensorCameraInclination, bEnableSensorLidar);
+	}
+}
+
 void AUAVSimulatorGameModeBase::StopSimulation()
 {
 	if (!bSimulationStarted) return;
@@ -52,8 +60,11 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 		Subsystem->CurrentSimulatorMode    = CurrentSimulatorMode;
 		Subsystem->bEnableVisualsForPlayer = bEnableVisualsForPlayer;
 		Subsystem->bEnableVisualsForTarget = bEnableVisualsForTarget;
-		Subsystem->bEnableCameraForPlayer  = bEnableCameraForPlayer;
-		Subsystem->bEnableCameraForTarget  = bEnableCameraForTarget;
+		Subsystem->bEnableCameraForPlayer          = bEnableCameraForPlayer;
+		Subsystem->bEnableCameraForTarget          = bEnableCameraForTarget;
+		Subsystem->bEnableSensorAltimeter          = bEnableSensorAltimeter;
+		Subsystem->bEnableSensorCameraInclination  = bEnableSensorCameraInclination;
+		Subsystem->bEnableSensorLidar              = bEnableSensorLidar;
 	}
 }
 
@@ -68,8 +79,11 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 		Subsystem->CurrentSimulatorMode    = CurrentSimulatorMode;
 		Subsystem->bEnableVisualsForPlayer = bEnableVisualsForPlayer;
 		Subsystem->bEnableVisualsForTarget = bEnableVisualsForTarget;
-		Subsystem->bEnableCameraForPlayer  = bEnableCameraForPlayer;
-		Subsystem->bEnableCameraForTarget  = bEnableCameraForTarget;
+		Subsystem->bEnableCameraForPlayer          = bEnableCameraForPlayer;
+		Subsystem->bEnableCameraForTarget          = bEnableCameraForTarget;
+		Subsystem->bEnableSensorAltimeter          = bEnableSensorAltimeter;
+		Subsystem->bEnableSensorCameraInclination  = bEnableSensorCameraInclination;
+		Subsystem->bEnableSensorLidar              = bEnableSensorLidar;
 	}
 
 	AActor* PlayerStartActor = UGameplayStatics::GetActorOfClass(GetWorld(), APlayerStart::StaticClass());
@@ -190,4 +204,5 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 	// Broadcast AFTER all actors are spawned and possessed.
 	UpdateCameraSettings();
 	UpdateVisualSettings();
+	UpdateSensorSettings();
 }

@@ -15,3 +15,11 @@ void UUAVSimulationSubsystem::SetCameraSettings(bool bInPlayer, bool bInTarget)
 	bEnableCameraForTarget = bInTarget;
 	OnCameraSettingsChanged.Broadcast();
 }
+
+void UUAVSimulationSubsystem::SetSensorSettings(bool bAltimeter, bool bCameraInclination, bool bLidar)
+{
+	bEnableSensorAltimeter         = bAltimeter;
+	bEnableSensorCameraInclination = bCameraInclination;
+	bEnableSensorLidar             = bLidar;
+	OnSensorSettingsChanged.Broadcast();
+}

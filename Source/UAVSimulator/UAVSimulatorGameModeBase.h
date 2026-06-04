@@ -53,6 +53,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Simulation|Camera")
 	void UpdateCameraSettings();
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
+	bool bEnableSensorAltimeter = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
+	bool bEnableSensorCameraInclination = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
+	bool bEnableSensorLidar = true;
+
+	/** Pushes sensor enable flags to UUAVSimulationSubsystem and broadcasts to all airplanes. */
+	UFUNCTION(BlueprintCallable, Category = "Simulation|Sensors")
+	void UpdateSensorSettings();
+
 	/** Spawns actors and starts the simulation. Must be called explicitly (e.g., from the UI). */
 	UFUNCTION(BlueprintCallable, Category = "Simulator")
 	void StartSimulation();
