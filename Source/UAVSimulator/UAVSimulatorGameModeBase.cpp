@@ -29,7 +29,7 @@ void AUAVSimulatorGameModeBase::UpdateSensorSettings()
 {
 	if (UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>())
 	{
-		Subsystem->SetSensorSettings(bEnableSensorAltimeter, bEnableSensorCameraInclination, bEnableSensorLidar);
+		Subsystem->SetSensorSettings(bEnableSensorAltimeter, bEnableSensorCameraInclination, bEnableSensorLidar, bEnableSensorCameraFrame, bEnableSensorCameraAltitude, bEnableSensorSegmentationMask, bEnableSensorBBoxDetection);
 	}
 }
 
@@ -65,6 +65,10 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 		Subsystem->bEnableSensorAltimeter          = bEnableSensorAltimeter;
 		Subsystem->bEnableSensorCameraInclination  = bEnableSensorCameraInclination;
 		Subsystem->bEnableSensorLidar              = bEnableSensorLidar;
+		Subsystem->bEnableSensorCameraFrame = bEnableSensorCameraFrame;
+		Subsystem->bEnableSensorCameraAltitude = bEnableSensorCameraAltitude;
+		Subsystem->bEnableSensorSegmentationMask = bEnableSensorSegmentationMask;
+		Subsystem->bEnableSensorBBoxDetection = bEnableSensorBBoxDetection;
 	}
 }
 
@@ -84,6 +88,10 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 		Subsystem->bEnableSensorAltimeter          = bEnableSensorAltimeter;
 		Subsystem->bEnableSensorCameraInclination  = bEnableSensorCameraInclination;
 		Subsystem->bEnableSensorLidar              = bEnableSensorLidar;
+		Subsystem->bEnableSensorCameraFrame = bEnableSensorCameraFrame;
+		Subsystem->bEnableSensorCameraAltitude = bEnableSensorCameraAltitude;
+		Subsystem->bEnableSensorSegmentationMask = bEnableSensorSegmentationMask;
+		Subsystem->bEnableSensorBBoxDetection = bEnableSensorBBoxDetection;
 	}
 
 	AActor* PlayerStartActor = UGameplayStatics::GetActorOfClass(GetWorld(), APlayerStart::StaticClass());

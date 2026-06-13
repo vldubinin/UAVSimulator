@@ -16,10 +16,14 @@ void UUAVSimulationSubsystem::SetCameraSettings(bool bInPlayer, bool bInTarget)
 	OnCameraSettingsChanged.Broadcast();
 }
 
-void UUAVSimulationSubsystem::SetSensorSettings(bool bAltimeter, bool bCameraInclination, bool bLidar)
+void UUAVSimulationSubsystem::SetSensorSettings(bool bAltimeter, bool bCameraInclination, bool bLidar, bool bCameraFrame, bool bCameraAltitude, bool bSegmentationMask, bool bBBoxDetection)
 {
 	bEnableSensorAltimeter         = bAltimeter;
 	bEnableSensorCameraInclination = bCameraInclination;
 	bEnableSensorLidar             = bLidar;
+	bEnableSensorCameraFrame	   = bCameraFrame;
+	bEnableSensorCameraAltitude    = bCameraAltitude;
+	bEnableSensorSegmentationMask  = bSegmentationMask;
+	bEnableSensorBBoxDetection     = bBBoxDetection;
 	OnSensorSettingsChanged.Broadcast();
 }

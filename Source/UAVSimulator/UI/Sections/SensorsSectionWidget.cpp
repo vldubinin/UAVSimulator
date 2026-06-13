@@ -13,7 +13,9 @@ void USensorsSectionWidget::NativeConstruct()
 	AltimeterCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnAltimeterChanged);
 	CameraInclinationCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnCameraInclinationChanged);
 	LidarCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnLidarChanged);
+	CameraAltitudeCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnCameraAltitude);
 }
+
 
 void USensorsSectionWidget::OnSectionActivated_Implementation()
 {
@@ -25,46 +27,41 @@ void USensorsSectionWidget::SyncFromGameMode()
 	AUAVSimulatorGameModeBase* GM = GetGameMode();
 	if (!GM) return;
 
-	CameraFrameCB->SetIsChecked(GM->bEnableCameraForPlayer);
+	CameraFrameCB->SetIsChecked(GM->bEnableSensorCameraFrame);
 	AltimeterCB->SetIsChecked(GM->bEnableSensorAltimeter);
 	CameraInclinationCB->SetIsChecked(GM->bEnableSensorCameraInclination);
 	LidarCB->SetIsChecked(GM->bEnableSensorLidar);
+	CameraAltitudeCB->SetIsChecked(GM->bEnableSensorCameraAltitude);
 }
 
 void USensorsSectionWidget::OnCameraFrameChanged(bool bIsChecked)
 {
 	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
-	{
-		GM->bEnableCameraForPlayer = bIsChecked;
-		GM->UpdateCameraSettings();
-	}
+		GM->bEnableSensorCameraFrame = bIsChecked;
 }
 
 void USensorsSectionWidget::OnAltimeterChanged(bool bIsChecked)
 {
 	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
-	{
 		GM->bEnableSensorAltimeter = bIsChecked;
-		GM->UpdateSensorSettings();
-	}
 }
 
 void USensorsSectionWidget::OnCameraInclinationChanged(bool bIsChecked)
 {
 	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
-	{
 		GM->bEnableSensorCameraInclination = bIsChecked;
-		GM->UpdateSensorSettings();
-	}
 }
 
 void USensorsSectionWidget::OnLidarChanged(bool bIsChecked)
 {
 	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
-	{
 		GM->bEnableSensorLidar = bIsChecked;
-		GM->UpdateSensorSettings();
-	}
+}
+
+void USensorsSectionWidget::OnCameraAltitude(bool bIsChecked)
+{
+	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
+		GM->bEnableSensorCameraAltitude = bIsChecked;
 }
 
 AUAVSimulatorGameModeBase* USensorsSectionWidget::GetGameMode() const

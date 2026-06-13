@@ -34,7 +34,7 @@ void UCameraInclinationComponent::BeginPlay()
 void UCameraInclinationComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	if (!CaptureComp) return;
+	if (!bSensorEnabled || !CaptureComp) return;
 
 	LatestPitchDeg  = CaptureComp->GetComponentRotation().Pitch;
 	LatestTimestamp = GetWorld()->GetTimeSeconds();

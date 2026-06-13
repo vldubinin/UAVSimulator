@@ -19,6 +19,9 @@ protected:
 	TObjectPtr<UCheckBox> CameraFrameCB;
 
 	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UCheckBox> CameraAltitudeCB;
+
+	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UCheckBox> AltimeterCB;
 
 	UPROPERTY(meta = (BindWidget))
@@ -38,4 +41,5 @@ private:
 	UFUNCTION() void OnAltimeterChanged(bool bIsChecked);
 	UFUNCTION() void OnCameraInclinationChanged(bool bIsChecked);
 	UFUNCTION() void OnLidarChanged(bool bIsChecked);
+	UFUNCTION() void OnCameraAltitude(bool bIsChecked);
 };

@@ -132,10 +132,10 @@ void USensorBusComponent::CollectAndSend()
 	for (const TWeakObjectPtr<UActorComponent>& WeakComp : ResolvedSensors)
 	{
 		UActorComponent* Comp = WeakComp.Get();
-		if (!Comp || !Comp->IsComponentTickEnabled()) continue;
+		if (!Comp) continue;
 
 		IUAVSensorInterface* Sensor = Cast<IUAVSensorInterface>(Comp);
-		if (!Sensor) continue;
+		if (!Sensor || !Sensor->bSensorEnabled) continue;
 
 		FSensorFrame Frame;
 		if (Sensor->GetLatestFrame(Frame))

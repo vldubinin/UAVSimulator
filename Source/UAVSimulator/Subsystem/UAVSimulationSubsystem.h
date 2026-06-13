@@ -27,6 +27,10 @@ public:
 	bool bEnableSensorAltimeter          = true;
 	bool bEnableSensorCameraInclination  = true;
 	bool bEnableSensorLidar              = true;
+	bool bEnableSensorCameraFrame        = true;
+	bool bEnableSensorCameraAltitude     = true;
+	bool bEnableSensorSegmentationMask   = true;
+	bool bEnableSensorBBoxDetection      = true;
 
 	FOnVisualSettingsChanged OnVisualSettingsChanged;
 	FOnCameraSettingsChanged OnCameraSettingsChanged;
@@ -34,5 +38,5 @@ public:
 
 	void SetVisualSettings(bool bInPlayer, bool bInTarget);
 	void SetCameraSettings(bool bInPlayer, bool bInTarget);
-	void SetSensorSettings(bool bAltimeter, bool bCameraInclination, bool bLidar);
+	void SetSensorSettings(bool bAltimeter, bool bCameraInclination, bool bLidar, bool bCameraFrame, bool bCameraAltitude, bool bSegmentationMask, bool bBBoxDetection);
 };

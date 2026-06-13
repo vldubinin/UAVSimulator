@@ -59,8 +59,7 @@ void UBBoxDetectionComponent::BeginPlay()
 void UBBoxDetectionComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	if (!CaptureComponent) return;
+	if (!bSensorEnabled || !CaptureComponent) return;
 
 	CollectSceneActors();
 

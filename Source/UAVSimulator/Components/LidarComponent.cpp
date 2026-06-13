@@ -16,6 +16,7 @@ ULidarComponent::ULidarComponent()
 void ULidarComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	if (!bSensorEnabled) return;
 
 	ScanAccumulator += DeltaTime;
 	const float ScanInterval = 1.0f / FMath::Max(ScanRate, 0.1f);

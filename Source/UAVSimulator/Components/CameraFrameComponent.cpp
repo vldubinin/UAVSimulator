@@ -24,7 +24,7 @@ void UCameraFrameComponent::BeginPlay()
 
 bool UCameraFrameComponent::GetLatestFrame(FSensorFrame& OutFrame)
 {
-	if (!CameraComp) return false;
+	if (!bSensorEnabled || !CameraComp) return false;
 
 	TArray<uint8> Payload;
 	double Timestamp;

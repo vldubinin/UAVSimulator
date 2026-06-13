@@ -57,8 +57,7 @@ void UKeyPointDetectionComponent::BeginPlay()
 void UKeyPointDetectionComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	if (!CaptureComponent) return;
+	if (!bSensorEnabled || !CaptureComponent) return;
 
 	// UAVCameraComponent assigns TextureTarget in its own BeginPlay; re-read until valid.
 	if ((SizeX <= 0 || SizeY <= 0) && CaptureComponent->TextureTarget)

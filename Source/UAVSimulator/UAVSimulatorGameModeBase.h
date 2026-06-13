@@ -54,13 +54,25 @@ public:
 	void UpdateCameraSettings();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
-	bool bEnableSensorAltimeter = true;
+	bool bEnableSensorAltimeter = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
-	bool bEnableSensorCameraInclination = true;
+	bool bEnableSensorCameraInclination = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
-	bool bEnableSensorLidar = true;
+	bool bEnableSensorLidar = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
+	bool bEnableSensorCameraFrame = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
+	bool bEnableSensorCameraAltitude = false;
+		
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
+	bool bEnableSensorSegmentationMask = false;
+		
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
+	bool bEnableSensorBBoxDetection = false;
 
 	/** Pushes sensor enable flags to UUAVSimulationSubsystem and broadcasts to all airplanes. */
 	UFUNCTION(BlueprintCallable, Category = "Simulation|Sensors")

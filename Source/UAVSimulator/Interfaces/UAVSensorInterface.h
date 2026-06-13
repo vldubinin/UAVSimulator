@@ -12,6 +12,9 @@ class UAVSIMULATOR_API IUAVSensorInterface
 {
 	GENERATED_BODY()
 public:
+	/** Controlled by RefreshSensorSettings; default false so sensors are inert until explicitly enabled. */
+	bool bSensorEnabled = false;
+
 	/** Returns the sensor's topic name (e.g. "camera", "lidar"). */
 	virtual FString GetSensorTopic() const = 0;
 

@@ -34,7 +34,7 @@ void UCameraAltitudeComponent::BeginPlay()
 void UCameraAltitudeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	if (!CaptureComp) return;
+	if (!bSensorEnabled || !CaptureComp) return;
 
 	// Unreal uses cm; convert to metres
 	LatestAltitudeMeters = CaptureComp->GetComponentLocation().Z * 0.01f;

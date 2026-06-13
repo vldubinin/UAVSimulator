@@ -16,6 +16,7 @@ UAltimeterComponent::UAltimeterComponent()
 void UAltimeterComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	if (!bSensorEnabled) return;
 
 	AActor* Owner = GetOwner();
 	if (!Owner) return;

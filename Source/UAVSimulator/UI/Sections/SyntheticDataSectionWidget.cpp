@@ -1,7 +1,9 @@
 #include "SyntheticDataSectionWidget.h"
 #include "UAVSimulator/DatasetGen/DroneDatasetGeneratorActor.h"
 #include "UAVSimulator/DatasetGen/DroneKeyPointDatasetActor.h"
+#include "UAVSimulator/UAVSimulatorGameModeBase.h"
 #include "Components/Button.h"
+#include "Components/CheckBox.h"
 #include "Components/EditableTextBox.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/Paths.h"
@@ -12,6 +14,8 @@ void USyntheticDataSectionWidget::NativeConstruct()
 
 	SyncFromActors();
 
+	SegmentationMaskCB->OnCheckStateChanged.AddDynamic(this, &USyntheticDataSectionWidget::OnSegmentationMaskChanged);
+	BBoxDetectionCB->OnCheckStateChanged.AddDynamic(this, &USyntheticDataSectionWidget::OnBBoxDetectionChanged);
 	RunSphericalContourBtn->OnClicked.AddDynamic(this, &USyntheticDataSectionWidget::OnRunSphericalContourClicked);
 	RunKPointDetectionBtn->OnClicked.AddDynamic(this, &USyntheticDataSectionWidget::OnRunKPointDetectionClicked);
 	SphericalContourFilePathTextBox->OnTextCommitted.AddDynamic(this, &USyntheticDataSectionWidget::OnSphericalContourPathCommitted);
@@ -90,4 +94,27 @@ ADroneKeyPointDatasetActor* USyntheticDataSectionWidget::GetKeyPointActor() cons
 			UGameplayStatics::GetActorOfClass(World, ADroneKeyPointDatasetActor::StaticClass()));
 	}
 	return nullptr;
+}
+
+AUAVSimulatorGameModeBase* USyntheticDataSectionWidget::GetGameMode() const
+{
+	if (UWorld* World = GetWorld())
+	{
+		return Cast<AUAVSimulatorGameModeBase>(World->GetAuthGameMode());
+	}
+	return nullptr;
+}
+
+
+void USyntheticDataSectionWidget::OnSegmentationMaskChanged(bool bIsChecked)
+{
+	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
+		GM->bEnableSensorSegmentationMask = bIsChecked;
+}
+
+
+void USyntheticDataSectionWidget::OnBBoxDetectionChanged(bool bIsChecked)
+{
+	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
+		GM->bEnableSensorBBoxDetection = bIsChecked;
 }

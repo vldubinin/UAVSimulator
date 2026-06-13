@@ -8,6 +8,10 @@
 #include "UAVSimulator/SceneComponent/AerodynamicSurface/AerodynamicSurfaceSC.h"
 #include "UAVSimulator/UAVSimulatorPlayerController.h"
 #include "UAVSimulator/UI/CameraViewWidget.h"
+#include "UAVSimulator/Components/CameraAltitudeComponent.h"
+#include "UAVSimulator/Components/CameraFrameComponent.h"
+#include "UAVSimulator/Components/SegmentationMaskCameraComponent.h"
+#include "UAVSimulator/Components/BBoxDetectionComponent.h"
 #include "UAVSimulator/Components/AltimeterComponent.h"
 #include "UAVSimulator/Components/CameraInclinationComponent.h"
 #include "UAVSimulator/Components/LidarComponent.h"
@@ -138,13 +142,25 @@ void AAirplane::RefreshSensorSettings()
 	if (!Subsystem) return;
 
 	if (UAltimeterComponent* C = FindComponentByClass<UAltimeterComponent>())
-		C->SetComponentTickEnabled(Subsystem->bEnableSensorAltimeter);
+		C->bSensorEnabled = Subsystem->bEnableSensorAltimeter;
 
 	if (UCameraInclinationComponent* C = FindComponentByClass<UCameraInclinationComponent>())
-		C->SetComponentTickEnabled(Subsystem->bEnableSensorCameraInclination);
+		C->bSensorEnabled = Subsystem->bEnableSensorCameraInclination;
 
 	if (ULidarComponent* C = FindComponentByClass<ULidarComponent>())
-		C->SetComponentTickEnabled(Subsystem->bEnableSensorLidar);
+		C->bSensorEnabled = Subsystem->bEnableSensorLidar;
+
+	if (UCameraFrameComponent* C = FindComponentByClass<UCameraFrameComponent>())
+		C->bSensorEnabled = Subsystem->bEnableSensorCameraFrame;
+
+	if (UCameraAltitudeComponent* C = FindComponentByClass<UCameraAltitudeComponent>())
+		C->bSensorEnabled = Subsystem->bEnableSensorCameraAltitude;
+
+	if (USegmentationMaskCameraComponent* C = FindComponentByClass<USegmentationMaskCameraComponent>())
+		C->bSensorEnabled = Subsystem->bEnableSensorSegmentationMask;
+
+	if (UBBoxDetectionComponent* C = FindComponentByClass<UBBoxDetectionComponent>())
+		C->bSensorEnabled = Subsystem->bEnableSensorBBoxDetection;
 }
 
 UTexture2D* AAirplane::GetCameraOutputTexture() const
