@@ -14,6 +14,7 @@ void USensorsSectionWidget::NativeConstruct()
 	CameraInclinationCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnCameraInclinationChanged);
 	LidarCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnLidarChanged);
 	CameraAltitudeCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnCameraAltitude);
+	PositionCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnPositionChanged);
 }
 
 
@@ -32,6 +33,7 @@ void USensorsSectionWidget::SyncFromGameMode()
 	CameraInclinationCB->SetIsChecked(GM->bEnableSensorCameraInclination);
 	LidarCB->SetIsChecked(GM->bEnableSensorLidar);
 	CameraAltitudeCB->SetIsChecked(GM->bEnableSensorCameraAltitude);
+	PositionCB->SetIsChecked(GM->bEnableSensorPosition);
 }
 
 void USensorsSectionWidget::OnCameraFrameChanged(bool bIsChecked)
@@ -62,6 +64,12 @@ void USensorsSectionWidget::OnCameraAltitude(bool bIsChecked)
 {
 	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
 		GM->bEnableSensorCameraAltitude = bIsChecked;
+}
+
+void USensorsSectionWidget::OnPositionChanged(bool bIsChecked)
+{
+	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
+		GM->bEnableSensorPosition = bIsChecked;
 }
 
 AUAVSimulatorGameModeBase* USensorsSectionWidget::GetGameMode() const

@@ -9,6 +9,7 @@ class UButton;
 class UEditableTextBox;
 class ADroneDatasetGeneratorActor;
 class ADroneKeyPointDatasetActor;
+class ASceneObjectDatasetActor;
 class AUAVSimulatorGameModeBase;
 
 UCLASS()
@@ -37,6 +38,12 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UCheckBox> BBoxDetectionCB;
 
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UButton> RunSceneObjectExportBtn;
+
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UEditableTextBox> SceneObjectExportPathTextBox;
+
 	virtual void OnSectionActivated_Implementation() override;
 
 private:
@@ -44,12 +51,15 @@ private:
 
 	ADroneDatasetGeneratorActor*  GetDatasetActor()  const;
 	ADroneKeyPointDatasetActor*   GetKeyPointActor() const;
+	ASceneObjectDatasetActor*     GetSceneObjectActor() const;
 	AUAVSimulatorGameModeBase* GetGameMode() const;
 
 	UFUNCTION() void OnRunSphericalContourClicked();
 	UFUNCTION() void OnRunKPointDetectionClicked();
+	UFUNCTION() void OnRunSceneObjectExportClicked();
 	UFUNCTION() void OnSphericalContourPathCommitted(const FText& Text, ETextCommit::Type CommitType);
 	UFUNCTION() void OnKPointDetectionPathCommitted(const FText& Text, ETextCommit::Type CommitType);
+	UFUNCTION() void OnSceneObjectExportPathCommitted(const FText& Text, ETextCommit::Type CommitType);
 	UFUNCTION() void OnSegmentationMaskChanged(bool bIsChecked);
 	UFUNCTION() void OnBBoxDetectionChanged(bool bIsChecked);
 };

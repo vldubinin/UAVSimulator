@@ -15,6 +15,7 @@
 #include "UAVSimulator/Components/AltimeterComponent.h"
 #include "UAVSimulator/Components/CameraInclinationComponent.h"
 #include "UAVSimulator/Components/LidarComponent.h"
+#include "UAVSimulator/Components/DronePositionComponent.h"
 
 AAirplane::AAirplane()
 {
@@ -71,14 +72,17 @@ void AAirplane::RefreshConfigurations()
 	UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>();
 	if (!Subsystem) return;
 
-	const bool bIsPlayer = ActorHasTag(FName("Player"));
-	const bool bIsTarget = ActorHasTag(FName("Target"));
+	const bool bIsPlayer      = ActorHasTag(FName("Player"));
+	const bool bIsTarget      = ActorHasTag(FName("Target"));
+	const bool bIsAutoTracker = ActorHasTag(FName("AutoTracker"));
 
-	const bool bNiagaraActive = (bIsPlayer && Subsystem->bEnableVisualsForPlayer)
-	                  || (bIsTarget && Subsystem->bEnableVisualsForTarget);
+	const bool bNiagaraActive = (bIsPlayer      && Subsystem->bEnableVisualsForPlayer)
+	                  || (bIsTarget      && Subsystem->bEnableVisualsForTarget)
+	                  || (bIsAutoTracker && Subsystem->bEnableVisualsForPlayer);
 
-	const bool bCameraActive = (bIsPlayer && Subsystem->bEnableCameraForPlayer)
-	                  || (bIsTarget && Subsystem->bEnableCameraForTarget);
+	const bool bCameraActive = (bIsPlayer      && Subsystem->bEnableCameraForPlayer)
+	                  || (bIsTarget      && Subsystem->bEnableCameraForTarget)
+	                  || (bIsAutoTracker && Subsystem->bEnableCameraForPlayer);
 
 	TArray<UAerodynamicSurfaceSC*> Surfaces;
 	GetComponents<UAerodynamicSurfaceSC>(Surfaces);
@@ -161,6 +165,9 @@ void AAirplane::RefreshSensorSettings()
 
 	if (UBBoxDetectionComponent* C = FindComponentByClass<UBBoxDetectionComponent>())
 		C->bSensorEnabled = Subsystem->bEnableSensorBBoxDetection;
+
+	if (UDronePositionComponent* C = FindComponentByClass<UDronePositionComponent>())
+		C->bSensorEnabled = Subsystem->bEnableSensorPosition;
 }
 
 UTexture2D* AAirplane::GetCameraOutputTexture() const

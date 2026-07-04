@@ -6,7 +6,9 @@
 UENUM(BlueprintType)
 enum class ESimulatorMode : uint8
 {
-	RecordTarget     UMETA(DisplayName = "Record Target"),
-	PlaybackAndTrack UMETA(DisplayName = "Playback and Track"),
-	Playback         UMETA(DisplayName = "Playback"),
+	RecordTarget         UMETA(DisplayName = "Record Target"),
+	PlaybackAndTrack     UMETA(DisplayName = "Playback and Track"),
+	PlaybackAndAutoTrack UMETA(DisplayName = "Playback and Auto Track"),
+	Playback             UMETA(DisplayName = "Playback"),
+	Free                 UMETA(DisplayName = "Free"),
 };

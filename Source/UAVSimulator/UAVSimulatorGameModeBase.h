@@ -33,6 +33,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulator")
 	float TargetSpawnOffsetDistance = 5000.0f;
 
+	/** ZMQ PULL endpoint for attitude commands in PlaybackAndAutoTrack mode. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulator")
+	FString AttitudeCommandEndpoint = TEXT("tcp://*:5556");
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|VFX")
 	bool bEnableVisualsForPlayer = true;
 
@@ -73,6 +77,9 @@ public:
 		
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
 	bool bEnableSensorBBoxDetection = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
+	bool bEnableSensorPosition = false;
 
 	/** Pushes sensor enable flags to UUAVSimulationSubsystem and broadcasts to all airplanes. */
 	UFUNCTION(BlueprintCallable, Category = "Simulation|Sensors")

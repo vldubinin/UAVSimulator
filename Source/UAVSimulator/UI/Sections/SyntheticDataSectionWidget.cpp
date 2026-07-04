@@ -1,6 +1,7 @@
 #include "SyntheticDataSectionWidget.h"
 #include "UAVSimulator/DatasetGen/DroneDatasetGeneratorActor.h"
 #include "UAVSimulator/DatasetGen/DroneKeyPointDatasetActor.h"
+#include "UAVSimulator/DatasetGen/SceneObjectDatasetActor.h"
 #include "UAVSimulator/UAVSimulatorGameModeBase.h"
 #include "Components/Button.h"
 #include "Components/CheckBox.h"
@@ -18,8 +19,10 @@ void USyntheticDataSectionWidget::NativeConstruct()
 	BBoxDetectionCB->OnCheckStateChanged.AddDynamic(this, &USyntheticDataSectionWidget::OnBBoxDetectionChanged);
 	RunSphericalContourBtn->OnClicked.AddDynamic(this, &USyntheticDataSectionWidget::OnRunSphericalContourClicked);
 	RunKPointDetectionBtn->OnClicked.AddDynamic(this, &USyntheticDataSectionWidget::OnRunKPointDetectionClicked);
+	RunSceneObjectExportBtn->OnClicked.AddDynamic(this, &USyntheticDataSectionWidget::OnRunSceneObjectExportClicked);
 	SphericalContourFilePathTextBox->OnTextCommitted.AddDynamic(this, &USyntheticDataSectionWidget::OnSphericalContourPathCommitted);
 	KPointDetectionBtnTextBox->OnTextCommitted.AddDynamic(this, &USyntheticDataSectionWidget::OnKPointDetectionPathCommitted);
+	SceneObjectExportPathTextBox->OnTextCommitted.AddDynamic(this, &USyntheticDataSectionWidget::OnSceneObjectExportPathCommitted);
 }
 
 void USyntheticDataSectionWidget::OnSectionActivated_Implementation()
@@ -40,6 +43,11 @@ void USyntheticDataSectionWidget::SyncFromActors()
 	{
 		KPointDetectionBtnTextBox->SetText(FText::FromString(Actor->OutputJsonPath));
 	}
+
+	if (ASceneObjectDatasetActor* Actor = GetSceneObjectActor())
+	{
+		SceneObjectExportPathTextBox->SetText(FText::FromString(Actor->OutputJsonPath));
+	}
 }
 
 void USyntheticDataSectionWidget::OnRunSphericalContourClicked()
@@ -55,6 +63,14 @@ void USyntheticDataSectionWidget::OnRunKPointDetectionClicked()
 	if (ADroneKeyPointDatasetActor* Actor = GetKeyPointActor())
 	{
 		Actor->ExportKeyPoints();
+	}
+}
+
+void USyntheticDataSectionWidget::OnRunSceneObjectExportClicked()
+{
+	if (ASceneObjectDatasetActor* Actor = GetSceneObjectActor())
+	{
+		Actor->ExportSceneObjects();
 	}
 }
 
@@ -76,6 +92,14 @@ void USyntheticDataSectionWidget::OnKPointDetectionPathCommitted(const FText& Te
 	}
 }
 
+void USyntheticDataSectionWidget::OnSceneObjectExportPathCommitted(const FText& Text, ETextCommit::Type /*CommitType*/)
+{
+	if (ASceneObjectDatasetActor* Actor = GetSceneObjectActor())
+	{
+		Actor->OutputJsonPath = Text.ToString();
+	}
+}
+
 ADroneDatasetGeneratorActor* USyntheticDataSectionWidget::GetDatasetActor() const
 {
 	if (UWorld* World = GetWorld())
@@ -92,6 +116,15 @@ ADroneKeyPointDatasetActor* USyntheticDataSectionWidget::GetKeyPointActor() cons
 	{
 		return Cast<ADroneKeyPointDatasetActor>(
 			UGameplayStatics::GetActorOfClass(World, ADroneKeyPointDatasetActor::StaticClass()));
+	}
+	return nullptr;
+}
+
+ASceneObjectDatasetActor* USyntheticDataSectionWidget::GetSceneObjectActor() const
+{
+	if (UWorld* World = GetWorld())
+	{
+		return Cast<ASceneObjectDatasetActor>(UGameplayStatics::GetActorOfClass(World, ASceneObjectDatasetActor::StaticClass()));
 	}
 	return nullptr;
 }

@@ -4,6 +4,7 @@
 #include "UAVSimulator/Actor/Airplane.h"
 #include "UAVSimulator/Components/FlightRecorderComponent.h"
 #include "UAVSimulator/Components/FlightPlaybackComponent.h"
+#include "UAVSimulator/Components/AttitudeControlComponent.h"
 #include "UAVSimulator/Save/FlightScenarioSave.h"
 #include "UAVSimulator/Subsystem/UAVSimulationSubsystem.h"
 #include "Kismet/GameplayStatics.h"
@@ -29,7 +30,7 @@ void AUAVSimulatorGameModeBase::UpdateSensorSettings()
 {
 	if (UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>())
 	{
-		Subsystem->SetSensorSettings(bEnableSensorAltimeter, bEnableSensorCameraInclination, bEnableSensorLidar, bEnableSensorCameraFrame, bEnableSensorCameraAltitude, bEnableSensorSegmentationMask, bEnableSensorBBoxDetection);
+		Subsystem->SetSensorSettings(bEnableSensorAltimeter, bEnableSensorCameraInclination, bEnableSensorLidar, bEnableSensorCameraFrame, bEnableSensorCameraAltitude, bEnableSensorSegmentationMask, bEnableSensorBBoxDetection, bEnableSensorPosition);
 	}
 }
 
@@ -69,6 +70,7 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 		Subsystem->bEnableSensorCameraAltitude = bEnableSensorCameraAltitude;
 		Subsystem->bEnableSensorSegmentationMask = bEnableSensorSegmentationMask;
 		Subsystem->bEnableSensorBBoxDetection = bEnableSensorBBoxDetection;
+		Subsystem->bEnableSensorPosition = bEnableSensorPosition;
 	}
 }
 
@@ -92,6 +94,7 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 		Subsystem->bEnableSensorCameraAltitude = bEnableSensorCameraAltitude;
 		Subsystem->bEnableSensorSegmentationMask = bEnableSensorSegmentationMask;
 		Subsystem->bEnableSensorBBoxDetection = bEnableSensorBBoxDetection;
+		Subsystem->bEnableSensorPosition = bEnableSensorPosition;
 	}
 
 	AActor* PlayerStartActor = UGameplayStatics::GetActorOfClass(GetWorld(), APlayerStart::StaticClass());
@@ -172,6 +175,62 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 			}
 		}
 	}
+	else if (CurrentSimulatorMode == ESimulatorMode::PlaybackAndAutoTrack)
+	{
+		if (!TargetAirplaneClass || !TrackerAirplaneClass)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TargetAirplaneClass or TrackerAirplaneClass is not set."));
+			return;
+		}
+
+		UFlightScenarioSave* LoadedScenario = Cast<UFlightScenarioSave>(
+			UGameplayStatics::LoadGameFromSlot(ScenarioSlotName, /*UserIndex=*/0));
+
+		if (!LoadedScenario || LoadedScenario->FlightFrames.Num() == 0)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: Failed to load scenario from slot '%s'."), *ScenarioSlotName);
+			return;
+		}
+
+		const FFlightFrame& FirstFrame      = LoadedScenario->FlightFrames[0];
+		const FVector       InitialLocation = FirstFrame.Location;
+		const FRotator      InitialRotation = FirstFrame.Rotation;
+		const FVector       Offset          = InitialRotation.Vector() * TargetSpawnOffsetDistance;
+
+		const FTransform TrackerTransform(InitialRotation, InitialLocation);
+		AAirplane* TrackerAirplane = GetWorld()->SpawnActorDeferred<AAirplane>(
+			TrackerAirplaneClass, TrackerTransform, nullptr, nullptr, AlwaysSpawn);
+		if (TrackerAirplane) TrackerAirplane->Tags.Add(FName("AutoTracker"));
+
+		const FTransform TargetTransform(InitialRotation, InitialLocation + Offset);
+		AAirplane* TargetAirplane = GetWorld()->SpawnActorDeferred<AAirplane>(
+			TargetAirplaneClass, TargetTransform, nullptr, nullptr, AlwaysSpawn);
+		if (TargetAirplane) TargetAirplane->Tags.Add(FName("Target"));
+
+		if (TrackerAirplane) TrackerAirplane->FinishSpawning(TrackerTransform);
+		if (TargetAirplane)  TargetAirplane->FinishSpawning(TargetTransform);
+
+		if (TargetAirplane)
+		{
+			UFlightPlaybackComponent* Playback = NewObject<UFlightPlaybackComponent>(TargetAirplane);
+			Playback->SaveSlotName   = ScenarioSlotName;
+			Playback->PlaybackOffset = Offset;
+			Playback->RegisterComponent();
+			Playback->StartPlayback();
+		}
+
+		if (TrackerAirplane)
+		{
+			UAttitudeControlComponent* AttCtrl = NewObject<UAttitudeControlComponent>(TrackerAirplane);
+			AttCtrl->CommandEndpoint = AttitudeCommandEndpoint;
+			AttCtrl->RegisterComponent();
+
+			if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+			{
+				PC->Possess(TrackerAirplane);
+			}
+		}
+	}
 	else if (CurrentSimulatorMode == ESimulatorMode::Playback)
 	{
 		if (!TargetAirplaneClass)
@@ -206,6 +265,25 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 			Playback->PlaybackOffset = FVector();
 			Playback->RegisterComponent();
 			Playback->StartPlayback();
+		}
+	}
+	else if (CurrentSimulatorMode == ESimulatorMode::Free)
+	{
+		if (!TargetAirplaneClass)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TargetAirplaneClass is not set."));
+			return;
+		}
+
+		AAirplane* PlayerAirplane = GetWorld()->SpawnActorDeferred<AAirplane>(
+			TargetAirplaneClass, SpawnTransform, nullptr, nullptr, AlwaysSpawn);
+		if (!PlayerAirplane) return;
+		PlayerAirplane->Tags.Add(FName("Player"));
+		PlayerAirplane->FinishSpawning(SpawnTransform);
+
+		if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+		{
+			PC->Possess(PlayerAirplane);
 		}
 	}
 

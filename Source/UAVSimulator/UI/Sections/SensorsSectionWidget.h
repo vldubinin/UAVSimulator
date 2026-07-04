@@ -30,6 +30,9 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UCheckBox> LidarCB;
 
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UCheckBox> PositionCB;
+
 	virtual void OnSectionActivated_Implementation() override;
 
 private:
@@ -42,4 +45,5 @@ private:
 	UFUNCTION() void OnCameraInclinationChanged(bool bIsChecked);
 	UFUNCTION() void OnLidarChanged(bool bIsChecked);
 	UFUNCTION() void OnCameraAltitude(bool bIsChecked);
+	UFUNCTION() void OnPositionChanged(bool bIsChecked);
 };

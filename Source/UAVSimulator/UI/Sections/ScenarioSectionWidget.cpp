@@ -24,7 +24,9 @@ void UScenarioSectionWidget::PopulateModeComboBox()
 	ComboBoxMode->ClearOptions();
 	ComboBoxMode->AddOption(ModeToString(ESimulatorMode::RecordTarget));
 	ComboBoxMode->AddOption(ModeToString(ESimulatorMode::PlaybackAndTrack));
+	ComboBoxMode->AddOption(ModeToString(ESimulatorMode::PlaybackAndAutoTrack));
 	ComboBoxMode->AddOption(ModeToString(ESimulatorMode::Playback));
+	ComboBoxMode->AddOption(ModeToString(ESimulatorMode::Free));
 }
 
 void UScenarioSectionWidget::SyncFromGameMode()
@@ -92,6 +94,8 @@ FString UScenarioSectionWidget::ModeToString(ESimulatorMode Mode)
 	case ESimulatorMode::RecordTarget:     return TEXT("Record Target");
 	case ESimulatorMode::PlaybackAndTrack: return TEXT("Playback and Track");
 	case ESimulatorMode::Playback:         return TEXT("Playback");
+	case ESimulatorMode::PlaybackAndAutoTrack:         return TEXT("Playback and Auto Track");
+	case ESimulatorMode::Free:              return TEXT("Free");
 	}
 	return TEXT("Record Target");
 }
@@ -100,5 +104,7 @@ ESimulatorMode UScenarioSectionWidget::StringToMode(const FString& Str)
 {
 	if (Str == TEXT("Playback and Track")) return ESimulatorMode::PlaybackAndTrack;
 	if (Str == TEXT("Playback"))           return ESimulatorMode::Playback;
+	if (Str == TEXT("Playback and Auto Track"))           return ESimulatorMode::PlaybackAndAutoTrack;
+	if (Str == TEXT("Free"))               return ESimulatorMode::Free;
 	return ESimulatorMode::RecordTarget;
 }
