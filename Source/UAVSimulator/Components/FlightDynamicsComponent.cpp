@@ -74,7 +74,7 @@ void UFlightDynamicsComponent::UpdateEditorVisualization(UStaticMeshComponent* M
 void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	UE_LOG(LogUAV, Verbose, TEXT("### TICK ###"));
+	/* UE_LOG(LogUAV, Verbose, TEXT("### TICK ###")); */
 
 	PhysicsState->Update();
 
@@ -115,8 +115,8 @@ void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 				? ForceN / (AirDensity * SpeedMs * SpanM)
 				: 0.0f;
 
-			UE_LOG(LogTemp, Warning, TEXT("Surface: %s | ForceN: %f | SpeedMs: %f | SpanM: %f | Calc Gamma: %f"),
-				*Surface->GetName(), ForceN, SpeedMs, SpanM, Gamma);
+			/* UE_LOG(LogTemp, Warning, TEXT("Surface: %s | ForceN: %f | SpeedMs: %f | SpanM: %f | Calc Gamma: %f"),
+				*Surface->GetName(), ForceN, SpeedMs, SpanM, Gamma); */
 
 			const FVector SurfaceCenter = Surface->GetComponentLocation();
 			const FVector RightDir      = Surface->GetRightVector();
@@ -168,7 +168,7 @@ void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 			}
 			else
 			{
-				UE_LOG(LogUAV, Warning, TEXT("ThrustVsAirspeedCurve не призначено — використовується множник 1.0"));
+				/* UE_LOG(LogUAV, Warning, TEXT("ThrustVsAirspeedCurve не призначено — використовується множник 1.0")); */
 			}
 
 			const float ActualThrust        = MaxStaticThrust * CurrentThrottle * ThrustMultiplier;
@@ -176,7 +176,7 @@ void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 			Mesh->AddForceAtLocation(Owner->GetActorForwardVector() * ActualThrust, ThrustLocationWorld);
 		}
 
-		UE_LOG(LogUAV, Log, TEXT("%s Location: %s"), *Owner->GetName(), *Owner->GetActorLocation().ToString());
+		/* UE_LOG(LogUAV, Log, TEXT("%s Location: %s"), *Owner->GetName(), *Owner->GetActorLocation().ToString()); */
 	}
 
 	UpdateVortexWake();

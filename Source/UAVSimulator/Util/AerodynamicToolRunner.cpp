@@ -84,11 +84,11 @@ bool AerodynamicToolRunner::RunPythonScript(FString Command)
 	{
 		if (Entry.Type == EPythonLogOutputType::Error)
 		{
-			UE_LOG(LogUAV, Error, TEXT("[Python ERROR] %s"), *Entry.Output);
+			/* UE_LOG(LogUAV, Error, TEXT("[Python ERROR] %s"), *Entry.Output); */
 		}
 		else
 		{
-			UE_LOG(LogUAV, Log, TEXT("[Python INFO] %s"), *Entry.Output);
+			/* UE_LOG(LogUAV, Log, TEXT("[Python INFO] %s"), *Entry.Output); */
 		}
 	}
 	return bSuccess;

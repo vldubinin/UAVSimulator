@@ -57,7 +57,7 @@ void USensorBusComponent::BeginPlay()
 	try
 	{
 		ZmqState = new FZmqSocketState(Endpoint);
-		UE_LOG(LogTemp, Log, TEXT("SensorBusComponent: ZMQ PUB bound to %s"), *Endpoint);
+		/* UE_LOG(LogTemp, Log, TEXT("SensorBusComponent: ZMQ PUB bound to %s"), *Endpoint); */
 	}
 	catch (const zmq::error_t& E)
 	{
@@ -87,13 +87,13 @@ void USensorBusComponent::BeginPlay()
 	{
 		if (!Cast<IUAVSensorInterface>(Comp))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("SensorBusComponent: %s does not implement IUAVSensorInterface, skipped."),
-				*Comp->GetName());
+			/* UE_LOG(LogTemp, Warning, TEXT("SensorBusComponent: %s does not implement IUAVSensorInterface, skipped."),
+				*Comp->GetName()); */
 			continue;
 		}
 		ResolvedSensors.Add(Comp);
-		UE_LOG(LogTemp, Log, TEXT("SensorBusComponent: registered sensor '%s' on %s"),
-			*Cast<IUAVSensorInterface>(Comp)->GetSensorTopic(), *GetOwner()->GetName());
+		/* UE_LOG(LogTemp, Log, TEXT("SensorBusComponent: registered sensor '%s' on %s"),
+			*Cast<IUAVSensorInterface>(Comp)->GetSensorTopic(), *GetOwner()->GetName()); */
 	}
 }
 

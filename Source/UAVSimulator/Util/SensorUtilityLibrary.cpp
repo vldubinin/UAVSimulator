@@ -10,7 +10,8 @@ TArray<FHitResult> USensorUtilityLibrary::FindActors(const UObject* WorldContext
 	int32 HorizontalRays,
 	int32 VerticalLayers,
 	float VerticalFOVDeg,
-	ECollisionChannel CollisionChannel)
+	ECollisionChannel CollisionChannel,
+	bool bTraceComplex)
 {
 	TArray<FHitResult> ScanResults;
 
@@ -25,7 +26,10 @@ TArray<FHitResult> USensorUtilityLibrary::FindActors(const UObject* WorldContext
 	{
 		QueryParams.AddIgnoredActor(ActorToIgnore);
 	}
-	QueryParams.bTraceComplex = false;
+	QueryParams.bTraceComplex = bTraceComplex;
+	// Chaos does not compute FHitResult::FaceIndex for complex traces unless asked —
+	// it's a separate opt-in perf flag from bTraceComplex itself.
+	QueryParams.bReturnFaceIndex = bTraceComplex;
 
 	const float HStep = 360.0f / FMath::Max(HorizontalRays, 1);
 

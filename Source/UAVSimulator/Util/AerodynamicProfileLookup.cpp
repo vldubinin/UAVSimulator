@@ -5,7 +5,7 @@ FAerodynamicProfileRow* AerodynamicProfileLookup::FindProfile(UDataTable* Table,
 {
 	if (!Table)
 	{
-		UE_LOG(LogUAV, Warning, TEXT("AerodynamicProfileLookup: DataTable is null"));
+		/* UE_LOG(LogUAV, Warning, TEXT("AerodynamicProfileLookup: DataTable is null")); */
 		return nullptr;
 	}
 

@@ -25,12 +25,12 @@ void ADroneKeyPointDatasetActor::ExportKeyPoints()
 {
 	if (!DroneBlueprintClass)
 	{
-		UE_LOG(LogUAV, Warning, TEXT("KeyPointDataset: DroneBlueprintClass is not set."));
+		/* UE_LOG(LogUAV, Warning, TEXT("KeyPointDataset: DroneBlueprintClass is not set.")); */
 		return;
 	}
 	if (OutputJsonPath.IsEmpty())
 	{
-		UE_LOG(LogUAV, Warning, TEXT("KeyPointDataset: OutputJsonPath is empty."));
+		/* UE_LOG(LogUAV, Warning, TEXT("KeyPointDataset: OutputJsonPath is empty.")); */
 		return;
 	}
 
@@ -45,7 +45,7 @@ void ADroneKeyPointDatasetActor::ExportKeyPoints()
 
 	if (!Drone)
 	{
-		UE_LOG(LogUAV, Error, TEXT("KeyPointDataset: Failed to spawn drone Blueprint."));
+		/* UE_LOG(LogUAV, Error, TEXT("KeyPointDataset: Failed to spawn drone Blueprint.")); */
 		return;
 	}
 
@@ -55,14 +55,14 @@ void ADroneKeyPointDatasetActor::ExportKeyPoints()
 
 	if (KPComps.IsEmpty())
 	{
-		UE_LOG(LogUAV, Warning,
-			TEXT("KeyPointDataset: Drone has no UKeyPointComponent instances — nothing to export."));
+		/* UE_LOG(LogUAV, Warning,
+			TEXT("KeyPointDataset: Drone has no UKeyPointComponent instances — nothing to export.")); */
 		Drone->Destroy();
 		return;
 	}
 
-	UE_LOG(LogUAV, Log, TEXT("KeyPointDataset: Found %d keypoints on %s."),
-		KPComps.Num(), *DroneBlueprintClass->GetName());
+	/* UE_LOG(LogUAV, Log, TEXT("KeyPointDataset: Found %d keypoints on %s."),
+		KPComps.Num(), *DroneBlueprintClass->GetName()); */
 
 	// ── Compute normalisation scale ───────────────────────────────────────────
 	// Transform every keypoint to drone-local space and find the largest absolute
@@ -87,12 +87,12 @@ void ADroneKeyPointDatasetActor::ExportKeyPoints()
 
 	if (FFileHelper::SaveStringToFile(JsonStr, *OutputJsonPath))
 	{
-		UE_LOG(LogUAV, Log, TEXT("KeyPointDataset: Saved %d keypoints → %s"),
-			KPComps.Num(), *OutputJsonPath);
+		/* UE_LOG(LogUAV, Log, TEXT("KeyPointDataset: Saved %d keypoints → %s"),
+			KPComps.Num(), *OutputJsonPath); */
 	}
 	else
 	{
-		UE_LOG(LogUAV, Error, TEXT("KeyPointDataset: Failed to write %s"), *OutputJsonPath);
+		/* UE_LOG(LogUAV, Error, TEXT("KeyPointDataset: Failed to write %s"), *OutputJsonPath); */
 	}
 }
 

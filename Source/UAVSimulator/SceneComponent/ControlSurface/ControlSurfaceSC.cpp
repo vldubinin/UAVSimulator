@@ -13,7 +13,7 @@ void UControlSurfaceSC::Move(float Angle)
 {
 	// Інвертуємо кут якщо поверхня позначена як зворотна (наприклад, симетричний елерон)
 	Angle = IsReverseDirection ? Angle * -1 : Angle;
-	UE_LOG(LogUAV, Warning, TEXT("%s Control Angle: %f"), *UEnum::GetValueAsString(FlapType), Angle);
+	/* UE_LOG(LogUAV, Warning, TEXT("%s Control Angle: %f"), *UEnum::GetValueAsString(FlapType), Angle); */
 
 	// Кожна вісь повертає компонент по-різному: X — крен (Roll), Y — тангаж (Pitch), Z — рискання (Yaw)
 	FRotator NewRotation;

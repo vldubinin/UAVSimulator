@@ -73,13 +73,13 @@ void UUAVCameraComponent::BeginPlay()
 	CaptureComponent = Owner->FindComponentByClass<USceneCaptureComponent2D>();
 	if (!CaptureComponent)
 	{
-		UE_LOG(LogUAV, Error, TEXT("UAVCameraComponent: USceneCaptureComponent2D not found on %s."), *Owner->GetName());
+		/* UE_LOG(LogUAV, Error, TEXT("UAVCameraComponent: USceneCaptureComponent2D not found on %s."), *Owner->GetName()); */
 		return;
 	}
 
 	ComputeFOV(CaptureComponent->FOVAngle);
-	UE_LOG(LogUAV, Log, TEXT("UAVCameraComponent: Camera found on %s (HFOV=%.1f° VFOV=%.1f°)"),
-		*Owner->GetName(), HorizontalFOVDeg, VerticalFOVDeg);
+	/* UE_LOG(LogUAV, Log, TEXT("UAVCameraComponent: Camera found on %s (HFOV=%.1f° VFOV=%.1f°)"),
+		*Owner->GetName(), HorizontalFOVDeg, VerticalFOVDeg); */
 
 	// RGB render target
 	RenderTarget = NewObject<UTextureRenderTarget2D>();

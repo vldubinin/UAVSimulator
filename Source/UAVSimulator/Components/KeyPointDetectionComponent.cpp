@@ -28,7 +28,7 @@ void UKeyPointDetectionComponent::BeginPlay()
 	CaptureComponent = Owner->FindComponentByClass<USceneCaptureComponent2D>();
 	if (!CaptureComponent)
 	{
-		UE_LOG(LogUAV, Error, TEXT("KeyPointDetectionComponent: USceneCaptureComponent2D not found on %s."), *Owner->GetName());
+		/* UE_LOG(LogUAV, Error, TEXT("KeyPointDetectionComponent: USceneCaptureComponent2D not found on %s."), *Owner->GetName()); */
 		SetComponentTickEnabled(false);
 		return;
 	}

@@ -28,7 +28,7 @@ void ASceneObjectDatasetActor::ExportSceneObjects()
 {
 	if (OutputJsonPath.IsEmpty())
 	{
-		UE_LOG(LogUAV, Warning, TEXT("SceneObjectDataset: OutputJsonPath is empty."));
+		/* UE_LOG(LogUAV, Warning, TEXT("SceneObjectDataset: OutputJsonPath is empty.")); */
 		return;
 	}
 
@@ -55,12 +55,12 @@ void ASceneObjectDatasetActor::ExportSceneObjects()
 
 	if (FFileHelper::SaveStringToFile(JsonStr, *OutputJsonPath))
 	{
-		UE_LOG(LogUAV, Log, TEXT("SceneObjectDataset: Saved %d objects → %s"),
-			Objects.Num(), *OutputJsonPath);
+		/* UE_LOG(LogUAV, Log, TEXT("SceneObjectDataset: Saved %d objects → %s"),
+			Objects.Num(), *OutputJsonPath); */
 	}
 	else
 	{
-		UE_LOG(LogUAV, Error, TEXT("SceneObjectDataset: Failed to write %s"), *OutputJsonPath);
+		/* UE_LOG(LogUAV, Error, TEXT("SceneObjectDataset: Failed to write %s"), *OutputJsonPath); */
 	}
 }
 

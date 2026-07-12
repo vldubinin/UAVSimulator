@@ -44,10 +44,10 @@ void AerodynamicPhysicalCalculationUtil::GenerateAerodynamicPhysicalConfigutatio
 			Surface->Modify();
 			if (AttachAssetToSurface(RootSurface, AssetPath))
 			{
-				UE_LOG(LogUAV, Log, TEXT("GenerateAerodynamicPhysicalConfigutation: surface %s оновлено: '%s'."), *Surface->GetName(), *AssetPath);
+				/* UE_LOG(LogUAV, Log, TEXT("GenerateAerodynamicPhysicalConfigutation: surface %s оновлено: '%s'."), *Surface->GetName(), *AssetPath); */
 			}
 			else {
-				UE_LOG(LogUAV, Error, TEXT("GenerateAerodynamicPhysicalConfigutation: не вдалося оновити surface '%s' за допомогою '%s'."), *Surface->GetName(), *AssetPath);
+				/* UE_LOG(LogUAV, Error, TEXT("GenerateAerodynamicPhysicalConfigutation: не вдалося оновити surface '%s' за допомогою '%s'."), *Surface->GetName(), *AssetPath); */
 			}
 		}
 	}
@@ -323,7 +323,7 @@ void AerodynamicPhysicalCalculationUtil::RunSU2Calculation(
 		RmsQuality,
 		Resume);
 
-	UE_LOG(LogUAV, Log, TEXT("RunSU2Calculation: %s"), *Command);
+	/* UE_LOG(LogUAV, Log, TEXT("RunSU2Calculation: %s"), *Command); */
 	AerodynamicToolRunner::RunPythonScript(Command);
 }
 
@@ -378,7 +378,7 @@ bool AerodynamicPhysicalCalculationUtil::AttachAssetToSurface(
 	UDataTable* Table = LoadObject<UDataTable>(nullptr, *AssetPath);
 	if (!Table)
 	{
-		UE_LOG(LogUAV, Error, TEXT("AttachAssetToSurface: failed to load '%s'"), *AssetPath);
+		/* UE_LOG(LogUAV, Error, TEXT("AttachAssetToSurface: failed to load '%s'"), *AssetPath); */
 		return false;
 	}
 	Structure.AerodynamicTable = Table;
@@ -399,7 +399,7 @@ FString AerodynamicPhysicalCalculationUtil::FindPathToProfile(UAerodynamicSurfac
 
 	if (FoundFiles.Num() != 1)
 	{
-		UE_LOG(LogUAV, Error, TEXT("FindPathToProfile: expected exactly 1 .dat file in '%s', found %d"), *ProfilePath, FoundFiles.Num());
+		/* UE_LOG(LogUAV, Error, TEXT("FindPathToProfile: expected exactly 1 .dat file in '%s', found %d"), *ProfilePath, FoundFiles.Num()); */
 		return FString();
 	}
 

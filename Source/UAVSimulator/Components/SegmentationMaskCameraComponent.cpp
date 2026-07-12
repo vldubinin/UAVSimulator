@@ -18,7 +18,7 @@ void USegmentationMaskCameraComponent::BeginPlay()
 	CameraComp = Owner->FindComponentByClass<UUAVCameraComponent>();
 	if (!CameraComp)
 	{
-		UE_LOG(LogUAV, Error, TEXT("SegmentationMaskCameraComponent: UUAVCameraComponent not found on %s."), *Owner->GetName());
+		/* UE_LOG(LogUAV, Error, TEXT("SegmentationMaskCameraComponent: UUAVCameraComponent not found on %s."), *Owner->GetName()); */
 	}
 }
 

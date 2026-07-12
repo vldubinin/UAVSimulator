@@ -20,7 +20,7 @@ void UFlightPlaybackComponent::StartPlayback()
 
 	if (!Scenario || Scenario->FlightFrames.Num() == 0)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("FlightPlaybackComponent: failed to load scenario from slot '%s'"), *SaveSlotName);
+		/* UE_LOG(LogTemp, Warning, TEXT("FlightPlaybackComponent: failed to load scenario from slot '%s'"), *SaveSlotName); */
 		return;
 	}
 

@@ -18,7 +18,7 @@ void UCameraFrameComponent::BeginPlay()
 	CameraComp = Owner->FindComponentByClass<UUAVCameraComponent>();
 	if (!CameraComp)
 	{
-		UE_LOG(LogUAV, Error, TEXT("CameraFrameComponent: UUAVCameraComponent not found on %s."), *Owner->GetName());
+		/* UE_LOG(LogUAV, Error, TEXT("CameraFrameComponent: UUAVCameraComponent not found on %s."), *Owner->GetName()); */
 	}
 }
 

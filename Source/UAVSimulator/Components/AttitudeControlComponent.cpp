@@ -45,8 +45,8 @@ void UAttitudeControlComponent::BeginPlay()
 	FlightDynamics = GetOwner()->FindComponentByClass<UFlightDynamicsComponent>();
 	if (!FlightDynamics)
 	{
-		UE_LOG(LogTemp, Error, TEXT("AttitudeControlComponent: no UFlightDynamicsComponent found on %s"),
-		       *GetOwner()->GetName());
+		/* UE_LOG(LogTemp, Error, TEXT("AttitudeControlComponent: no UFlightDynamicsComponent found on %s"),
+		       *GetOwner()->GetName()); */
 		SetComponentTickEnabled(false);
 		return;
 	}
@@ -54,7 +54,7 @@ void UAttitudeControlComponent::BeginPlay()
 	try
 	{
 		ZmqState = new FZmqPullState(CommandEndpoint);
-		UE_LOG(LogTemp, Log, TEXT("AttitudeControlComponent: ZMQ PULL bound to %s"), *CommandEndpoint);
+		/* UE_LOG(LogTemp, Log, TEXT("AttitudeControlComponent: ZMQ PULL bound to %s"), *CommandEndpoint); */
 	}
 	catch (const zmq::error_t& E)
 	{

@@ -19,5 +19,6 @@ public:
 		int32 HorizontalRays,
 		int32 VerticalLayers,
 		float VerticalFOVDeg,
-		ECollisionChannel CollisionChannel);
+		ECollisionChannel CollisionChannel,
+		bool bTraceComplex = false);
 };

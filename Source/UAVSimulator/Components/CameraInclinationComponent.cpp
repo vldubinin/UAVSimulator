@@ -22,9 +22,9 @@ void UCameraInclinationComponent::BeginPlay()
 	if (Owner)
 		CaptureComp = Owner->FindComponentByClass<USceneCaptureComponent2D>();
 
-	if (!CaptureComp)
-		UE_LOG(LogUAV, Warning, TEXT("CameraInclinationComponent: USceneCaptureComponent2D not found on %s — pitch will not be reported."),
-			Owner ? *Owner->GetName() : TEXT("Unknown"));
+	/*if (!CaptureComp)
+		 UE_LOG(LogUAV, Warning, TEXT("CameraInclinationComponent: USceneCaptureComponent2D not found on %s — pitch will not be reported."),
+			Owner ? *Owner->GetName() : TEXT("Unknown")); */
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

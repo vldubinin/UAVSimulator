@@ -11,25 +11,25 @@ float UAerodynamicPhysicsLibrary::CalculateAngleOfAttack(FVector WorldAirVelocit
 
 float UAerodynamicPhysicsLibrary::CalculateLift(float AoA, float DynamicPressure, float SurfaceArea, FAerodynamicProfileRow* Profile)
 {
-	if (!Profile) { UE_LOG(LogUAV, Warning, TEXT("CalculateLift: null profile")); return 0.f; }
+	if (!Profile) { /* UE_LOG(LogUAV, Warning, TEXT("CalculateLift: null profile")); */ return 0.f; }
 	float Cl = Profile->ClVsAoA.GetRichCurve()->Eval(AoA) / 100.f;
-	UE_LOG(LogUAV, Verbose, TEXT("Cl: %f"), Cl);
+	/* UE_LOG(LogUAV, Verbose, TEXT("Cl: %f"), Cl); */
 	return Cl * DynamicPressure * (SurfaceArea / 10000.f);
 }
 
 float UAerodynamicPhysicsLibrary::CalculateDrag(float AoA, float DynamicPressure, float SurfaceArea, FAerodynamicProfileRow* Profile)
 {
-	if (!Profile) { UE_LOG(LogUAV, Warning, TEXT("CalculateDrag: null profile")); return 0.f; }
+	if (!Profile) { /* UE_LOG(LogUAV, Warning, TEXT("CalculateDrag: null profile")); */ return 0.f; }
 	float Cd = Profile->CdVsAoA.GetRichCurve()->Eval(AoA) / 100.f;
-	UE_LOG(LogUAV, Verbose, TEXT("Cd: %f"), Cd);
+	/* UE_LOG(LogUAV, Verbose, TEXT("Cd: %f"), Cd); */
 	return Cd * DynamicPressure * (SurfaceArea / 10000.f);
 }
 
 float UAerodynamicPhysicsLibrary::CalculateTorque(float AoA, float DynamicPressure, float SurfaceArea, float ChordLength, FAerodynamicProfileRow* Profile)
 {
-	if (!Profile) { UE_LOG(LogUAV, Warning, TEXT("CalculateTorque: null profile")); return 0.f; }
+	if (!Profile) { /* UE_LOG(LogUAV, Warning, TEXT("CalculateTorque: null profile")); */ return 0.f; }
 	float Cm = Profile->CmVsAoA.GetRichCurve()->Eval(AoA) / 10000.f;
-	UE_LOG(LogUAV, Verbose, TEXT("Cm: %f"), Cm);
+	/* UE_LOG(LogUAV, Verbose, TEXT("Cm: %f"), Cm); */
 	return Cm * DynamicPressure * (SurfaceArea / 10000.f) * ChordLength;
 }
 

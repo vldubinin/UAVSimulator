@@ -22,9 +22,9 @@ void UCameraAltitudeComponent::BeginPlay()
 	if (Owner)
 		CaptureComp = Owner->FindComponentByClass<USceneCaptureComponent2D>();
 
-	if (!CaptureComp)
+	/*if (!CaptureComp)
 		UE_LOG(LogUAV, Warning, TEXT("CameraAltitudeComponent: USceneCaptureComponent2D not found on %s — altitude will not be reported."),
-			Owner ? *Owner->GetName() : TEXT("Unknown"));
+			Owner ? *Owner->GetName() : TEXT("Unknown")); */
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

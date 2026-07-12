@@ -39,12 +39,12 @@ void ADroneDatasetGeneratorActor::GenerateDataset()
 {
 	if (!DroneBlueprintClass)
 	{
-		UE_LOG(LogUAV, Warning, TEXT("DatasetGenerator: DroneBlueprintClass is not set."));
+		/* UE_LOG(LogUAV, Warning, TEXT("DatasetGenerator: DroneBlueprintClass is not set.")); */
 		return;
 	}
 	if (OutputJsonPath.IsEmpty())
 	{
-		UE_LOG(LogUAV, Warning, TEXT("DatasetGenerator: OutputJsonPath is empty."));
+		/* UE_LOG(LogUAV, Warning, TEXT("DatasetGenerator: OutputJsonPath is empty.")); */
 		return;
 	}
 
@@ -59,7 +59,7 @@ void ADroneDatasetGeneratorActor::GenerateDataset()
 
 	if (!Drone)
 	{
-		UE_LOG(LogUAV, Error, TEXT("DatasetGenerator: Failed to spawn drone Blueprint."));
+		/* UE_LOG(LogUAV, Error, TEXT("DatasetGenerator: Failed to spawn drone Blueprint.")); */
 		return;
 	}
 
@@ -89,15 +89,15 @@ void ADroneDatasetGeneratorActor::GenerateDataset()
 			: OutputImageDir;
 
 		IFileManager::Get().MakeDirectory(*ImageDir, /*CreateTree=*/true);
-		UE_LOG(LogUAV, Log, TEXT("DatasetGenerator: Debug images → %s"), *ImageDir);
+		/* UE_LOG(LogUAV, Log, TEXT("DatasetGenerator: Debug images → %s"), *ImageDir); */
 	}
 
 	// ── Sweep ─────────────────────────────────────────────────────────────────
 	const FVector DroneOrigin = Drone->GetActorLocation();
 	TArray<FFrameData> Frames;
 
-	UE_LOG(LogUAV, Log, TEXT("DatasetGenerator: Starting sweep for %s"),
-		*DroneBlueprintClass->GetName());
+	/* UE_LOG(LogUAV, Log, TEXT("DatasetGenerator: Starting sweep for %s"),
+		*DroneBlueprintClass->GetName()); */
 
 	int FrameId = 0;
 
@@ -135,12 +135,12 @@ void ADroneDatasetGeneratorActor::GenerateDataset()
 
 	if (FFileHelper::SaveStringToFile(JsonStr, *OutputJsonPath))
 	{
-		UE_LOG(LogUAV, Log, TEXT("DatasetGenerator: Saved %d frames → %s"),
-			Frames.Num(), *OutputJsonPath);
+		/* UE_LOG(LogUAV, Log, TEXT("DatasetGenerator: Saved %d frames → %s"),
+			Frames.Num(), *OutputJsonPath); */
 	}
 	else
 	{
-		UE_LOG(LogUAV, Error, TEXT("DatasetGenerator: Failed to write %s"), *OutputJsonPath);
+		/* UE_LOG(LogUAV, Error, TEXT("DatasetGenerator: Failed to write %s"), *OutputJsonPath); */
 	}
 }
 

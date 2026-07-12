@@ -108,7 +108,7 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 	{
 		if (!TargetAirplaneClass)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TargetAirplaneClass is not set."));
+			/* UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TargetAirplaneClass is not set.")); */
 			return;
 		}
 
@@ -127,7 +127,7 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 	{
 		if (!TargetAirplaneClass || !TrackerAirplaneClass)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TargetAirplaneClass or TrackerAirplaneClass is not set."));
+			/* UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TargetAirplaneClass or TrackerAirplaneClass is not set.")); */
 			return;
 		}
 
@@ -136,7 +136,7 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 
 		if (!LoadedScenario || LoadedScenario->FlightFrames.Num() == 0)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: Failed to load scenario from slot '%s'."), *ScenarioSlotName);
+			/* UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: Failed to load scenario from slot '%s'."), *ScenarioSlotName); */
 			return;
 		}
 
@@ -179,7 +179,7 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 	{
 		if (!TargetAirplaneClass || !TrackerAirplaneClass)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TargetAirplaneClass or TrackerAirplaneClass is not set."));
+			/* UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TargetAirplaneClass or TrackerAirplaneClass is not set.")); */
 			return;
 		}
 
@@ -188,7 +188,7 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 
 		if (!LoadedScenario || LoadedScenario->FlightFrames.Num() == 0)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: Failed to load scenario from slot '%s'."), *ScenarioSlotName);
+			/* UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: Failed to load scenario from slot '%s'."), *ScenarioSlotName); */
 			return;
 		}
 
@@ -235,7 +235,7 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 	{
 		if (!TargetAirplaneClass)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TargetAirplaneClass is not set."));
+			/* UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TargetAirplaneClass is not set.")); */
 			return;
 		}
 
@@ -244,7 +244,7 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 
 		if (!LoadedScenario || LoadedScenario->FlightFrames.Num() == 0)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: Failed to load scenario from slot '%s'."), *ScenarioSlotName);
+			/* UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: Failed to load scenario from slot '%s'."), *ScenarioSlotName); */
 			return;
 		}
 
@@ -271,7 +271,7 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 	{
 		if (!TargetAirplaneClass)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TargetAirplaneClass is not set."));
+			/* UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TargetAirplaneClass is not set.")); */
 			return;
 		}
 
