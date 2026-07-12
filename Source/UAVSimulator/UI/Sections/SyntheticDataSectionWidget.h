@@ -48,6 +48,8 @@ protected:
 
 private:
 	void SyncFromActors();
+	void LoadAndApplySavedSettings();
+	void SaveCurrentSettings();
 
 	ADroneDatasetGeneratorActor*  GetDatasetActor()  const;
 	ADroneKeyPointDatasetActor*   GetKeyPointActor() const;
@@ -62,4 +64,6 @@ private:
 	UFUNCTION() void OnSceneObjectExportPathCommitted(const FText& Text, ETextCommit::Type CommitType);
 	UFUNCTION() void OnSegmentationMaskChanged(bool bIsChecked);
 	UFUNCTION() void OnBBoxDetectionChanged(bool bIsChecked);
+
+	static const FString SyntheticDataSaveSlotName;
 };

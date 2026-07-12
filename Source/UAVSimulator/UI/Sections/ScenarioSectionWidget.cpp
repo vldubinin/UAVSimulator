@@ -6,12 +6,16 @@
 #include "Components/TextBlock.h"
 #include "Components/Widget.h"
 #include "Kismet/GameplayStatics.h"
+#include "UAVSimulator/Save/ScenarioSettingsSave.h"
+
+const FString UScenarioSectionWidget::ScenarioSaveSlotName = TEXT("ScenarioSettings");
 
 void UScenarioSectionWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
 	PopulateModeComboBox();
+	LoadAndApplySavedSettings();
 	SyncFromGameMode();
 
 	ComboBoxMode->OnSelectionChanged.AddDynamic(this, &UScenarioSectionWidget::OnModeSelectionChanged);
@@ -55,6 +59,7 @@ void UScenarioSectionWidget::OnModeSelectionChanged(FString SelectedItem, ESelec
 	const ESimulatorMode NewMode = StringToMode(SelectedItem);
 	GM->CurrentSimulatorMode = NewMode;
 	RefreshOffsetVisibility(NewMode);
+	SaveCurrentSettings();
 }
 
 void UScenarioSectionWidget::OnTrajectoryNameCommitted(const FText& Text, ETextCommit::Type /*CommitType*/)
@@ -63,6 +68,7 @@ void UScenarioSectionWidget::OnTrajectoryNameCommitted(const FText& Text, ETextC
 	{
 		GM->ScenarioSlotName = Text.ToString();
 	}
+	SaveCurrentSettings();
 }
 
 void UScenarioSectionWidget::OnOffsetDistanceChanged(float Value)
@@ -71,11 +77,44 @@ void UScenarioSectionWidget::OnOffsetDistanceChanged(float Value)
 	{
 		GM->TargetSpawnOffsetDistance = Value;
 	}
+	SaveCurrentSettings();
 }
 
 void UScenarioSectionWidget::OnSectionActivated_Implementation()
 {
 	SyncFromGameMode();
+}
+
+void UScenarioSectionWidget::LoadAndApplySavedSettings()
+{
+	UScenarioSettingsSave* Save = Cast<UScenarioSettingsSave>(
+		UGameplayStatics::LoadGameFromSlot(ScenarioSaveSlotName, /*UserIndex=*/0));
+	if (!Save)
+		return;
+
+	AUAVSimulatorGameModeBase* GM = GetGameMode();
+	if (!GM)
+		return;
+
+	GM->CurrentSimulatorMode      = Save->CurrentSimulatorMode;
+	GM->ScenarioSlotName          = Save->ScenarioSlotName;
+	GM->TargetSpawnOffsetDistance = Save->TargetSpawnOffsetDistance;
+}
+
+void UScenarioSectionWidget::SaveCurrentSettings()
+{
+	AUAVSimulatorGameModeBase* GM = GetGameMode();
+	if (!GM)
+		return;
+
+	UScenarioSettingsSave* Save = Cast<UScenarioSettingsSave>(
+		UGameplayStatics::CreateSaveGameObject(UScenarioSettingsSave::StaticClass()));
+
+	Save->CurrentSimulatorMode      = GM->CurrentSimulatorMode;
+	Save->ScenarioSlotName          = GM->ScenarioSlotName;
+	Save->TargetSpawnOffsetDistance = GM->TargetSpawnOffsetDistance;
+
+	UGameplayStatics::SaveGameToSlot(Save, ScenarioSaveSlotName, /*UserIndex=*/0);
 }
 
 AUAVSimulatorGameModeBase* UScenarioSectionWidget::GetGameMode() const

@@ -6,6 +6,9 @@
 #include "Components/SpinBox.h"
 #include "Components/CheckBox.h"
 #include "Kismet/GameplayStatics.h"
+#include "UAVSimulator/Save/EnvironmentSettingsSave.h"
+
+const FString UEnvironmentSectionWidget::EnvironmentSaveSlotName = TEXT("EnvironmentSettings");
 
 void UEnvironmentSectionWidget::NativeConstruct()
 {
@@ -18,6 +21,7 @@ void UEnvironmentSectionWidget::NativeConstruct()
 	SpinBoxSolarTime->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnSolarTimeCommitted);
 	TerrainSurfaceCB->OnCheckStateChanged.AddDynamic(this, &UEnvironmentSectionWidget::OnTerrainSurfaceChanged);
 
+	LoadAndApplySavedSettings();
 	SyncFromWorld();
 }
 
@@ -53,18 +57,21 @@ void UEnvironmentSectionWidget::OnOriginLatitudeCommitted(float Value, ETextComm
 {
 	if (ACesiumGeoreference* Geo = GetGeoreference())
 		Geo->SetOriginLatitude((double)Value);
+	SaveCurrentSettings();
 }
 
 void UEnvironmentSectionWidget::OnOriginLongitudeCommitted(float Value, ETextCommit::Type /*CommitType*/)
 {
 	if (ACesiumGeoreference* Geo = GetGeoreference())
 		Geo->SetOriginLongitude((double)Value);
+	SaveCurrentSettings();
 }
 
 void UEnvironmentSectionWidget::OnOriginHeightCommitted(float Value, ETextCommit::Type /*CommitType*/)
 {
 	if (ACesiumGeoreference* Geo = GetGeoreference())
 		Geo->SetOriginHeight((double)Value);
+	SaveCurrentSettings();
 }
 
 void UEnvironmentSectionWidget::OnTimeZoneCommitted(float Value, ETextCommit::Type /*CommitType*/)
@@ -74,6 +81,7 @@ void UEnvironmentSectionWidget::OnTimeZoneCommitted(float Value, ETextCommit::Ty
 		SunSky->TimeZone = (double)Value;
 		SunSky->UpdateSun();
 	}
+	SaveCurrentSettings();
 }
 
 void UEnvironmentSectionWidget::OnSolarTimeCommitted(float Value, ETextCommit::Type /*CommitType*/)
@@ -83,11 +91,13 @@ void UEnvironmentSectionWidget::OnSolarTimeCommitted(float Value, ETextCommit::T
 		SunSky->SolarTime = (double)Value;
 		SunSky->UpdateSun();
 	}
+	SaveCurrentSettings();
 }
 
 void UEnvironmentSectionWidget::OnTerrainSurfaceChanged(bool bIsChecked)
 {
 	ApplyTerrainSurfaceState(bIsChecked);
+	SaveCurrentSettings();
 }
 
 void UEnvironmentSectionWidget::ApplyTerrainSurfaceState(bool bEnabled)
@@ -139,6 +149,56 @@ void UEnvironmentSectionWidget::ApplyTerrainSurfaceState(bool bEnabled)
 		if (!SpawnedDefaultSun && DefaultSunClass)
 			SpawnedDefaultSun = World->SpawnActor<AActor>(DefaultSunClass);
 	}
+}
+
+void UEnvironmentSectionWidget::LoadAndApplySavedSettings()
+{
+	UEnvironmentSettingsSave* Save = Cast<UEnvironmentSettingsSave>(
+		UGameplayStatics::LoadGameFromSlot(EnvironmentSaveSlotName, /*UserIndex=*/0));
+	if (!Save)
+		return;
+
+	if (ACesiumGeoreference* Geo = GetGeoreference())
+	{
+		Geo->SetOriginLatitude(Save->OriginLatitude);
+		Geo->SetOriginLongitude(Save->OriginLongitude);
+		Geo->SetOriginHeight(Save->OriginHeight);
+	}
+
+	if (ACesiumSunSky* SunSky = GetSunSky())
+	{
+		SunSky->TimeZone  = Save->TimeZone;
+		SunSky->SolarTime = Save->SolarTime;
+		SunSky->UpdateSun();
+	}
+
+	ApplyTerrainSurfaceState(Save->bTerrainSurfaceEnabled);
+}
+
+void UEnvironmentSectionWidget::SaveCurrentSettings()
+{
+	UEnvironmentSettingsSave* Save = Cast<UEnvironmentSettingsSave>(
+		UGameplayStatics::CreateSaveGameObject(UEnvironmentSettingsSave::StaticClass()));
+
+	if (ACesiumGeoreference* Geo = GetGeoreference())
+	{
+		Save->OriginLatitude  = Geo->GetOriginLatitude();
+		Save->OriginLongitude = Geo->GetOriginLongitude();
+		Save->OriginHeight    = Geo->GetOriginHeight();
+	}
+
+	if (ACesiumSunSky* SunSky = GetSunSky())
+	{
+		Save->TimeZone  = SunSky->TimeZone;
+		Save->SolarTime = SunSky->SolarTime;
+	}
+
+	if (ACesium3DTileset* Tileset = GetTileset())
+	{
+		Save->bTerrainSurfaceEnabled = !Tileset->IsHidden();
+	}
+
+	UGameplayStatics::SaveGameToSlot(Save, EnvironmentSaveSlotName, /*UserIndex=*/0);
 }
 
 ACesiumGeoreference* UEnvironmentSectionWidget::GetGeoreference() const

@@ -45,6 +45,8 @@ private:
 	void PopulateModeComboBox();
 	void SyncFromGameMode();
 	void RefreshOffsetVisibility(ESimulatorMode Mode);
+	void LoadAndApplySavedSettings();
+	void SaveCurrentSettings();
 
 	AUAVSimulatorGameModeBase* GetGameMode() const;
 
@@ -54,4 +56,6 @@ private:
 
 	static FString ModeToString(ESimulatorMode Mode);
 	static ESimulatorMode StringToMode(const FString& Str);
+
+	static const FString ScenarioSaveSlotName;
 };

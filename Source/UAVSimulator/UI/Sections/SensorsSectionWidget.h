@@ -37,6 +37,8 @@ protected:
 
 private:
 	void SyncFromGameMode();
+	void LoadAndApplySavedSettings();
+	void SaveCurrentSettings();
 
 	AUAVSimulatorGameModeBase* GetGameMode() const;
 
@@ -46,4 +48,6 @@ private:
 	UFUNCTION() void OnLidarChanged(bool bIsChecked);
 	UFUNCTION() void OnCameraAltitude(bool bIsChecked);
 	UFUNCTION() void OnPositionChanged(bool bIsChecked);
+
+	static const FString SensorSaveSlotName;
 };

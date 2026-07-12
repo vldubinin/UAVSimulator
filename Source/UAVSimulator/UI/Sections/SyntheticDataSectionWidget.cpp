@@ -8,11 +8,15 @@
 #include "Components/EditableTextBox.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/Paths.h"
+#include "UAVSimulator/Save/SyntheticDataSettingsSave.h"
+
+const FString USyntheticDataSectionWidget::SyntheticDataSaveSlotName = TEXT("SyntheticDataSettings");
 
 void USyntheticDataSectionWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
+	LoadAndApplySavedSettings();
 	SyncFromActors();
 
 	SegmentationMaskCB->OnCheckStateChanged.AddDynamic(this, &USyntheticDataSectionWidget::OnSegmentationMaskChanged);
@@ -82,6 +86,7 @@ void USyntheticDataSectionWidget::OnSphericalContourPathCommitted(const FText& T
 	const FString BasePath = Text.ToString();
 	Actor->OutputJsonPath = FPaths::Combine(BasePath, TEXT("template.json"));
 	Actor->OutputImageDir = FPaths::Combine(BasePath, TEXT("images"));
+	SaveCurrentSettings();
 }
 
 void USyntheticDataSectionWidget::OnKPointDetectionPathCommitted(const FText& Text, ETextCommit::Type /*CommitType*/)
@@ -90,6 +95,7 @@ void USyntheticDataSectionWidget::OnKPointDetectionPathCommitted(const FText& Te
 	{
 		Actor->OutputJsonPath = Text.ToString();
 	}
+	SaveCurrentSettings();
 }
 
 void USyntheticDataSectionWidget::OnSceneObjectExportPathCommitted(const FText& Text, ETextCommit::Type /*CommitType*/)
@@ -98,6 +104,7 @@ void USyntheticDataSectionWidget::OnSceneObjectExportPathCommitted(const FText& 
 	{
 		Actor->OutputJsonPath = Text.ToString();
 	}
+	SaveCurrentSettings();
 }
 
 ADroneDatasetGeneratorActor* USyntheticDataSectionWidget::GetDatasetActor() const
@@ -143,6 +150,7 @@ void USyntheticDataSectionWidget::OnSegmentationMaskChanged(bool bIsChecked)
 {
 	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
 		GM->bEnableSensorSegmentationMask = bIsChecked;
+	SaveCurrentSettings();
 }
 
 
@@ -150,4 +158,69 @@ void USyntheticDataSectionWidget::OnBBoxDetectionChanged(bool bIsChecked)
 {
 	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
 		GM->bEnableSensorBBoxDetection = bIsChecked;
+	SaveCurrentSettings();
+}
+
+void USyntheticDataSectionWidget::LoadAndApplySavedSettings()
+{
+	USyntheticDataSettingsSave* Save = Cast<USyntheticDataSettingsSave>(
+		UGameplayStatics::LoadGameFromSlot(SyntheticDataSaveSlotName, /*UserIndex=*/0));
+	if (!Save)
+		return;
+
+	if (ADroneDatasetGeneratorActor* Actor = GetDatasetActor())
+	{
+		if (!Save->SphericalContourBasePath.IsEmpty())
+		{
+			Actor->OutputJsonPath = FPaths::Combine(Save->SphericalContourBasePath, TEXT("template.json"));
+			Actor->OutputImageDir = FPaths::Combine(Save->SphericalContourBasePath, TEXT("images"));
+		}
+	}
+
+	if (ADroneKeyPointDatasetActor* Actor = GetKeyPointActor())
+	{
+		if (!Save->KeyPointOutputJsonPath.IsEmpty())
+			Actor->OutputJsonPath = Save->KeyPointOutputJsonPath;
+	}
+
+	if (ASceneObjectDatasetActor* Actor = GetSceneObjectActor())
+	{
+		if (!Save->SceneObjectOutputJsonPath.IsEmpty())
+			Actor->OutputJsonPath = Save->SceneObjectOutputJsonPath;
+	}
+
+	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
+	{
+		GM->bEnableSensorSegmentationMask = Save->bEnableSensorSegmentationMask;
+		GM->bEnableSensorBBoxDetection    = Save->bEnableSensorBBoxDetection;
+	}
+}
+
+void USyntheticDataSectionWidget::SaveCurrentSettings()
+{
+	USyntheticDataSettingsSave* Save = Cast<USyntheticDataSettingsSave>(
+		UGameplayStatics::CreateSaveGameObject(USyntheticDataSettingsSave::StaticClass()));
+
+	if (ADroneDatasetGeneratorActor* Actor = GetDatasetActor())
+	{
+		Save->SphericalContourBasePath = FPaths::GetPath(Actor->OutputJsonPath);
+	}
+
+	if (ADroneKeyPointDatasetActor* Actor = GetKeyPointActor())
+	{
+		Save->KeyPointOutputJsonPath = Actor->OutputJsonPath;
+	}
+
+	if (ASceneObjectDatasetActor* Actor = GetSceneObjectActor())
+	{
+		Save->SceneObjectOutputJsonPath = Actor->OutputJsonPath;
+	}
+
+	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
+	{
+		Save->bEnableSensorSegmentationMask = GM->bEnableSensorSegmentationMask;
+		Save->bEnableSensorBBoxDetection    = GM->bEnableSensorBBoxDetection;
+	}
+
+	UGameplayStatics::SaveGameToSlot(Save, SyntheticDataSaveSlotName, /*UserIndex=*/0);
 }

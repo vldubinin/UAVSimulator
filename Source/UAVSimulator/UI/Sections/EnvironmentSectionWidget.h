@@ -54,10 +54,14 @@ protected:
 private:
 	void SyncFromWorld();
 	void ApplyTerrainSurfaceState(bool bEnabled);
+	void LoadAndApplySavedSettings();
+	void SaveCurrentSettings();
 
 	ACesiumGeoreference* GetGeoreference() const;
 	ACesiumSunSky*       GetSunSky() const;
 	ACesium3DTileset*    GetTileset() const;
+
+	static const FString EnvironmentSaveSlotName;
 
 	UFUNCTION() void OnOriginLatitudeCommitted(float Value, ETextCommit::Type CommitType);
 	UFUNCTION() void OnOriginLongitudeCommitted(float Value, ETextCommit::Type CommitType);
