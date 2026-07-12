@@ -8,6 +8,11 @@ THIRD_PARTY_INCLUDES_START
 #include <zmq.hpp>
 THIRD_PARTY_INCLUDES_END
 
+// zmq.hpp drags in <windows.h> -> <wingdi.h>, which #defines OPAQUE.
+// That clashes with CesiumGltf::Material's `static const std::string OPAQUE`
+// member when both end up in the same unity translation unit.
+#undef OPAQUE
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ZMQ state — defined here so zmq.hpp never leaks into the header
 // ─────────────────────────────────────────────────────────────────────────────

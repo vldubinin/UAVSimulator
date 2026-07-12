@@ -25,7 +25,10 @@
       "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\\\\Source\\\\UAVSimulator\" -Directory | ForEach-Object { $_.Name })",
       "Bash(dir /a)",
       "Bash(git -C \"/c/Users/DubakusPC/Documents/Unreal Projects/UAVSimulator\" status --porcelain=1 --ignored=matching -- CLAUDE.md)",
-      "Bash(git -C \"/c/Users/DubakusPC/Documents/Unreal Projects/UAVSimulator\" log --all --oneline -- CLAUDE.md)"
+      "Bash(git -C \"/c/Users/DubakusPC/Documents/Unreal Projects/UAVSimulator\" log --all --oneline -- CLAUDE.md)",
+      "Bash(\"/c/Program Files/Epic Games/UE_5.7/Engine/Build/BatchFiles/Build.bat\" UAVSimulatorEditor Win64 Development -Project=\"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\\\\UAVSimulator.uproject\" -WaitMutex -FromMsBuild -architecture=x64)",
+      "Bash(\"C:\\\\Program Files\\\\Epic Games\\\\UE_5.7\\\\Engine\\\\Build\\\\BatchFiles\\\\Build.bat\" UAVSimulatorEditor Win64 Development -Project=\"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\\\\UAVSimulator.uproject\" -WaitMutex -FromMsBuild -architecture=x64)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Epic Games\\\\UE_5.7\\\\Engine\\\\Build\\\\BatchFiles\\\\Build.bat\" UAVSimulatorEditor Win64 Development -Project=\"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\\\\UAVSimulator.uproject\" -WaitMutex -FromMsBuild -architecture=x64 2>&1 | Select-Object -Last 250)"
     ]
   }
 }
