@@ -1,12 +1,14 @@
 #include "CesiumSurroundingsScannerComponent.h"
 #include "UAVSimulator/UAVSimulator.h"
 #include "UAVSimulator/Util/SensorUtilityLibrary.h"
+#include "UAVSimulator/Components/UAVCameraComponent.h"
 
 #include "CesiumMetadataPickingBlueprintLibrary.h"
 #include "CesiumMetadataValue.h"
 
 #include "GameFramework/Actor.h"
 #include "Components/PrimitiveComponent.h"
+#include "Components/SceneCaptureComponent2D.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -14,6 +16,17 @@
 UCesiumSurroundingsScannerComponent::UCesiumSurroundingsScannerComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
+}
+
+void UCesiumSurroundingsScannerComponent::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (AActor* Owner = GetOwner())
+	{
+		CameraComponent        = Owner->FindComponentByClass<UUAVCameraComponent>();
+		SceneCaptureComponent  = Owner->FindComponentByClass<USceneCaptureComponent2D>();
+	}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -30,6 +43,46 @@ void UCesiumSurroundingsScannerComponent::TickComponent(float DeltaTime, ELevelT
 	{
 		ScanAccumulator -= ScanInterval;
 		Scan();
+	}
+
+	LogBuildingsInCameraFrame();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Per-frame camera-frustum filter over the (periodically refreshed) scan cache.
+// ─────────────────────────────────────────────────────────────────────────────
+
+void UCesiumSurroundingsScannerComponent::LogBuildingsInCameraFrame() const
+{
+	if (!CameraComponent || !SceneCaptureComponent) return;
+
+	const FTransform CameraTransform = SceneCaptureComponent->GetComponentTransform();
+	const FVector     CameraLocation = CameraTransform.GetLocation();
+	const float       HalfHFovRad    = FMath::DegreesToRadians(CameraComponent->HorizontalFOVDeg * 0.5f);
+	const float       HalfVFovRad    = FMath::DegreesToRadians(CameraComponent->VerticalFOVDeg * 0.5f);
+
+	for (const FCesiumSurroundingObject& Obj : LatestScanResults)
+	{
+		const FVector ToObject = (Obj.HitLocationMeters * 100.0) - CameraLocation;
+		if (ToObject.IsNearlyZero()) continue;
+
+		const FVector LocalDir = CameraTransform.InverseTransformVectorNoScale(ToObject.GetSafeNormal());
+		if (LocalDir.X <= 0.0f) continue; // за спиною камери
+
+		const float HorizontalAngleRad = FMath::Atan2(LocalDir.Y, LocalDir.X);
+		const float VerticalAngleRad   = FMath::Atan2(LocalDir.Z, LocalDir.X);
+		if (FMath::Abs(HorizontalAngleRad) > HalfHFovRad || FMath::Abs(VerticalAngleRad) > HalfVFovRad)
+			continue;
+
+		FString MetadataLine;
+		for (const TPair<FString, FString>& Pair : Obj.Metadata)
+		{
+			if (!MetadataLine.IsEmpty()) MetadataLine += TEXT(", ");
+			MetadataLine += FString::Printf(TEXT("%s=%s"), *Pair.Key, *Pair.Value);
+		}
+
+		UE_LOG(LogUAV, Log, TEXT("CesiumSurroundingsScanner: у кадрі — %s (%s) — %.1f м: %s"),
+			*Obj.ActorName, *Obj.ComponentName, Obj.DistanceMeters, *MetadataLine);
 	}
 }
 

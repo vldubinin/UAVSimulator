@@ -7,6 +7,9 @@
 #include "UAVSimulator/Structure/CesiumSurroundingObject.h"
 #include "CesiumSurroundingsScannerComponent.generated.h"
 
+class UUAVCameraComponent;
+class USceneCaptureComponent2D;
+
 /**
  * Sweeps ray traces around the owning actor (same spherical pattern as ULidarComponent,
  * via USensorUtilityLibrary::FindActors) and, for every hit that lands on a Cesium 3D
@@ -19,6 +22,13 @@
  * Implements IUAVSensorInterface — SensorBusComponent auto-discovers this component and
  * calls GetLatestFrame() each bus tick to retrieve the scan results as a JSON-encoded
  * payload on the "cesium_surroundings" topic.
+ *
+ * Every tick (independent of ScanRate), it also cheaply tests each cached scan result's
+ * hit location against the owner's UUAVCameraComponent FOV cone and prints the metadata
+ * of whichever ones currently fall inside the camera's view to the console. The
+ * (comparatively expensive) ray sweep that builds the candidate list still only runs at
+ * ScanRate Hz — real-world Cesium features are static, so re-testing already-known
+ * positions against the moving camera each frame is enough to know what's in frame now.
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API UCesiumSurroundingsScannerComponent : public UActorComponent, public IUAVSensorInterface
@@ -29,6 +39,11 @@ public:
 	UCesiumSurroundingsScannerComponent();
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
+protected:
+	virtual void BeginPlay() override;
+
+public:
 
 	// ── IUAVSensorInterface ───────────────────────────────────────────────────
 	virtual FString GetSensorTopic() const override { return TEXT("cesium_surroundings"); }
@@ -83,6 +98,15 @@ public:
 
 private:
 	FString SerializeResults(const TArray<FCesiumSurroundingObject>& Results) const;
+
+	/** Tests LatestScanResults against the camera's FOV cone and logs whichever hits currently fall inside it. */
+	void LogBuildingsInCameraFrame() const;
+
+	UPROPERTY()
+	UUAVCameraComponent* CameraComponent = nullptr;
+
+	UPROPERTY()
+	USceneCaptureComponent2D* SceneCaptureComponent = nullptr;
 
 	float  ScanAccumulator     = 0.0f;
 	double LatestScanTimestamp = 0.0; // world time when Scan() last completed
