@@ -22,7 +22,10 @@
       "Bash(dir C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Python\\\\Khai\\\\result\\\\Cessna_172_C_1\\\\vis *)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\" -Recurse -Filter \"*BBoxDetection*\")",
       "Bash(Select-Object FullName)",
-      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\\\\Source\\\\UAVSimulator\" -Directory | ForEach-Object { $_.Name })"
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\\\\Source\\\\UAVSimulator\" -Directory | ForEach-Object { $_.Name })",
+      "Bash(dir /a)",
+      "Bash(git -C \"/c/Users/DubakusPC/Documents/Unreal Projects/UAVSimulator\" status --porcelain=1 --ignored=matching -- CLAUDE.md)",
+      "Bash(git -C \"/c/Users/DubakusPC/Documents/Unreal Projects/UAVSimulator\" log --all --oneline -- CLAUDE.md)"
     ]
   }
 }

@@ -2,9 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**Вся комунікація з користувачем має вестися українською мовою.** Це стосується всіх повідомлень, пояснень і відповідей у чаті — незалежно від мови, якою написаний код чи коментарі в ньому.
+
 ## Project Overview
 
-Unreal Engine 5.7 UAV (Unmanned Aerial Vehicle) flight dynamics simulator. Written in C++ with a custom aerodynamics engine, computer vision pipeline (OpenCV), geospatial mapping (Cesium), and integration with external aerodynamic analysis tools (XFoil, SU2, OpenVSP).
+Unreal Engine 5.7 UAV (Unmanned Aerial Vehicle) flight dynamics simulator. Written in C++ with a custom aerodynamics engine, computer vision pipeline (OpenCV), geospatial mapping (Cesium), a ZeroMQ sensor telemetry bus, ML training-data generators, and integration with external aerodynamic analysis tools (XFoil, SU2, OpenVSP).
 
 ## Build System
 
@@ -17,11 +19,11 @@ Unreal Engine 5.7 UAV (Unmanned Aerial Vehicle) flight dynamics simulator. Writt
 - Then build from VS or use Unreal's Live Coding (Ctrl+Alt+F11)
 
 **Module dependencies** (defined in `Source/UAVSimulator/UAVSimulator.Build.cs`):
-- Public: Core, CoreUObject, Engine, InputCore, AirfoilImporter, RenderCore, RHI, OpenCVHelper, OpenCV, Niagara
-- Private: AssetTools, UnrealEd, PythonScriptPlugin
+- Public: Core, CoreUObject, Engine, InputCore, AirfoilImporter, RenderCore, RHI, OpenCVHelper, OpenCV, Niagara, UMG, ZeroMQ, ImageWrapper, Json
+- Private: AssetTools, UnrealEd, PythonScriptPlugin, CesiumRuntime, Slate, SlateCore
 - Code optimization is intentionally disabled (`OptimizeCode = CodeOptimization.Never`)
 
-**Active plugins:** PythonScriptPlugin, EditorScriptingUtilities, RawInput, OpenCV, CesiumForUnreal, custom `AirfoilImporter`
+**Active plugins:** PythonScriptPlugin, EditorScriptingUtilities, RawInput, OpenCV, CesiumForUnreal, VisualStudioTools, custom `AirfoilImporter`, custom `Unreal5ZeroMQ` (`Plugins/Unreal5ZeroMQ`)
 
 ## Architecture
 
@@ -31,6 +33,8 @@ Unreal Engine 5.7 UAV (Unmanned Aerial Vehicle) flight dynamics simulator. Writt
 
 - **`UFlightDynamicsComponent`** — all aerodynamics, physics forces, vortex wake, engine thrust
 - **`UUAVCameraComponent`** — onboard OpenCV camera (is a `UActorComponent`, not a `USceneComponent`; cannot be attached to a scene hierarchy)
+
+`AAirplane::GetCameraOutputTexture()` exposes `UUAVCameraComponent::OutputTexture` for UI/sensor consumers.
 
 ### Aerodynamic Surface Hierarchy
 
@@ -69,7 +73,7 @@ Getters backed by `UUAVPhysicsStateComponent` (updated at the top of each tick):
 - `GetAllVortexPositions()` — flat array of `CurrentWorldCoP` from all sub-surfaces
 - `GetAllVortexGammas()` — flat array of `CurrentGamma` from all sub-surfaces
 
-These are only valid after `UFlightDynamicsComponent` has ticked in the current frame. Any component that reads them must call `AddTickPrerequisiteComponent(DynamicsComp)` in `BeginPlay`.
+These are only valid after `UFlightDynamicsComponent` has ticked in the current frame. Any component that reads them must call `AddTickPrerequisiteComponent(DynamicsComp)` in `BeginPlay`. `AttitudeControlComponent` is the one component that *writes* into this API (see below) rather than reading it — it drives `UpdateAileronControl/UpdateElevatorControl/UpdateRudderControl/UpdateThrottleControl` directly.
 
 ### VFX Architecture
 
@@ -79,7 +83,7 @@ These are only valid after `UFlightDynamicsComponent` has ticked in the current 
 - Every `AAirplane` subscribes to this delegate in `BeginPlay` and calls `RefreshVisualEffects()`, which calls `UAerodynamicSurfaceSC::SetNiagaraActive(bool)` on each surface component.
 - `UpdateVisualSettings()` is called *after* all actors are spawned and possessed so every airplane has already subscribed.
 
-**`UAeroVisualizerComponent`** (`Components/AeroVisualizerComponent.h/cpp`) is a `USceneComponent` that drives a single Niagara wake-vortex effect per surface:
+**`UAeroVisualizerComponent`** (`SceneComponent/AeroVisualizer/AeroVisualizerComponent.h/cpp`) is a `USceneComponent` that drives a single Niagara wake-vortex effect per surface:
 1. **Eager spawn** — Niagara spawns unconditionally in `BeginPlay` (activation is gated by `SetNiagaraActive` at the surface level, not by this component).
 2. **Coordinate conversion** — `GetLeftWingtipWorldPosition()` returns a world-space point, which is converted to actor-local space via `GetActorTransform().InverseTransformPosition(...)` before being pushed to Niagara.
 3. **Per-tick push** — `VortexLocalPosition` (FVector) and `Intensity` (AoA float) via `SetVariableVec3` / `SetVariableFloat`.
@@ -111,6 +115,30 @@ The GameMode calls `UpdateVisualSettings()` after all actors are spawned and pos
 
 `FAerodynamicForce` holds `PositionalForce` (lift + drag) and `RotationalForce` (torque + r × F). Dynamic pressure = `0.5 * ρ * V²`. Forces are computed in Newtons and converted to Unreal internal units (`kg·cm/s²`) via `NewtonsToKiloCentimeter` before being applied to the mesh.
 
+### Sensor Bus (ZeroMQ telemetry)
+
+A parallel, opt-in sensor system publishes UAV telemetry over ZeroMQ for external consumers (e.g. ground-control / ML tooling), independent of the aerodynamics/VFX systems above.
+
+- **`IUAVSensorInterface`** (`Interfaces/UAVSensorInterface.h`) — the contract any sensor component implements: `GetSensorTopic()`, `GetLatestFrame(FSensorFrame&)`, plus a `bSensorEnabled` gate.
+- **`FSensorFrame`** (`Structure/SensorFrame.h`) — wire struct: `Topic` (FString), `Payload` (`TArray<uint8>`, pre-serialized JSON/bytes), `Timestamp` (double).
+- **`USensorBusComponent`** (`Components/SensorBusComponent.h`) — auto-discovers all `IUAVSensorInterface` components on its owning actor (or an explicit list), polls each at `BusRate` Hz, and publishes one ZMQ PUB multipart message (JSON envelope + N raw payload parts) on `Endpoint` (default `tcp://*:5555`).
+- **Concrete sensors**: `AltimeterComponent` (actor Z altitude), `CameraAltitudeComponent`/`CameraInclinationComponent` (read the camera's `USceneCaptureComponent2D` transform), `LidarComponent` (spherical raycast sweep via `SensorUtilityLibrary::FindActors`), `BBoxDetectionComponent`/`KeyPointDetectionComponent` (same ray-sweep pattern, project bounding boxes/`UKeyPointComponent` positions to screen space), `DronePositionComponent` (world position in metres), `CameraFrameComponent`/`SegmentationMaskCameraComponent` (thin adapters forwarding `UUAVCameraComponent`'s RGB output / segmentation mask onto `"camera"`/`"segmentation_mask"` topics).
+- **`AttitudeControlComponent`** is the inverse direction: a ZMQ PULL command receiver that parses `SET_ATTITUDE_TARGET` JSON, runs P-controllers on roll/pitch/yaw-rate, and writes into `UFlightDynamicsComponent`'s control-surface API. It requires a sibling `UFlightDynamicsComponent` (found via `FindComponentByClass` in `BeginPlay`) and disables its own tick if absent.
+- **`UKeyPointComponent`** (`SceneComponent/KeyPoint/KeyPointComponent.h`) is a plain `USceneComponent` with a `PointID` FString, hand-placed in Blueprint on the airframe to mark physical landmarks (nose, wingtip, etc.). It is *not* part of the aerodynamic surface hierarchy — it's consumed by `KeyPointDetectionComponent` (runtime) and `DroneKeyPointDatasetActor` (offline export).
+
+`r.CustomDepth=3` (`Config/DefaultEngine.ini`) is enabled to support the segmentation-mask render pipeline.
+
+### ML Dataset Generation (editor-only)
+
+Two `CallInEditor` tool actors under `DatasetGen/` generate offline training data by spawning a drone Blueprint and driving a `USceneCaptureComponent2D` — they are not part of the runtime simulation:
+
+- **`ADroneDatasetGeneratorActor`** — orbits the capture component over an azimuth/elevation sphere, renders with a show-only list (no post-process dependency), and uses OpenCV (Otsu threshold, morphological close/open, `approxPolyDP`) to extract a silhouette polygon per frame; writes JSON + optional debug PNGs.
+- **`ADroneKeyPointDatasetActor`** — spawns the drone Blueprint, reads all `UKeyPointComponent` local positions, normalizes to [-1,1], and exports JSON with a `scale_cm` factor for recovery.
+
+### Simulator Menu UI
+
+`USimulatorMenuWidget` (`UI/SimulatorMenuWidget.h/cpp`) is the top-level UMG menu: nav buttons (bound via `BindWidget`) drive a `UWidgetSwitcher` between section panels. `EMenuSection` (`Entity/MenuSection.h`) enumerates `Scenario`, `Sensors`, `Environment`, `SyntheticData`. Each panel derives from the abstract `USimulatorSectionWidget` (`OnSectionActivated`/`OnSectionDeactivated` `BlueprintNativeEvent`s), e.g. `UScenarioSectionWidget`, `UEnvironmentSectionWidget` (binds to Cesium `Georeference`/`SunSky`/`Tileset`), `USyntheticDataSectionWidget` (binds to the `DatasetGen` actors), `UDronesSectionWidget` (Blueprint-only content). `UCameraViewWidget` just holds an `AAirplane*` reference via `SetAirplane()` — the actual texture binding to `GetCameraOutputTexture()` happens in the UMG Blueprint, not in native code.
+
 ### Aerodynamic Data Pipeline
 
 **XFoil path** (fast, 2D panel method):
@@ -127,7 +155,7 @@ The GameMode calls `UpdateVisualSettings()` after all actors are spawned and pos
 **Common final step:** Import `.dat` files into Unreal via the custom **AirfoilImporter** plugin → becomes a `DataTable` of `FAerodynamicProfileRow` (CL/CD/Cm curves keyed by flap angle)
 
 ### Computer Vision
-`UUAVCameraComponent` (in `Components/`) manages the onboard camera: owns `USceneCaptureComponent2D` (640×480, B8G8R8A8), runs OpenCV processing each frame (flip + text overlay), exposes `UTexture2D* OutputTexture`. It is a `UActorComponent`, not a `USceneComponent` — it has no transform and cannot be placed in the scene hierarchy.
+`UUAVCameraComponent` (in `Components/`) manages the onboard camera: owns `USceneCaptureComponent2D` (640×480, B8G8R8A8), runs OpenCV processing each frame (flip + text overlay), exposes `UTexture2D* OutputTexture` plus a `MaskRenderTarget`/`MaskPostProcessMaterial` pair for segmentation output. It is a `UActorComponent`, not a `USceneComponent` — it has no transform and cannot be placed in the scene hierarchy. `CameraFrameComponent` and `SegmentationMaskCameraComponent` wrap it to publish onto the sensor bus.
 
 ### Utility Class Responsibilities
 
@@ -141,6 +169,7 @@ The GameMode calls `UpdateVisualSettings()` after all actors are spawned and pos
 | `ControlInputMapper` | Maps normalized input [-1,1] to flap deflection angles; resolves per-`EFlapType` with mirror support |
 | `CoordinateTransformUtil` | Local-to-world coordinate conversion for positions and `FChord` objects |
 | `AerodynamicDebugRenderer` | Viewport visualizations: surface outlines, splines, flap hinges, force arrows, labels |
+| `SensorUtilityLibrary` | Ray-sweep actor detection (`FindActors`) shared by Lidar/BBox/KeyPoint detection sensors |
 | `TextUtil` | `RemoveAfterSymbol` strips the last occurrence of a delimiter and everything after it |
 
 ### Key Files
@@ -149,19 +178,28 @@ The GameMode calls `UpdateVisualSettings()` after all actors are spawned and pos
 |------|------|
 | `Actor/Airplane.h/cpp` | Main aircraft pawn; owns `FlightDynamicsComponent` and `UAVCameraComponent`; `RefreshVisualEffects()` toggles VFX per role |
 | `Components/FlightDynamicsComponent.h/cpp` | All aerodynamics, physics forces, vortex wake |
-| `Components/AeroVisualizerComponent.h/cpp` | Niagara wake-vortex VFX: spawns in BeginPlay, pushes wingtip position + AoA each tick |
+| `SceneComponent/AeroVisualizer/AeroVisualizerComponent.h/cpp` | Niagara wake-vortex VFX: spawns in BeginPlay, pushes wingtip position + AoA each tick |
 | `Subsystem/UAVSimulationSubsystem.h/cpp` | World subsystem; holds VFX enable flags, broadcasts `OnVisualSettingsChanged` |
 | `Components/UAVPhysicsStateComponent.h/cpp` | Per-tick physics state cache; call `Update()` before reading |
 | `Components/FlightPlaybackComponent.h/cpp` | Interpolated playback of recorded `FFlightFrame` data; disables physics/dynamics on owner |
 | `Components/FlightRecorderComponent.h/cpp` | Records flight frames to `UFlightScenarioSave` save game |
 | `Components/UAVCameraComponent.h/cpp` | Onboard camera + OpenCV processing (`UActorComponent`, no scene transform) |
+| `Components/SensorBusComponent.h` | Discovers `IUAVSensorInterface` components on the owner and publishes `FSensorFrame`s over ZMQ PUB |
+| `Components/AttitudeControlComponent.h/cpp` | ZMQ PULL command receiver; P-controllers driving `FlightDynamicsComponent` control surfaces |
+| `Interfaces/UAVSensorInterface.h` | Contract implemented by all sensor components (Altimeter, Lidar, BBox/KeyPoint detection, camera adapters, etc.) |
+| `DatasetGen/DroneDatasetGeneratorActor.h/cpp` | Editor tool: orbit-capture + OpenCV silhouette extraction for ML bounding-shape datasets |
+| `DatasetGen/DroneKeyPointDatasetActor.h/cpp` | Editor tool: exports normalized `UKeyPointComponent` positions for ML keypoint datasets |
+| `UI/SimulatorMenuWidget.h/cpp` | Top-level UMG menu; switches between `Scenario`/`Sensors`/`Environment`/`SyntheticData` section widgets |
 | `SceneComponent/AerodynamicSurface/AerodynamicSurfaceSC.h/cpp` | Per-surface force aggregation; builds and owns `USubAerodynamicSurfaceSC` children |
 | `SceneComponent/SubAerodynamicSurface/SubAerodynamicSurfaceSC.h/cpp` | Per-segment forces, DataTable lookup; exposes `CurrentWorldCoP` and `CurrentGamma` |
 | `SceneComponent/ControlSurface/ControlSurfaceSC.h/cpp` | Deflectable control surfaces |
+| `SceneComponent/KeyPoint/KeyPointComponent.h/cpp` | Hand-placed landmark marker (`PointID`) on the airframe, used by detection sensor + dataset export |
 | `UAVSimulatorGameModeBase.h/cpp` | Simulator mode dispatch: `RecordTarget` vs `PlaybackAndTrack` |
 | `Structure/AerodynamicSurfaceStructure.h` | `FAerodynamicSurfaceStructure` USTRUCT: chord size, offsets, flap range, DataTable ref, `EFlapType` |
+| `Structure/SensorFrame.h` | `FSensorFrame` wire struct (Topic/Payload/Timestamp) used by the sensor bus |
 | `Entity/VortexEntities.h` | `FBoundVortex` and `FTrailingVortexNode` structs for vortex wake |
 | `Plugins/AirfoilImporter/` | Custom editor plugin: `.dat` → DataTable factory |
+| `Plugins/Unreal5ZeroMQ/` | Custom plugin wrapping libzmq for the sensor bus / attitude-control link |
 
 ## Physics Configuration
 
@@ -181,3 +219,4 @@ Simulation speed can be scaled at runtime via `DebugSimulatorSpeed` on `UFlightD
 - The large file `Saved/Cesium/...` (SQLite cache ~305 MB) is geospatial tile cache — do not commit.
 - `APawn` does not initialize a `RootComponent` by default. When adding `USceneComponent` subobjects to `AAirplane` or any `APawn` subclass, always create an explicit root first (`CreateDefaultSubobject<USceneComponent>(TEXT("DefaultRoot"))`, assign to `RootComponent`) before calling `SetupAttachment`.
 - `GEngine->AddOnScreenDebugMessage` requires the `Key` argument to be explicitly cast to `uint64` to avoid overload ambiguity in UE5: use `(uint64)GetOwner()->GetUniqueID()` or `(uint64)-1`.
+- `r.CustomDepth=3` is set for the segmentation-mask camera pipeline — do not revert it while `SegmentationMaskCameraComponent` is in use.
