@@ -42,6 +42,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 public:
 
@@ -96,17 +97,40 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings", meta = (ClampMin = 0))
 	int64 FeatureIDSetIndex = 0;
 
+	// ── Markers ────────────────────────────────────────────────────────────────
+
+	/** Spawn a marker actor at every scanned object's world position. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Markers")
+	bool bSpawnMarkers = true;
+
+	/** Actor class to spawn as a marker. If unset, a small default sphere marker is used. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Markers")
+	TSubclassOf<AActor> MarkerClass;
+
+	/** Uniform scale applied to the default sphere marker (ignored when MarkerClass is set). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Markers", meta = (ClampMin = 0.01f))
+	float MarkerScale = 1.0f;
+
 private:
 	FString SerializeResults(const TArray<FCesiumSurroundingObject>& Results) const;
 
 	/** Tests LatestScanResults against the camera's FOV cone and logs whichever hits currently fall inside it. */
 	void LogBuildingsInCameraFrame() const;
 
+	/** Destroys all actors spawned by a previous scan. */
+	void ClearMarkers();
+
+	/** Spawns MarkerClass (or a default sphere) at the given world location and tracks it for later cleanup. */
+	void SpawnMarkerAt(const FVector& WorldLocation);
+
 	UPROPERTY()
 	UUAVCameraComponent* CameraComponent = nullptr;
 
 	UPROPERTY()
 	USceneCaptureComponent2D* SceneCaptureComponent = nullptr;
+
+	UPROPERTY()
+	TArray<AActor*> SpawnedMarkers;
 
 	float  ScanAccumulator     = 0.0f;
 	double LatestScanTimestamp = 0.0; // world time when Scan() last completed
