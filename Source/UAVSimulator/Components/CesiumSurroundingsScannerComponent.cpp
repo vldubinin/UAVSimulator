@@ -110,6 +110,24 @@ TArray<FHitResult> UCesiumSurroundingsScannerComponent::SweepScan(const FTransfo
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Feature identity — same actor/component + identical metadata means "same feature",
+// used both to merge duplicate hits within a scan and as the ObjectStorage key.
+// ─────────────────────────────────────────────────────────────────────────────
+
+FString UCesiumSurroundingsScannerComponent::BuildFeatureKey(const FCesiumSurroundingObject& Entry)
+{
+	FString Key = Entry.ActorName + TEXT("|") + Entry.ComponentName;
+
+	TArray<FString> MetadataKeys;
+	Entry.Metadata.GetKeys(MetadataKeys);
+	MetadataKeys.Sort();
+	for (const FString& MetaKey : MetadataKeys)
+		Key += TEXT("|") + MetaKey + TEXT("=") + Entry.Metadata[MetaKey];
+
+	return Key;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Merge — collapses multiple hits on the same feature (same actor/component and
 // identical metadata) into a single entry, averaging their hit locations.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -127,13 +145,7 @@ TArray<FCesiumSurroundingObject> UCesiumSurroundingsScannerComponent::MergeDupli
 
 	for (const FCesiumSurroundingObject& Raw : RawEntries)
 	{
-		FString Key = Raw.ActorName + TEXT("|") + Raw.ComponentName;
-
-		TArray<FString> MetadataKeys;
-		Raw.Metadata.GetKeys(MetadataKeys);
-		MetadataKeys.Sort();
-		for (const FString& MetaKey : MetadataKeys)
-			Key += TEXT("|") + MetaKey + TEXT("=") + Raw.Metadata[MetaKey];
+		const FString Key = BuildFeatureKey(Raw);
 
 		if (FMergeAccumulator* Existing = Accumulators.Find(Key))
 		{
@@ -163,18 +175,47 @@ TArray<FCesiumSurroundingObject> UCesiumSurroundingsScannerComponent::MergeDupli
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Scan — runs SweepScan, then reads the Cesium property table of every hit
-// feature via GetPropertyTableValuesFromHit, merges duplicate hits on the same
-// feature, logs each merged feature, and draws a debug ray to it.
+// ObjectStorage — the only two operations that mutate it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+void UCesiumSurroundingsScannerComponent::AddObject(const FString& Key, const FCesiumSurroundingObject& Entry)
+{
+	ObjectStorage.Add(Key, Entry);
+
+	FString MetadataLine;
+	for (const TPair<FString, FString>& Pair : Entry.Metadata)
+	{
+		if (!MetadataLine.IsEmpty()) MetadataLine += TEXT(", ");
+		MetadataLine += FString::Printf(TEXT("%s=%s"), *Pair.Key, *Pair.Value);
+	}
+
+	const AActor* Owner = GetOwner();
+	UE_LOG(LogUAV, Log, TEXT("CesiumSurroundingsScanner: у полі зору з'явився %s (%s) — %.1f м від %s: %s"),
+		*Entry.ActorName, *Entry.ComponentName, Entry.DistanceMeters, Owner ? *Owner->GetName() : TEXT("?"), *MetadataLine);
+}
+
+void UCesiumSurroundingsScannerComponent::RemoveObject(const FString& Key)
+{
+	ObjectStorage.Remove(Key);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scan — runs SweepScan, reads the Cesium property table of every hit feature via
+// GetPropertyTableValuesFromHit, merges duplicate hits on the same feature, then
+// reconciles the result against ObjectStorage: newly-visible features are added,
+// features no longer visible are removed, and features still visible are left
+// untouched. LatestScanResults and the debug rays are driven from ObjectStorage.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Scan()
 {
-	LatestScanResults.Reset();
-
 	UWorld* World = GetWorld();
 	AActor* Owner = GetOwner();
-	if (!World || !Owner || !CameraComponent || !SceneCaptureComponent) return LatestScanResults;
+	if (!World || !Owner || !CameraComponent || !SceneCaptureComponent)
+	{
+		LatestScanResults.Reset();
+		return LatestScanResults;
+	}
 
 	const TArray<FHitResult> Hits = SweepScan(SceneCaptureComponent->GetComponentTransform(), Owner);
 
@@ -207,24 +248,42 @@ const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Sca
 		RawEntries.Add(MoveTemp(Entry));
 	}
 
-	for (FCesiumSurroundingObject& Entry : MergeDuplicateHits(RawEntries))
-	{
-		FString MetadataLine;
-		for (const TPair<FString, FString>& Pair : Entry.Metadata)
-		{
-			if (!MetadataLine.IsEmpty()) MetadataLine += TEXT(", ");
-			MetadataLine += FString::Printf(TEXT("%s=%s"), *Pair.Key, *Pair.Value);
-		}
+	const TArray<FCesiumSurroundingObject> CurrentlyVisible = MergeDuplicateHits(RawEntries);
 
-		UE_LOG(LogUAV, Log, TEXT("CesiumSurroundingsScanner: %s і (%s) — %.1f м від %s: %s"),
-			*Entry.ActorName, *Entry.ComponentName, Entry.DistanceMeters, *Owner->GetName(), *MetadataLine);
+	// Reconcile: add whatever just became visible (skip anything already stored — its data
+	// stays frozen), then remove whatever dropped out of view.
+	TSet<FString> CurrentKeys;
+	CurrentKeys.Reserve(CurrentlyVisible.Num());
+	for (const FCesiumSurroundingObject& Entry : CurrentlyVisible)
+	{
+		FString Key = BuildFeatureKey(Entry);
+		CurrentKeys.Add(Key);
+		if (!ObjectStorage.Contains(Key))
+			AddObject(Key, Entry);
+	}
+
+	TArray<FString> KeysNoLongerVisible;
+	for (const TPair<FString, FCesiumSurroundingObject>& Pair : ObjectStorage)
+	{
+		if (!CurrentKeys.Contains(Pair.Key))
+			KeysNoLongerVisible.Add(Pair.Key);
+	}
+	for (const FString& Key : KeysNoLongerVisible)
+		RemoveObject(Key);
+
+	// Rays and LatestScanResults reflect ObjectStorage's frozen data, not this scan's fresh hits.
+	LatestScanResults.Reset();
+	LatestScanResults.Reserve(ObjectStorage.Num());
+	for (const TPair<FString, FCesiumSurroundingObject>& Pair : ObjectStorage)
+	{
+		const FCesiumSurroundingObject& Entry = Pair.Value;
 
 		// Ray to the scanned feature — same visualization technique (line trace + "Draw
 		// Debug Type: For Duration") the Cesium metadata-picking tutorial uses. Drawn from the
 		// camera (the actual sweep origin), not the owner's actor origin.
 		DrawDebugLine(World, SceneCaptureComponent->GetComponentLocation(), Entry.HitLocationMeters * 100.0, RayDebugColor, false, RayDebugDuration);
 
-		LatestScanResults.Add(MoveTemp(Entry));
+		LatestScanResults.Add(Entry);
 	}
 
 	return LatestScanResults;

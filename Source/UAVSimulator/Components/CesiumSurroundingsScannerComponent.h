@@ -21,10 +21,19 @@ class USceneCaptureComponent2D;
  * https://cesium.com/learn/unreal/unreal-visualize-metadata — reads that feature's metadata
  * (e.g. Longitude/Latitude/Height) via
  * UCesiumMetadataPickingBlueprintLibrary::GetPropertyTableValuesFromHit. Hits that land on
- * the same feature are merged into a single entry, logged to the console, and a debug ray
- * is drawn from the owner to each merged feature — the same line-trace-with-"Draw Debug
- * Type: For Duration" visualization used to pick a feature at
- * https://cesium.com/learn/unreal/unreal-visualize-metadata/.
+ * the same feature are merged into a single entry per scan.
+ *
+ * Merged entries are then reconciled against ObjectStorage, a persistent map of currently-
+ * visible features:
+ *   1. ObjectStorage only ever holds features that are visible right now.
+ *   2. A feature already in storage is left untouched while it stays visible — its data is
+ *      frozen to whatever it was first seen with, even if a later scan's hit differs slightly.
+ *   3. ObjectStorage is only ever mutated through AddObject() (a newly-visible feature) and
+ *      RemoveObject() (a feature that dropped out of view).
+ *   4. Everything downstream — the console log and the debug rays (same line-trace-with-
+ *      "Draw Debug Type: For Duration" visualization used to pick a feature at
+ *      https://cesium.com/learn/unreal/unreal-visualize-metadata/) — is driven from
+ *      ObjectStorage, not from the fresh per-scan sweep result.
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API UCesiumSurroundingsScannerComponent : public UActorComponent
@@ -41,15 +50,15 @@ protected:
 
 public:
 	/**
-	 * Runs a scan immediately on the game thread, updates LatestScanResults, prints the
-	 * metadata of every merged feature to the console, and returns a reference to
-	 * LatestScanResults. Called automatically by TickComponent at ScanRate Hz; can also
-	 * be triggered directly from Blueprint.
+	 * Runs a scan immediately on the game thread, reconciles ObjectStorage against what's
+	 * currently visible (adding newly-seen features, removing ones no longer in view), updates
+	 * LatestScanResults from ObjectStorage, and returns a reference to it. Called automatically
+	 * by TickComponent at ScanRate Hz; can also be triggered directly from Blueprint.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Cesium Surroundings")
 	const TArray<FCesiumSurroundingObject>& Scan();
 
-	/** Most recent scan results (hits on the same feature already merged into one entry). */
+	/** Mirrors ObjectStorage — every feature currently visible, each with its frozen first-seen data. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cesium Surroundings")
 	TArray<FCesiumSurroundingObject> LatestScanResults;
 
@@ -119,9 +128,18 @@ private:
 	 * on the same building's facade) since the property table only distinguishes features, not
 	 * individual triangles. Collapses entries that share the same actor/component and identical
 	 * metadata into a single entry, averaging their hit locations and keeping the closest
-	 * distance, so each building produces one log line/ray instead of several.
+	 * distance, so each building produces one storage entry instead of several.
 	 */
 	static TArray<FCesiumSurroundingObject> MergeDuplicateHits(const TArray<FCesiumSurroundingObject>& RawEntries);
+
+	/** Stable identity for a feature — same actor/component + identical metadata — used as its ObjectStorage key. */
+	static FString BuildFeatureKey(const FCesiumSurroundingObject& Entry);
+
+	/** ObjectStorage operation 1/2: registers a newly-visible feature and logs its discovery. */
+	void AddObject(const FString& Key, const FCesiumSurroundingObject& Entry);
+
+	/** ObjectStorage operation 2/2: forgets a feature once it's no longer visible. */
+	void RemoveObject(const FString& Key);
 
 	/** Owner's onboard camera — supplies HorizontalFOVDeg/VerticalFOVDeg for the scan grid. */
 	UPROPERTY()
@@ -130,6 +148,13 @@ private:
 	/** Owner's scene capture — supplies the transform (position + orientation) the scan is swept from. */
 	UPROPERTY()
 	USceneCaptureComponent2D* SceneCaptureComponent = nullptr;
+
+	/**
+	 * Persistent storage of currently-visible features, keyed by BuildFeatureKey(). Only ever
+	 * mutated via AddObject()/RemoveObject() — see class docs. LatestScanResults, the console
+	 * log, and the debug rays are all driven from this, not from the raw per-scan sweep result.
+	 */
+	TMap<FString, FCesiumSurroundingObject> ObjectStorage;
 
 	float ScanAccumulator = 0.0f;
 };
