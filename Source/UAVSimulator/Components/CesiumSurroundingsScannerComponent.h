@@ -11,13 +11,18 @@ class UUAVCameraComponent;
 class USceneCaptureComponent2D;
 
 /**
- * Sweeps ray traces around the owning actor (same spherical pattern as ULidarComponent,
- * via USensorUtilityLibrary::FindActors) and, for every hit that lands on a Cesium 3D
+ * Sweeps a small sphere (SweepMultiByChannel) along a downward-facing cone of directions
+ * centered on the owning actor's nadir (straight down) — same angular pattern as
+ * ULidarComponent, but a thick swept sphere per direction instead of a zero-width line
+ * trace, so gaps between the radially-diverging rays no longer let objects slip through at
+ * long range. For every hit that lands on a Cesium 3D
  * Tiles feature carrying a property table — set up on the tileset's
  * CesiumFeaturesMetadataComponent per https://cesium.com/learn/unreal/unreal-visualize-metadata —
  * reads that feature's metadata (e.g. Longitude/Latitude/Height) via
  * UCesiumMetadataPickingBlueprintLibrary::GetPropertyTableValuesFromHit and prints it to
- * the console.
+ * the console. Also draws a debug ray from the owner to each scanned feature — the same
+ * line-trace-with-"Draw Debug Type: For Duration" visualization used to pick a feature at
+ * https://cesium.com/learn/unreal/unreal-visualize-metadata/.
  *
  * Implements IUAVSensorInterface — SensorBusComponent auto-discovers this component and
  * calls GetLatestFrame() each bus tick to retrieve the scan results as a JSON-encoded
@@ -77,7 +82,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings", meta = (ClampMin = 1))
 	int32 VerticalLayers = 8;
 
-	/** Total vertical field of view in degrees, symmetric around the horizontal plane. */
+	/** Total angle (deg) of the downward-facing scan cone, centered on straight-down (nadir). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings", meta = (ClampMin = 1.0f, ClampMax = 180.0f))
 	float VerticalFOVDeg = 90.0f;
 
@@ -85,9 +90,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings", meta = (ClampMin = 0.01f, ClampMax = 100.0f))
 	float ScanRate = 1.0f;
 
-	/** Collision channel used for the ray traces. */
+	/** Collision channel used for the sweeps. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings")
 	TEnumAsByte<ECollisionChannel> CollisionChannel = ECC_Visibility;
+
+	/**
+	 * Radius (cm) of the sphere swept along each ray direction. Gives each ray thickness so
+	 * objects between two angularly-adjacent rays aren't missed at long range — raise this if
+	 * a full lidar-style sweep still leaves gaps, lower it to reduce duplicate/overlapping hits.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings", meta = (ClampMin = 1.0f))
+	float SweepRadius = 100.0f;
 
 	/**
 	 * Which feature ID set to read on a hit primitive (index into the primitive's
@@ -111,7 +124,26 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Markers", meta = (ClampMin = 0.01f))
 	float MarkerScale = 1.0f;
 
+	// ── Debug rays ─────────────────────────────────────────────────────────────
+
+	/** Color of the debug ray drawn from the owner to each scanned feature. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Debug")
+	FColor RayDebugColor = FColor::Yellow;
+
+	/** How long (s) each ray stays visible — mirrors the tutorial's "Draw Debug Type: For Duration". */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Debug", meta = (ClampMin = 0.0f))
+	float RayDebugDuration = 1.0f;
+
 private:
+	/**
+	 * Sweeps a sphere (SweepRadius) along each direction of the HorizontalRays x VerticalLayers
+	 * angular fan, out to ScanRadiusMeters. The vertical layers span VerticalFOVDeg centered on
+	 * nadir (straight down), so the whole fan forms a downward-facing cone rather than a band
+	 * around the horizon. Returns every hit from every sweep (a single direction can return
+	 * multiple overlapping hits, same as SweepMultiByChannel normally does).
+	 */
+	TArray<FHitResult> SweepScan(const FTransform& OriginTransform, AActor* ActorToIgnore) const;
+
 	FString SerializeResults(const TArray<FCesiumSurroundingObject>& Results) const;
 
 	/** Tests LatestScanResults against the camera's FOV cone and logs whichever hits currently fall inside it. */

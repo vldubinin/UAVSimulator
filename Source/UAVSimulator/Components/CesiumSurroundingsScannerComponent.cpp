@@ -1,6 +1,5 @@
 #include "CesiumSurroundingsScannerComponent.h"
 #include "UAVSimulator/UAVSimulator.h"
-#include "UAVSimulator/Util/SensorUtilityLibrary.h"
 #include "UAVSimulator/Components/UAVCameraComponent.h"
 
 #include "CesiumMetadataPickingBlueprintLibrary.h"
@@ -13,6 +12,8 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
+#include "DrawDebugHelpers.h"
+#include "CollisionShape.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -140,8 +141,73 @@ void UCesiumSurroundingsScannerComponent::SpawnMarkerAt(const FVector& WorldLoca
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Scan — spherical ray sweep (USensorUtilityLibrary::FindActors), then reads the
-// Cesium property table of every hit feature via GetPropertyTableValuesFromHit.
+// Sweep scan — same radial fan of directions as a lidar sweep, but each direction
+// sweeps a sphere (SweepMultiByChannel) instead of a zero-width line trace, so
+// gaps between angularly-adjacent rays don't let objects slip through at range.
+// The vertical layers span VerticalFOVDeg centered on nadir (straight down), so
+// the fan forms a downward-facing cone instead of a band around the horizon.
+// ─────────────────────────────────────────────────────────────────────────────
+
+TArray<FHitResult> UCesiumSurroundingsScannerComponent::SweepScan(const FTransform& OriginTransform, AActor* ActorToIgnore) const
+{
+	TArray<FHitResult> ScanResults;
+
+	UWorld* World = GetWorld();
+	if (!World) return ScanResults;
+
+	const FVector Origin = OriginTransform.GetLocation();
+
+	FCollisionQueryParams QueryParams;
+	if (ActorToIgnore) QueryParams.AddIgnoredActor(ActorToIgnore);
+	// bTraceComplex=true is required here: FHitResult::FaceIndex (needed by
+	// GetPropertyTableValuesFromHit to resolve a non-instanced feature's ID) is
+	// only populated for complex-collision hits — simple collision shapes have
+	// no per-triangle mapping to the tileset's visual mesh and always report -1.
+	QueryParams.bTraceComplex    = true;
+	QueryParams.bReturnFaceIndex = true;
+
+	const FCollisionShape SweepShape = FCollisionShape::MakeSphere(SweepRadius);
+	const float Range = ScanRadiusMeters * 100.0f;
+	const float HStep = 360.0f / FMath::Max(HorizontalRays, 1);
+
+	// Center the vertical fan on nadir (-90°, straight down) instead of the horizon, so the
+	// whole sweep forms a downward-facing cone.
+	constexpr float NadirDeg = -90.0f;
+
+	for (int32 V = 0; V < VerticalLayers; ++V)
+	{
+		float VerticalAngle = NadirDeg;
+		if (VerticalLayers > 1)
+			VerticalAngle = NadirDeg + (-VerticalFOVDeg * 0.5f) + V * (VerticalFOVDeg / (VerticalLayers - 1));
+
+		const float VAngleRad = FMath::DegreesToRadians(VerticalAngle);
+		const float CosV = FMath::Cos(VAngleRad);
+		const float SinV = FMath::Sin(VAngleRad);
+
+		for (int32 H = 0; H < HorizontalRays; ++H)
+		{
+			const float HAngleRad = FMath::DegreesToRadians(H * HStep);
+
+			const FVector LocalDir(CosV * FMath::Cos(HAngleRad), CosV * FMath::Sin(HAngleRad), SinV);
+			const FVector WorldDir = OriginTransform.TransformVectorNoScale(LocalDir);
+
+			TArray<FHitResult> Hits;
+			World->SweepMultiByChannel(Hits, Origin, Origin + WorldDir * Range, FQuat::Identity,
+				CollisionChannel, SweepShape, QueryParams);
+
+			for (FHitResult& Hit : Hits)
+			{
+				if (Hit.GetActor()) ScanResults.Add(Hit);
+			}
+		}
+	}
+
+	return ScanResults;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scan — runs SweepScan, then reads the Cesium property table of every hit
+// feature via GetPropertyTableValuesFromHit.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Scan()
@@ -155,20 +221,7 @@ const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Sca
 
 	LatestScanTimestamp = World->GetTimeSeconds();
 
-	// bTraceComplex=true is required here: FHitResult::FaceIndex (needed by
-	// GetPropertyTableValuesFromHit to resolve a non-instanced feature's ID) is
-	// only populated for complex-collision hits — simple collision shapes have
-	// no per-triangle mapping to the tileset's visual mesh and always report -1.
-	const TArray<FHitResult> Hits = USensorUtilityLibrary::FindActors(
-		this,
-		Owner->GetActorTransform(),
-		Owner,
-		ScanRadiusMeters * 100.0f,
-		HorizontalRays,
-		VerticalLayers,
-		VerticalFOVDeg,
-		CollisionChannel,
-		true);
+	const TArray<FHitResult> Hits = SweepScan(Owner->GetActorTransform(), Owner);
 
 	for (const FHitResult& Hit : Hits)
 	{
@@ -204,6 +257,10 @@ const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Sca
 
 		UE_LOG(LogUAV, Log, TEXT("CesiumSurroundingsScanner: %s і (%s) — %.1f м від %s: %s"),
 			*Entry.ActorName, *Entry.ComponentName, Entry.DistanceMeters, *Owner->GetName(), *MetadataLine);
+
+		// Ray to the scanned feature — same visualization technique (line trace + "Draw
+		// Debug Type: For Duration") the Cesium metadata-picking tutorial uses.
+		DrawDebugLine(World, Owner->GetActorLocation(), Entry.HitLocationMeters * 100.0, RayDebugColor, false, RayDebugDuration);
 
 		if (bSpawnMarkers) SpawnMarkerAt(Entry.HitLocationMeters * 100.0);
 

@@ -34,7 +34,9 @@
       "PowerShell(& \"C:\\\\Program Files\\\\Epic Games\\\\UE_5.7\\\\Engine\\\\Build\\\\BatchFiles\\\\Build.bat\" UAVSimulatorEditor Win64 Development -Project=\"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\\\\UAVSimulator.uproject\" -WaitMutex)",
       "WebFetch(domain:cesium.com)",
       "Read(//c/Program Files/Epic Games/**)",
-      "PowerShell(& \"C:\\\\Program Files\\\\Epic Games\\\\UE_5.7\\\\Engine\\\\Build\\\\BatchFiles\\\\Build.bat\" UAVSimulatorEditor Win64 Development -project=\"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\\\\UAVSimulator.uproject\" -progress 2>&1 | Select-Object -Last 200)"
+      "PowerShell(& \"C:\\\\Program Files\\\\Epic Games\\\\UE_5.7\\\\Engine\\\\Build\\\\BatchFiles\\\\Build.bat\" UAVSimulatorEditor Win64 Development -project=\"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\\\\UAVSimulator.uproject\" -progress 2>&1 | Select-Object -Last 200)",
+      "Bash(find 'C:\\\\Users\\\\DubakusPC/AppData' -maxdepth 6 -iname *cesium*)",
+      "Bash(git checkout *)"
     ]
   }
 }
