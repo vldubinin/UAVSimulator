@@ -1,43 +1,18 @@
 #include "CesiumSurroundingsScannerComponent.h"
 #include "UAVSimulator/UAVSimulator.h"
-#include "UAVSimulator/Components/UAVCameraComponent.h"
 
 #include "CesiumMetadataPickingBlueprintLibrary.h"
 #include "CesiumMetadataValue.h"
 
 #include "GameFramework/Actor.h"
 #include "Components/PrimitiveComponent.h"
-#include "Components/SceneCaptureComponent2D.h"
-#include "Components/StaticMeshComponent.h"
-#include "Engine/StaticMesh.h"
-#include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
 #include "DrawDebugHelpers.h"
 #include "CollisionShape.h"
-#include "Dom/JsonObject.h"
-#include "Serialization/JsonSerializer.h"
-#include "Serialization/JsonWriter.h"
 
 UCesiumSurroundingsScannerComponent::UCesiumSurroundingsScannerComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
-}
-
-void UCesiumSurroundingsScannerComponent::BeginPlay()
-{
-	Super::BeginPlay();
-
-	if (AActor* Owner = GetOwner())
-	{
-		CameraComponent        = Owner->FindComponentByClass<UUAVCameraComponent>();
-		SceneCaptureComponent  = Owner->FindComponentByClass<USceneCaptureComponent2D>();
-	}
-}
-
-void UCesiumSurroundingsScannerComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
-{
-	ClearMarkers();
-	Super::EndPlay(EndPlayReason);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -55,89 +30,6 @@ void UCesiumSurroundingsScannerComponent::TickComponent(float DeltaTime, ELevelT
 		ScanAccumulator -= ScanInterval;
 		Scan();
 	}
-
-	LogBuildingsInCameraFrame();
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Per-frame camera-frustum filter over the (periodically refreshed) scan cache.
-// ─────────────────────────────────────────────────────────────────────────────
-
-void UCesiumSurroundingsScannerComponent::LogBuildingsInCameraFrame() const
-{
-	if (!CameraComponent || !SceneCaptureComponent) return;
-
-	const FTransform CameraTransform = SceneCaptureComponent->GetComponentTransform();
-	const FVector     CameraLocation = CameraTransform.GetLocation();
-	const float       HalfHFovRad    = FMath::DegreesToRadians(CameraComponent->HorizontalFOVDeg * 0.5f);
-	const float       HalfVFovRad    = FMath::DegreesToRadians(CameraComponent->VerticalFOVDeg * 0.5f);
-
-	for (const FCesiumSurroundingObject& Obj : LatestScanResults)
-	{
-		const FVector ToObject = (Obj.HitLocationMeters * 100.0) - CameraLocation;
-		if (ToObject.IsNearlyZero()) continue;
-
-		const FVector LocalDir = CameraTransform.InverseTransformVectorNoScale(ToObject.GetSafeNormal());
-		if (LocalDir.X <= 0.0f) continue; // за спиною камери
-
-		const float HorizontalAngleRad = FMath::Atan2(LocalDir.Y, LocalDir.X);
-		const float VerticalAngleRad   = FMath::Atan2(LocalDir.Z, LocalDir.X);
-		if (FMath::Abs(HorizontalAngleRad) > HalfHFovRad || FMath::Abs(VerticalAngleRad) > HalfVFovRad)
-			continue;
-
-		FString MetadataLine;
-		for (const TPair<FString, FString>& Pair : Obj.Metadata)
-		{
-			if (!MetadataLine.IsEmpty()) MetadataLine += TEXT(", ");
-			MetadataLine += FString::Printf(TEXT("%s=%s"), *Pair.Key, *Pair.Value);
-		}
-
-		UE_LOG(LogUAV, Log, TEXT("CesiumSurroundingsScanner: у кадрі — %s (%s) — %.1f м: %s"),
-			*Obj.ActorName, *Obj.ComponentName, Obj.DistanceMeters, *MetadataLine);
-	}
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Markers — one actor per scanned object, respawned fresh on every Scan().
-// ─────────────────────────────────────────────────────────────────────────────
-
-void UCesiumSurroundingsScannerComponent::ClearMarkers()
-{
-	for (AActor* Marker : SpawnedMarkers)
-	{
-		if (IsValid(Marker)) Marker->Destroy();
-	}
-	SpawnedMarkers.Reset();
-}
-
-void UCesiumSurroundingsScannerComponent::SpawnMarkerAt(const FVector& WorldLocation)
-{
-	UWorld* World = GetWorld();
-	if (!World) return;
-
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-	if (MarkerClass)
-	{
-		if (AActor* Marker = World->SpawnActor<AActor>(MarkerClass, WorldLocation, FRotator::ZeroRotator, SpawnParams))
-			SpawnedMarkers.Add(Marker);
-		return;
-	}
-
-	// No MarkerClass assigned — fall back to a plain sphere so this works without any setup.
-	AStaticMeshActor* Marker = World->SpawnActor<AStaticMeshActor>(WorldLocation, FRotator::ZeroRotator, SpawnParams);
-	if (!Marker) return;
-
-	Marker->SetMobility(EComponentMobility::Movable);
-	if (UStaticMeshComponent* MeshComp = Marker->GetStaticMeshComponent())
-	{
-		static UStaticMesh* SphereMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
-		MeshComp->SetStaticMesh(SphereMesh);
-		MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		MeshComp->SetWorldScale3D(FVector(MarkerScale));
-	}
-	SpawnedMarkers.Add(Marker);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -206,23 +98,75 @@ TArray<FHitResult> UCesiumSurroundingsScannerComponent::SweepScan(const FTransfo
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Merge — collapses multiple hits on the same feature (same actor/component and
+// identical metadata) into a single entry, averaging their hit locations.
+// ─────────────────────────────────────────────────────────────────────────────
+
+TArray<FCesiumSurroundingObject> UCesiumSurroundingsScannerComponent::MergeDuplicateHits(const TArray<FCesiumSurroundingObject>& RawEntries)
+{
+	struct FMergeAccumulator
+	{
+		FCesiumSurroundingObject Entry;
+		FVector LocationSum = FVector::ZeroVector;
+		int32   Count       = 0;
+	};
+
+	TMap<FString, FMergeAccumulator> Accumulators;
+
+	for (const FCesiumSurroundingObject& Raw : RawEntries)
+	{
+		FString Key = Raw.ActorName + TEXT("|") + Raw.ComponentName;
+
+		TArray<FString> MetadataKeys;
+		Raw.Metadata.GetKeys(MetadataKeys);
+		MetadataKeys.Sort();
+		for (const FString& MetaKey : MetadataKeys)
+			Key += TEXT("|") + MetaKey + TEXT("=") + Raw.Metadata[MetaKey];
+
+		if (FMergeAccumulator* Existing = Accumulators.Find(Key))
+		{
+			Existing->LocationSum += Raw.HitLocationMeters;
+			Existing->Count       += 1;
+			Existing->Entry.DistanceMeters = FMath::Min(Existing->Entry.DistanceMeters, Raw.DistanceMeters);
+		}
+		else
+		{
+			FMergeAccumulator NewAccumulator;
+			NewAccumulator.Entry       = Raw;
+			NewAccumulator.LocationSum = Raw.HitLocationMeters;
+			NewAccumulator.Count       = 1;
+			Accumulators.Add(Key, MoveTemp(NewAccumulator));
+		}
+	}
+
+	TArray<FCesiumSurroundingObject> Merged;
+	Merged.Reserve(Accumulators.Num());
+	for (TPair<FString, FMergeAccumulator>& Pair : Accumulators)
+	{
+		Pair.Value.Entry.HitLocationMeters = Pair.Value.LocationSum / Pair.Value.Count;
+		Merged.Add(MoveTemp(Pair.Value.Entry));
+	}
+
+	return Merged;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Scan — runs SweepScan, then reads the Cesium property table of every hit
-// feature via GetPropertyTableValuesFromHit.
+// feature via GetPropertyTableValuesFromHit, merges duplicate hits on the same
+// feature, logs each merged feature, and draws a debug ray to it.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Scan()
 {
 	LatestScanResults.Reset();
-	ClearMarkers();
 
 	UWorld* World = GetWorld();
 	AActor* Owner = GetOwner();
 	if (!World || !Owner) return LatestScanResults;
 
-	LatestScanTimestamp = World->GetTimeSeconds();
-
 	const TArray<FHitResult> Hits = SweepScan(Owner->GetActorTransform(), Owner);
 
+	TArray<FCesiumSurroundingObject> RawEntries;
 	for (const FHitResult& Hit : Hits)
 	{
 		TMap<FString, FCesiumMetadataValue> Values =
@@ -248,6 +192,11 @@ const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Sca
 		}
 		if (Entry.Metadata.Num() == 0) continue; // жодної непорожньої властивості — не логуємо
 
+		RawEntries.Add(MoveTemp(Entry));
+	}
+
+	for (FCesiumSurroundingObject& Entry : MergeDuplicateHits(RawEntries))
+	{
 		FString MetadataLine;
 		for (const TPair<FString, FString>& Pair : Entry.Metadata)
 		{
@@ -262,63 +211,8 @@ const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Sca
 		// Debug Type: For Duration") the Cesium metadata-picking tutorial uses.
 		DrawDebugLine(World, Owner->GetActorLocation(), Entry.HitLocationMeters * 100.0, RayDebugColor, false, RayDebugDuration);
 
-		if (bSpawnMarkers) SpawnMarkerAt(Entry.HitLocationMeters * 100.0);
-
 		LatestScanResults.Add(MoveTemp(Entry));
 	}
 
 	return LatestScanResults;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// IUAVSensorInterface — called on game thread by SensorBusComponent
-// ─────────────────────────────────────────────────────────────────────────────
-
-bool UCesiumSurroundingsScannerComponent::GetLatestFrame(FSensorFrame& OutFrame)
-{
-	if (LatestScanResults.IsEmpty()) return false;
-
-	FString JsonString = SerializeResults(LatestScanResults);
-	FTCHARToUTF8 Utf8(*JsonString);
-
-	OutFrame.Topic     = GetSensorTopic();
-	OutFrame.Timestamp = LatestScanTimestamp;
-	OutFrame.Payload.Reset();
-	OutFrame.Payload.Append(reinterpret_cast<const uint8*>(Utf8.Get()), Utf8.Length());
-	return true;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// JSON serialization
-// ─────────────────────────────────────────────────────────────────────────────
-
-FString UCesiumSurroundingsScannerComponent::SerializeResults(const TArray<FCesiumSurroundingObject>& Results) const
-{
-	TArray<TSharedPtr<FJsonValue>> JsonArray;
-
-	for (const FCesiumSurroundingObject& Obj : Results)
-	{
-		TSharedRef<FJsonObject> JsonObj = MakeShared<FJsonObject>();
-		JsonObj->SetStringField(TEXT("actor"), Obj.ActorName);
-		JsonObj->SetStringField(TEXT("component"), Obj.ComponentName);
-		JsonObj->SetNumberField(TEXT("distance_m"), Obj.DistanceMeters);
-
-		TSharedRef<FJsonObject> Location = MakeShared<FJsonObject>();
-		Location->SetNumberField(TEXT("x_m"), Obj.HitLocationMeters.X);
-		Location->SetNumberField(TEXT("y_m"), Obj.HitLocationMeters.Y);
-		Location->SetNumberField(TEXT("z_m"), Obj.HitLocationMeters.Z);
-		JsonObj->SetObjectField(TEXT("hit_location"), Location);
-
-		TSharedRef<FJsonObject> Metadata = MakeShared<FJsonObject>();
-		for (const TPair<FString, FString>& Pair : Obj.Metadata)
-			Metadata->SetStringField(Pair.Key, Pair.Value);
-		JsonObj->SetObjectField(TEXT("metadata"), Metadata);
-
-		JsonArray.Add(MakeShared<FJsonValueObject>(JsonObj));
-	}
-
-	FString Out;
-	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
-	FJsonSerializer::Serialize(JsonArray, Writer);
-	return Out;
 }

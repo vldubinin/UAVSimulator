@@ -5,6 +5,8 @@
 #include "IImageWrapper.h"
 #include "IImageWrapperModule.h"
 #include "Modules/ModuleManager.h"
+#include "Engine/World.h"
+#include "Components/LineBatchComponent.h"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Minimal FRunnable wrapper
@@ -80,6 +82,21 @@ void UUAVCameraComponent::BeginPlay()
 	ComputeFOV(CaptureComponent->FOVAngle);
 	/* UE_LOG(LogUAV, Log, TEXT("UAVCameraComponent: Camera found on %s (HFOV=%.1f° VFOV=%.1f°)"),
 		*Owner->GetName(), HorizontalFOVDeg, VerticalFOVDeg); */
+
+	// Debug shapes (DrawDebugLine/Box/Sphere/...) render into the world's line-batch
+	// components, which are plain UPrimitiveComponents with no owning actor — a scene
+	// capture has no automatic way to exclude them, so any debug visualization drawn
+	// elsewhere (e.g. UCesiumSurroundingsScannerComponent's rays) would otherwise show up
+	// directly in this camera's feed. Explicitly hide all three line-batcher types.
+	if (UWorld* World = GetWorld())
+	{
+		if (ULineBatchComponent* LineBatcher = World->GetLineBatcher(UWorld::ELineBatcherType::World))
+			CaptureComponent->HideComponent(LineBatcher);
+		if (ULineBatchComponent* PersistentLineBatcher = World->GetLineBatcher(UWorld::ELineBatcherType::WorldPersistent))
+			CaptureComponent->HideComponent(PersistentLineBatcher);
+		if (ULineBatchComponent* ForegroundLineBatcher = World->GetLineBatcher(UWorld::ELineBatcherType::Foreground))
+			CaptureComponent->HideComponent(ForegroundLineBatcher);
+	}
 
 	// RGB render target
 	RenderTarget = NewObject<UTextureRenderTarget2D>();
