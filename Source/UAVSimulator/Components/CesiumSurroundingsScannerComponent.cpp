@@ -1,11 +1,13 @@
 #include "CesiumSurroundingsScannerComponent.h"
 #include "UAVSimulator/UAVSimulator.h"
+#include "UAVSimulator/Components/UAVCameraComponent.h"
 
 #include "CesiumMetadataPickingBlueprintLibrary.h"
 #include "CesiumMetadataValue.h"
 
 #include "GameFramework/Actor.h"
 #include "Components/PrimitiveComponent.h"
+#include "Components/SceneCaptureComponent2D.h"
 #include "Engine/World.h"
 #include "DrawDebugHelpers.h"
 #include "CollisionShape.h"
@@ -13,6 +15,17 @@
 UCesiumSurroundingsScannerComponent::UCesiumSurroundingsScannerComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
+}
+
+void UCesiumSurroundingsScannerComponent::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (AActor* Owner = GetOwner())
+	{
+		CameraComponent       = Owner->FindComponentByClass<UUAVCameraComponent>();
+		SceneCaptureComponent = Owner->FindComponentByClass<USceneCaptureComponent2D>();
+	}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -33,11 +46,10 @@ void UCesiumSurroundingsScannerComponent::TickComponent(float DeltaTime, ELevelT
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sweep scan — same radial fan of directions as a lidar sweep, but each direction
-// sweeps a sphere (SweepMultiByChannel) instead of a zero-width line trace, so
-// gaps between angularly-adjacent rays don't let objects slip through at range.
-// The vertical layers span VerticalFOVDeg centered on nadir (straight down), so
-// the fan forms a downward-facing cone instead of a band around the horizon.
+// Sweep scan — a HorizontalRays x VerticalLayers grid of directions spanning exactly the
+// camera's HorizontalFOVDeg x VerticalFOVDeg, each swept as a thick sphere
+// (SweepMultiByChannel) instead of a zero-width line trace so gaps between angularly-
+// adjacent rays don't let objects slip through at range.
 // ─────────────────────────────────────────────────────────────────────────────
 
 TArray<FHitResult> UCesiumSurroundingsScannerComponent::SweepScan(const FTransform& OriginTransform, AActor* ActorToIgnore) const
@@ -60,28 +72,28 @@ TArray<FHitResult> UCesiumSurroundingsScannerComponent::SweepScan(const FTransfo
 
 	const FCollisionShape SweepShape = FCollisionShape::MakeSphere(SweepRadius);
 	const float Range = ScanRadiusMeters * 100.0f;
-	const float HStep = 360.0f / FMath::Max(HorizontalRays, 1);
 
-	// Center the vertical fan on nadir (-90°, straight down) instead of the horizon, so the
-	// whole sweep forms a downward-facing cone.
-	constexpr float NadirDeg = -90.0f;
+	const float HalfHFovRad = FMath::DegreesToRadians(CameraComponent->HorizontalFOVDeg * 0.5f);
+	const float HalfVFovRad = FMath::DegreesToRadians(CameraComponent->VerticalFOVDeg * 0.5f);
 
 	for (int32 V = 0; V < VerticalLayers; ++V)
 	{
-		float VerticalAngle = NadirDeg;
+		float VAngleRad = 0.0f;
 		if (VerticalLayers > 1)
-			VerticalAngle = NadirDeg + (-VerticalFOVDeg * 0.5f) + V * (VerticalFOVDeg / (VerticalLayers - 1));
-
-		const float VAngleRad = FMath::DegreesToRadians(VerticalAngle);
-		const float CosV = FMath::Cos(VAngleRad);
-		const float SinV = FMath::Sin(VAngleRad);
+			VAngleRad = -HalfVFovRad + V * (2.0f * HalfVFovRad / (VerticalLayers - 1));
 
 		for (int32 H = 0; H < HorizontalRays; ++H)
 		{
-			const float HAngleRad = FMath::DegreesToRadians(H * HStep);
+			float HAngleRad = 0.0f;
+			if (HorizontalRays > 1)
+				HAngleRad = -HalfHFovRad + H * (2.0f * HalfHFovRad / (HorizontalRays - 1));
 
-			const FVector LocalDir(CosV * FMath::Cos(HAngleRad), CosV * FMath::Sin(HAngleRad), SinV);
-			const FVector WorldDir = OriginTransform.TransformVectorNoScale(LocalDir);
+			// Rectangular (perspective-projection) direction grid: atan2(Y,X) == HAngleRad and
+			// atan2(Z,X) == VAngleRad exactly after normalization, so every generated ray falls
+			// precisely inside the camera's frustum — the same independent horizontal/vertical
+			// angle test a perspective camera uses — with nothing outside it ever swept.
+			const FVector LocalDir(1.0f, FMath::Tan(HAngleRad), FMath::Tan(VAngleRad));
+			const FVector WorldDir = OriginTransform.TransformVectorNoScale(LocalDir).GetSafeNormal();
 
 			TArray<FHitResult> Hits;
 			World->SweepMultiByChannel(Hits, Origin, Origin + WorldDir * Range, FQuat::Identity,
@@ -162,9 +174,9 @@ const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Sca
 
 	UWorld* World = GetWorld();
 	AActor* Owner = GetOwner();
-	if (!World || !Owner) return LatestScanResults;
+	if (!World || !Owner || !CameraComponent || !SceneCaptureComponent) return LatestScanResults;
 
-	const TArray<FHitResult> Hits = SweepScan(Owner->GetActorTransform(), Owner);
+	const TArray<FHitResult> Hits = SweepScan(SceneCaptureComponent->GetComponentTransform(), Owner);
 
 	TArray<FCesiumSurroundingObject> RawEntries;
 	for (const FHitResult& Hit : Hits)
@@ -208,8 +220,9 @@ const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Sca
 			*Entry.ActorName, *Entry.ComponentName, Entry.DistanceMeters, *Owner->GetName(), *MetadataLine);
 
 		// Ray to the scanned feature — same visualization technique (line trace + "Draw
-		// Debug Type: For Duration") the Cesium metadata-picking tutorial uses.
-		DrawDebugLine(World, Owner->GetActorLocation(), Entry.HitLocationMeters * 100.0, RayDebugColor, false, RayDebugDuration);
+		// Debug Type: For Duration") the Cesium metadata-picking tutorial uses. Drawn from the
+		// camera (the actual sweep origin), not the owner's actor origin.
+		DrawDebugLine(World, SceneCaptureComponent->GetComponentLocation(), Entry.HitLocationMeters * 100.0, RayDebugColor, false, RayDebugDuration);
 
 		LatestScanResults.Add(MoveTemp(Entry));
 	}

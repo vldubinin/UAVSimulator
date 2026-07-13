@@ -6,13 +6,18 @@
 #include "UAVSimulator/Structure/CesiumSurroundingObject.h"
 #include "CesiumSurroundingsScannerComponent.generated.h"
 
+class UUAVCameraComponent;
+class USceneCaptureComponent2D;
+
 /**
- * Sweeps a small sphere (SweepMultiByChannel) along a downward-facing cone of directions
- * centered on the owning actor's nadir (straight down) — same angular pattern as
- * ULidarComponent, but a thick swept sphere per direction instead of a zero-width line
- * trace, so gaps between the radially-diverging rays no longer let objects slip through at
- * long range. For every hit that lands on a Cesium 3D Tiles feature carrying a property
- * table — set up on the tileset's CesiumFeaturesMetadataComponent per
+ * Sweeps a small sphere (SweepMultiByChannel) along a grid of directions spanning exactly
+ * the owning actor's onboard camera (UUAVCameraComponent/USceneCaptureComponent2D)
+ * horizontal/vertical field of view, from the camera's own transform — so the scan finds
+ * every Cesium object the camera can see and nothing outside its view. Each ray direction
+ * sweeps a thick sphere (SweepRadius) rather than a zero-width line trace, so gaps between
+ * angularly-adjacent rays don't let objects slip through at long range. For every hit that
+ * lands on a Cesium 3D Tiles feature carrying a property table — set up on the tileset's
+ * CesiumFeaturesMetadataComponent per
  * https://cesium.com/learn/unreal/unreal-visualize-metadata — reads that feature's metadata
  * (e.g. Longitude/Latitude/Height) via
  * UCesiumMetadataPickingBlueprintLibrary::GetPropertyTableValuesFromHit. Hits that land on
@@ -31,6 +36,10 @@ public:
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
+protected:
+	virtual void BeginPlay() override;
+
+public:
 	/**
 	 * Runs a scan immediately on the game thread, updates LatestScanResults, prints the
 	 * metadata of every merged feature to the console, and returns a reference to
@@ -50,17 +59,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings", meta = (ClampMin = 1.0f))
 	float ScanRadiusMeters = 10000.0f;
 
-	/** Number of rays distributed evenly over a full 360° horizontal sweep. */
+	/** Number of rays distributed evenly across the camera's horizontal FOV. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings", meta = (ClampMin = 1))
 	int32 HorizontalRays = 72;
 
-	/** Number of evenly-spaced vertical scan layers. */
+	/** Number of rays distributed evenly across the camera's vertical FOV. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings", meta = (ClampMin = 1))
 	int32 VerticalLayers = 8;
-
-	/** Total angle (deg) of the downward-facing scan cone, centered on straight-down (nadir). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings", meta = (ClampMin = 1.0f, ClampMax = 180.0f))
-	float VerticalFOVDeg = 90.0f;
 
 	/** How many full scans are performed per second. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings", meta = (ClampMin = 0.01f, ClampMax = 100.0f))
@@ -98,11 +103,14 @@ public:
 
 private:
 	/**
-	 * Sweeps a sphere (SweepRadius) along each direction of the HorizontalRays x VerticalLayers
-	 * angular fan, out to ScanRadiusMeters. The vertical layers span VerticalFOVDeg centered on
-	 * nadir (straight down), so the whole fan forms a downward-facing cone rather than a band
-	 * around the horizon. Returns every hit from every sweep (a single direction can return
-	 * multiple overlapping hits, same as SweepMultiByChannel normally does).
+	 * Sweeps a sphere (SweepRadius) along a HorizontalRays x VerticalLayers grid of directions
+	 * spanning exactly CameraComponent's HorizontalFOVDeg x VerticalFOVDeg, out to
+	 * ScanRadiusMeters, from OriginTransform (the camera's own transform — see Scan()). Each
+	 * direction is built so its horizontal/vertical angle relative to OriginTransform's forward
+	 * axis lands exactly inside [-HalfFOV, +HalfFOV] — the same rectangular-frustum test a
+	 * perspective camera uses — so nothing outside the camera's view is ever swept. Returns
+	 * every hit from every sweep (a single direction can return multiple overlapping hits, same
+	 * as SweepMultiByChannel normally does).
 	 */
 	TArray<FHitResult> SweepScan(const FTransform& OriginTransform, AActor* ActorToIgnore) const;
 
@@ -114,6 +122,14 @@ private:
 	 * distance, so each building produces one log line/ray instead of several.
 	 */
 	static TArray<FCesiumSurroundingObject> MergeDuplicateHits(const TArray<FCesiumSurroundingObject>& RawEntries);
+
+	/** Owner's onboard camera — supplies HorizontalFOVDeg/VerticalFOVDeg for the scan grid. */
+	UPROPERTY()
+	UUAVCameraComponent* CameraComponent = nullptr;
+
+	/** Owner's scene capture — supplies the transform (position + orientation) the scan is swept from. */
+	UPROPERTY()
+	USceneCaptureComponent2D* SceneCaptureComponent = nullptr;
 
 	float ScanAccumulator = 0.0f;
 };
