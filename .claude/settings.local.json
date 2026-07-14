@@ -38,7 +38,11 @@
       "Bash(find 'C:\\\\Users\\\\DubakusPC/AppData' -maxdepth 6 -iname *cesium*)",
       "Bash(git checkout *)",
       "Bash(\"/c/Program Files/Epic Games/UE_5.7/Engine/Build/BatchFiles/Build.bat\" UAVSimulatorEditor Win64 Development -Project=\"C:\\\\Users\\\\DubakusPC\\\\Documents\\\\Unreal Projects\\\\UAVSimulator\\\\UAVSimulator.uproject\" -WaitMutex -FromMsBuild)",
-      "Bash(echo \"EXIT:$?\")"
+      "Bash(echo \"EXIT:$?\")",
+      "Read(//c/Users/DubakusPC/Documents/Python/Khai/**)",
+      "Read(//c/Users/DubakusPC/Documents/Python/Khai/cesium_objects/**)",
+      "Bash(\"/c/Users/DubakusPC/Documents/Python/Khai/venv/Scripts/python.exe\" -m py_compile \"/c/Users/DubakusPC/Documents/Python/Khai/cesium_objects/record_cesium_objects.py\")",
+      "Bash(\"/c/Users/DubakusPC/Documents/Python/Khai/venv/Scripts/python.exe\" -m py_compile \"/c/Users/DubakusPC/Documents/Python/Khai/cesium_objects/visualize_cesium_objects.py\")"
     ]
   }
 }

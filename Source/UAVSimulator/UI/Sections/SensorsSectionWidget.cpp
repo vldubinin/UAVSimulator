@@ -19,6 +19,9 @@ void USensorsSectionWidget::NativeConstruct()
 	LidarCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnLidarChanged);
 	CameraAltitudeCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnCameraAltitude);
 	PositionCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnPositionChanged);
+
+	if (CesiumSurroundingsCB)
+		CesiumSurroundingsCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnCesiumSurroundingsChanged);
 }
 
 
@@ -38,6 +41,9 @@ void USensorsSectionWidget::SyncFromGameMode()
 	LidarCB->SetIsChecked(GM->bEnableSensorLidar);
 	CameraAltitudeCB->SetIsChecked(GM->bEnableSensorCameraAltitude);
 	PositionCB->SetIsChecked(GM->bEnableSensorPosition);
+
+	if (CesiumSurroundingsCB)
+		CesiumSurroundingsCB->SetIsChecked(GM->bEnableSensorCesiumSurroundings);
 }
 
 void USensorsSectionWidget::OnCameraFrameChanged(bool bIsChecked)
@@ -82,6 +88,13 @@ void USensorsSectionWidget::OnPositionChanged(bool bIsChecked)
 	SaveCurrentSettings();
 }
 
+void USensorsSectionWidget::OnCesiumSurroundingsChanged(bool bIsChecked)
+{
+	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
+		GM->bEnableSensorCesiumSurroundings = bIsChecked;
+	SaveCurrentSettings();
+}
+
 void USensorsSectionWidget::LoadAndApplySavedSettings()
 {
 	USensorSettingsSave* Save = Cast<USensorSettingsSave>(
@@ -99,6 +112,7 @@ void USensorsSectionWidget::LoadAndApplySavedSettings()
 	GM->bEnableSensorLidar             = Save->bEnableSensorLidar;
 	GM->bEnableSensorCameraAltitude    = Save->bEnableSensorCameraAltitude;
 	GM->bEnableSensorPosition          = Save->bEnableSensorPosition;
+	GM->bEnableSensorCesiumSurroundings = Save->bEnableSensorCesiumSurroundings;
 }
 
 void USensorsSectionWidget::SaveCurrentSettings()
@@ -116,6 +130,7 @@ void USensorsSectionWidget::SaveCurrentSettings()
 	Save->bEnableSensorLidar             = GM->bEnableSensorLidar;
 	Save->bEnableSensorCameraAltitude    = GM->bEnableSensorCameraAltitude;
 	Save->bEnableSensorPosition          = GM->bEnableSensorPosition;
+	Save->bEnableSensorCesiumSurroundings = GM->bEnableSensorCesiumSurroundings;
 
 	UGameplayStatics::SaveGameToSlot(Save, SensorSaveSlotName, /*UserIndex=*/0);
 }

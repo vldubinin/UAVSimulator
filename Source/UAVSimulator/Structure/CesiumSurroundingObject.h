@@ -14,6 +14,10 @@ struct UAVSIMULATOR_API FCesiumSurroundingObject
 {
 	GENERATED_BODY()
 
+	/** Stable identity for this feature (UCesiumSurroundingsScannerComponent::BuildFeatureKey), same across frames. */
+	UPROPERTY(BlueprintReadOnly, Category = "Cesium")
+	FString ObjectID;
+
 	UPROPERTY(BlueprintReadOnly, Category = "Cesium")
 	FString ActorName;
 

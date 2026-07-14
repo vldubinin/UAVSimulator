@@ -9,10 +9,16 @@
 #include "GameFramework/Actor.h"
 #include "Components/PrimitiveComponent.h"
 #include "Components/SceneCaptureComponent2D.h"
+#include "Engine/TextureRenderTarget2D.h"
 #include "Engine/World.h"
 #include "DrawDebugHelpers.h"
 #include "CollisionShape.h"
 #include "Kismet/GameplayStatics.h"
+#include "UAVSimulator/Structure/SensorFrame.h"
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
 
 UCesiumSurroundingsScannerComponent::UCesiumSurroundingsScannerComponent()
 {
@@ -40,14 +46,8 @@ void UCesiumSurroundingsScannerComponent::TickComponent(float DeltaTime, ELevelT
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	ScanAccumulator += DeltaTime;
-	/*const float ScanInterval = 1.0f / FMath::Max(ScanRate, 0.01f);
-	if (ScanAccumulator >= ScanInterval)
-	{
-		ScanAccumulator -= ScanInterval;
-		Scan();
-	}*/
 	Scan();
+	BuildSensorFrame();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -285,7 +285,9 @@ TArray<FCesiumSurroundingObject> UCesiumSurroundingsScannerComponent::MergeDupli
 
 void UCesiumSurroundingsScannerComponent::AddObject(const FString& Key, const FCesiumSurroundingObject& Entry)
 {
-	ObjectStorage.Add(Key, Entry);
+	FCesiumSurroundingObject StoredEntry = Entry;
+	StoredEntry.ObjectID                 = Key;
+	ObjectStorage.Add(Key, StoredEntry);
 
 	FString MetadataLine;
 	for (const TPair<FString, FString>& Pair : Entry.Metadata)
@@ -392,4 +394,143 @@ const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Sca
 	}
 
 	return LatestScanResults;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IUAVSensorInterface
+// ─────────────────────────────────────────────────────────────────────────────
+
+bool UCesiumSurroundingsScannerComponent::GetLatestFrame(FSensorFrame& OutFrame)
+{
+	if (!bHasFrame) return false;
+
+	OutFrame.Topic     = GetSensorTopic();
+	OutFrame.Timestamp = LatestTimestamp;
+	OutFrame.Payload   = LatestPayload;
+	return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sensor payload — one JSON object per currently-visible feature (ObjectStorage),
+// re-projected onto the camera every tick since the camera (not the static world
+// feature) is what moves. See BuildSensorFrame()'s header doc for the field list.
+// ─────────────────────────────────────────────────────────────────────────────
+
+void UCesiumSurroundingsScannerComponent::BuildSensorFrame()
+{
+	if (!bSensorEnabled || !SceneCaptureComponent)
+	{
+		bHasFrame = false;
+		return;
+	}
+
+	// UAVCameraComponent assigns TextureTarget in its own BeginPlay; re-read until valid.
+	if ((SensorSizeX <= 0 || SensorSizeY <= 0) && SceneCaptureComponent->TextureTarget)
+	{
+		SensorSizeX = SceneCaptureComponent->TextureTarget->SizeX;
+		SensorSizeY = SceneCaptureComponent->TextureTarget->SizeY;
+	}
+
+	TArray<TSharedPtr<FJsonValue>> ObjectsJson;
+	ObjectsJson.Reserve(ObjectStorage.Num());
+
+	for (const TPair<FString, FCesiumSurroundingObject>& Pair : ObjectStorage)
+	{
+		const FCesiumSurroundingObject& Entry = Pair.Value;
+
+		FString ObjID;
+		double Latitude  = 0.0;
+		double Longitude = 0.0;
+		double Altitude  = 0.0;
+		if (const FString* Found = Entry.Metadata.Find(ObjectPropertyName))  ObjID = *Found;
+		if (const FString* Found = Entry.Metadata.Find(LatitudePropertyName))  Latitude  = FCString::Atod(**Found);
+		if (const FString* Found = Entry.Metadata.Find(LongitudePropertyName)) Longitude = FCString::Atod(**Found);
+		if (const FString* Found = Entry.Metadata.Find(AltitudePropertyName))  Altitude  = FCString::Atod(**Found);
+
+		FVector2D ScreenPos;
+		const bool bVisible = ProjectWorldToScreen(Entry.HitLocationMeters * 100.0, ScreenPos);
+
+		TSharedRef<FJsonObject> ObjectJson = MakeShared<FJsonObject>();
+		ObjectJson->SetStringField(TEXT("id"),	      ObjID);
+		ObjectJson->SetNumberField(TEXT("latitude"),  Latitude);
+		ObjectJson->SetNumberField(TEXT("longitude"), Longitude);
+		ObjectJson->SetNumberField(TEXT("altitude"),  Altitude);
+		ObjectJson->SetNumberField(TEXT("pixel_x"),   bVisible ? ScreenPos.X : -1.0);
+		ObjectJson->SetNumberField(TEXT("pixel_y"),   bVisible ? ScreenPos.Y : -1.0);
+		ObjectJson->SetBoolField  (TEXT("visible"),   bVisible);
+		ObjectsJson.Add(MakeShared<FJsonValueObject>(ObjectJson));
+	}
+
+	TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+	Root->SetArrayField(TEXT("objects"), ObjectsJson);
+
+	FString Json;
+	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Json);
+	FJsonSerializer::Serialize(Root, Writer);
+
+	FTCHARToUTF8 JsonUtf8(*Json);
+	LatestPayload.Reset();
+	LatestPayload.Append(reinterpret_cast<const uint8*>(JsonUtf8.Get()), JsonUtf8.Length());
+	LatestTimestamp = GetWorld()->GetTimeSeconds();
+	bHasFrame       = true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Projection — identical view/projection setup to
+// UKeyPointDetectionComponent::ProjectWorldToScreen.
+// ─────────────────────────────────────────────────────────────────────────────
+
+bool UCesiumSurroundingsScannerComponent::ProjectWorldToScreen(const FVector& WorldPositionCm, FVector2D& OutScreenPos) const
+{
+	if (!SceneCaptureComponent || SensorSizeX <= 0 || SensorSizeY <= 0) return false;
+
+	const float AspectRatio = static_cast<float>(SensorSizeX) / static_cast<float>(SensorSizeY);
+
+	const FTransform CaptureTransform = SceneCaptureComponent->GetComponentTransform();
+	const FVector    ViewLocation     = CaptureTransform.GetLocation();
+	const FRotator   ViewRotation     = CaptureTransform.GetRotation().Rotator();
+
+	FMatrix ViewRotationMatrix = FInverseRotationMatrix(ViewRotation);
+	FMatrix ViewMatrix = FTranslationMatrix(-ViewLocation) * ViewRotationMatrix *
+		FMatrix(
+			FPlane(0, 0, 1, 0),
+			FPlane(1, 0, 0, 0),
+			FPlane(0, 1, 0, 0),
+			FPlane(0, 0, 0, 1)
+		);
+
+	FMatrix ProjectionMatrix;
+	if (SceneCaptureComponent->bUseCustomProjectionMatrix)
+	{
+		ProjectionMatrix = SceneCaptureComponent->CustomProjectionMatrix;
+	}
+	else if (SceneCaptureComponent->ProjectionType == ECameraProjectionMode::Perspective)
+	{
+		const float FOV = SceneCaptureComponent->FOVAngle * (float)PI / 360.0f;
+		ProjectionMatrix = FReversedZPerspectiveMatrix(FOV, AspectRatio, 1.0f, GNearClippingPlane);
+	}
+	else
+	{
+		const float OrthoWidth  = SceneCaptureComponent->OrthoWidth / 2.0f;
+		const float OrthoHeight = OrthoWidth / AspectRatio;
+		ProjectionMatrix = FReversedZOrthoMatrix(OrthoWidth, OrthoHeight, 0.5f / OrthoWidth, GNearClippingPlane);
+	}
+
+	const FMatrix  ViewProjectionMatrix = ViewMatrix * ProjectionMatrix;
+	const FVector4 Projected            = ViewProjectionMatrix.TransformFVector4(FVector4(WorldPositionCm, 1.f));
+
+	if (Projected.W <= 0.0f)
+	{
+		OutScreenPos = FVector2D::ZeroVector;
+		return false;
+	}
+
+	const float RHW     = 1.0f / Projected.W;
+	const float ScreenX = (Projected.X * RHW + 1.0f) * (SensorSizeX * 0.5f);
+	const float ScreenY = (1.0f - Projected.Y * RHW) * (SensorSizeY * 0.5f);
+
+	OutScreenPos = FVector2D(ScreenX, ScreenY);
+
+	return ScreenX >= 0.0f && ScreenX <= static_cast<float>(SensorSizeX) &&
+	       ScreenY >= 0.0f && ScreenY <= static_cast<float>(SensorSizeY);
 }

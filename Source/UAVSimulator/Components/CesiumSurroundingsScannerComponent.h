@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Engine/EngineTypes.h"
+#include "UAVSimulator/Interfaces/UAVSensorInterface.h"
 #include "UAVSimulator/Structure/CesiumSurroundingObject.h"
 #include "CesiumSurroundingsScannerComponent.generated.h"
 
@@ -38,7 +39,7 @@ class UPrimitiveComponent;
  *      ObjectStorage, not from the fresh per-scan sweep result.
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
-class UAVSIMULATOR_API UCesiumSurroundingsScannerComponent : public UActorComponent
+class UAVSIMULATOR_API UCesiumSurroundingsScannerComponent : public UActorComponent, public IUAVSensorInterface
 {
 	GENERATED_BODY()
 
@@ -46,6 +47,10 @@ public:
 	UCesiumSurroundingsScannerComponent();
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
+	// ── IUAVSensorInterface ───────────────────────────────────────────────────
+	virtual FString GetSensorTopic() const override { return TEXT("cesium_objects"); }
+	virtual bool GetLatestFrame(FSensorFrame& OutFrame) override;
 
 protected:
 	virtual void BeginPlay() override;
@@ -112,6 +117,25 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Debug", meta = (ClampMin = 0.0f))
 	float RayDebugDuration = 1.0f;
 
+	// ── Sensor output (IUAVSensorInterface) ────────────────────────────────────
+	// Property table key names read as lat/long/altitude. Configurable because different
+	// tilesets name these properties differently (e.g. "lat"/"lon" vs "Latitude"/"Longitude").
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Sensor")
+	FString ObjectPropertyName = TEXT("elementId");
+
+	/** Property table key read as the object's latitude (degrees). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Sensor")
+	FString LatitudePropertyName = TEXT("cesium#latitude");
+
+	/** Property table key read as the object's longitude (degrees). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Sensor")
+	FString LongitudePropertyName = TEXT("cesium#longitude");
+
+	/** Property table key read as the object's altitude/height (metres). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Sensor")
+	FString AltitudePropertyName = TEXT("Height");
+
 private:
 	/**
 	 * Sweeps a sphere (SweepRadius) along a HorizontalRays x VerticalLayers grid of directions
@@ -164,6 +188,25 @@ private:
 	/** ObjectStorage operation 2/2: forgets a feature once it's no longer visible. */
 	void RemoveObject(const FString& Key);
 
+	/**
+	 * Builds and caches this tick's IUAVSensorInterface JSON payload from ObjectStorage —
+	 * one object per currently-visible feature, each with a stable id, latitude/longitude/
+	 * altitude parsed out of Metadata (via LatitudePropertyName/LongitudePropertyName/
+	 * AltitudePropertyName), and pixel_x/pixel_y/visible from ProjectWorldToScreen. Called at
+	 * the end of TickComponent, after Scan(); does nothing (and drops the cached frame) while
+	 * bSensorEnabled is false.
+	 */
+	void BuildSensorFrame();
+
+	/**
+	 * Projects a single world-space point (Unreal cm) onto SceneCaptureComponent's render
+	 * target. Identical view/projection matrix setup to
+	 * UKeyPointDetectionComponent::ProjectWorldToScreen — see that implementation for the
+	 * behind-camera (W<=0) and in-bounds checks. Returns false (point not visible) if the
+	 * capture's render target size isn't known yet.
+	 */
+	bool ProjectWorldToScreen(const FVector& WorldPositionCm, FVector2D& OutScreenPos) const;
+
 	/** Owner's onboard camera — supplies HorizontalFOVDeg/VerticalFOVDeg for the scan grid. */
 	UPROPERTY()
 	UUAVCameraComponent* CameraComponent = nullptr;
@@ -186,4 +229,13 @@ private:
 	 * log, and the debug rays are all driven from this, not from the raw per-scan sweep result.
 	 */
 	TMap<FString, FCesiumSurroundingObject> ObjectStorage;
+
+	/** SceneCaptureComponent's render-target resolution — lazily read in BuildSensorFrame() since UAVCameraComponent assigns TextureTarget in its own BeginPlay. */
+	int32 SensorSizeX = 0;
+	int32 SensorSizeY = 0;
+
+	// Latest serialized IUAVSensorInterface frame — written and read on the game thread only.
+	TArray<uint8> LatestPayload;
+	double        LatestTimestamp = 0.0;
+	bool          bHasFrame       = false;
 };

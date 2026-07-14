@@ -33,6 +33,15 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UCheckBox> PositionCB;
 
+	/**
+	 * Optional — meta=(BindWidget) alone (without "optional") would normally require this
+	 * widget to exist in the paired UMG Blueprint at construction time. Until someone adds a
+	 * "CesiumSurroundingsCB" checkbox to that Blueprint in the UMG editor, this stays null;
+	 * every use below is guarded accordingly instead of assuming it's bound like the others.
+	 */
+	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
+	TObjectPtr<UCheckBox> CesiumSurroundingsCB;
+
 	virtual void OnSectionActivated_Implementation() override;
 
 private:
@@ -48,6 +57,7 @@ private:
 	UFUNCTION() void OnLidarChanged(bool bIsChecked);
 	UFUNCTION() void OnCameraAltitude(bool bIsChecked);
 	UFUNCTION() void OnPositionChanged(bool bIsChecked);
+	UFUNCTION() void OnCesiumSurroundingsChanged(bool bIsChecked);
 
 	static const FString SensorSaveSlotName;
 };

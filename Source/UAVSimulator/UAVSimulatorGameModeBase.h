@@ -81,6 +81,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
 	bool bEnableSensorPosition = false;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
+	bool bEnableSensorCesiumSurroundings = false;
+
 	/** Pushes sensor enable flags to UUAVSimulationSubsystem and broadcasts to all airplanes. */
 	UFUNCTION(BlueprintCallable, Category = "Simulation|Sensors")
 	void UpdateSensorSettings();
