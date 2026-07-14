@@ -27,16 +27,20 @@ class UPrimitiveComponent;
  * the same feature are merged into a single entry per scan.
  *
  * Merged entries are then reconciled against ObjectStorage, a persistent map of currently-
- * visible features:
- *   1. ObjectStorage only ever holds features that are visible right now.
- *   2. A feature already in storage is left untouched while it stays visible — its data is
- *      frozen to whatever it was first seen with, even if a later scan's hit differs slightly.
- *   3. ObjectStorage is only ever mutated through AddObject() (a newly-visible feature) and
- *      RemoveObject() (a feature that dropped out of view).
- *   4. Everything downstream — the console log and the debug rays (same line-trace-with-
- *      "Draw Debug Type: For Duration" visualization used to pick a feature at
- *      https://cesium.com/learn/unreal/unreal-visualize-metadata/) — is driven from
- *      ObjectStorage, not from the fresh per-scan sweep result.
+ * tracked features:
+ *   1. A feature already in storage is left untouched while it keeps getting hit — its data
+ *      is frozen to whatever it was first seen with, even if a later scan's hit differs slightly.
+ *   2. A feature that this scan's sweep didn't hit (e.g. a momentary gap between rays, or the
+ *      feature occluded behind something else) is NOT dropped immediately: its frozen world
+ *      position is re-projected onto the camera, and it is kept in storage — still "reproduced" —
+ *      for as long as that projection lands inside the camera's screen bounds. Only once its
+ *      frozen position would actually fall outside the frame (or behind the camera) is it removed.
+ *   3. ObjectStorage is only ever mutated through AddObject() (a newly-seen feature) and
+ *      RemoveObject() (a feature whose frozen position has left the frame).
+ *   4. Everything downstream — the console log and the debug rays (one ray per tracked
+ *      feature, redrawn every tick from the airplane's current position, same picking
+ *      technique as https://cesium.com/learn/unreal/unreal-visualize-metadata/) — is driven
+ *      from ObjectStorage, not from the fresh per-scan sweep result.
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API UCesiumSurroundingsScannerComponent : public UActorComponent, public IUAVSensorInterface
@@ -109,13 +113,9 @@ public:
 
 	// ── Debug rays ─────────────────────────────────────────────────────────────
 
-	/** Color of the debug ray drawn from the owner to each scanned feature. */
+	/** Color of the debug ray drawn from the airplane's current position to each scanned feature. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Debug")
 	FColor RayDebugColor = FColor::Yellow;
-
-	/** How long (s) each ray stays visible — mirrors the tutorial's "Draw Debug Type: For Duration". */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Debug", meta = (ClampMin = 0.0f))
-	float RayDebugDuration = 1.0f;
 
 	// ── Sensor output (IUAVSensorInterface) ────────────────────────────────────
 	// Property table key names read as lat/long/altitude. Configurable because different
@@ -182,10 +182,10 @@ private:
 	/** Stable identity for a feature — same actor/component + identical metadata — used as its ObjectStorage key. */
 	static FString BuildFeatureKey(const FCesiumSurroundingObject& Entry);
 
-	/** ObjectStorage operation 1/2: registers a newly-visible feature and logs its discovery. */
+	/** ObjectStorage operation 1/2: registers a newly-seen feature and logs its discovery. */
 	void AddObject(const FString& Key, const FCesiumSurroundingObject& Entry);
 
-	/** ObjectStorage operation 2/2: forgets a feature once it's no longer visible. */
+	/** ObjectStorage operation 2/2: forgets a feature once its frozen position has left the frame. */
 	void RemoveObject(const FString& Key);
 
 	/**
@@ -199,11 +199,24 @@ private:
 	void BuildSensorFrame();
 
 	/**
+	 * Lazily reads SensorSizeX/SensorSizeY from SceneCaptureComponent's TextureTarget. Split out
+	 * from BuildSensorFrame() (which only runs while bSensorEnabled is true) so ProjectWorldToScreen
+	 * has valid sensor dimensions to test Scan()'s "still in frame?" retention check against
+	 * regardless of whether ZMQ sensor publishing is enabled. Called unconditionally at the top
+	 * of TickComponent, before Scan().
+	 */
+	void UpdateSensorSize();
+
+	/**
 	 * Projects a single world-space point (Unreal cm) onto SceneCaptureComponent's render
 	 * target. Identical view/projection matrix setup to
 	 * UKeyPointDetectionComponent::ProjectWorldToScreen — see that implementation for the
 	 * behind-camera (W<=0) and in-bounds checks. Returns false (point not visible) if the
 	 * capture's render target size isn't known yet.
+	 *
+	 * Doubles as Scan()'s "is this stored feature still in frame?" test: a frozen
+	 * ObjectStorage entry that this scan's sweep didn't hit is only removed once its
+	 * HitLocationMeters projects outside the returned bounds (or behind the camera).
 	 */
 	bool ProjectWorldToScreen(const FVector& WorldPositionCm, FVector2D& OutScreenPos) const;
 
@@ -224,9 +237,11 @@ private:
 	ACesium3DTileset* Tileset = nullptr;
 
 	/**
-	 * Persistent storage of currently-visible features, keyed by BuildFeatureKey(). Only ever
-	 * mutated via AddObject()/RemoveObject() — see class docs. LatestScanResults, the console
-	 * log, and the debug rays are all driven from this, not from the raw per-scan sweep result.
+	 * Persistent storage of currently-tracked features, keyed by BuildFeatureKey(). A feature
+	 * stays here — with its data frozen — even across scans that fail to hit it again, as long
+	 * as its frozen position still projects inside the camera's frame (see ProjectWorldToScreen).
+	 * Only ever mutated via AddObject()/RemoveObject() — see class docs. LatestScanResults, the
+	 * console log, and the debug rays are all driven from this, not from the raw per-scan sweep result.
 	 */
 	TMap<FString, FCesiumSurroundingObject> ObjectStorage;
 

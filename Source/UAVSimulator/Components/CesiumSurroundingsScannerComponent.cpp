@@ -46,6 +46,7 @@ void UCesiumSurroundingsScannerComponent::TickComponent(float DeltaTime, ELevelT
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
+	UpdateSensorSize();
 	Scan();
 	BuildSensorFrame();
 }
@@ -309,9 +310,10 @@ void UCesiumSurroundingsScannerComponent::RemoveObject(const FString& Key)
 // ─────────────────────────────────────────────────────────────────────────────
 // Scan — runs SweepScan, reads the Cesium property table of every hit feature via
 // GetPropertyTableValuesFromHit, merges duplicate hits on the same feature, then
-// reconciles the result against ObjectStorage: newly-visible features are added,
-// features no longer visible are removed, and features still visible are left
-// untouched. LatestScanResults and the debug rays are driven from ObjectStorage.
+// reconciles the result against ObjectStorage: newly-seen features are added, features
+// still hit (or missed but still projecting inside the camera's frame) are left
+// untouched, and only features whose frozen position has actually left the frame are
+// removed. LatestScanResults and the debug rays are driven from ObjectStorage.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Scan()
@@ -369,10 +371,19 @@ const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Sca
 			AddObject(Key, Entry);
 	}
 
+	// A feature this scan's sweep didn't hit isn't necessarily gone — a momentary gap between
+	// rays or a brief occlusion shouldn't make it flicker out. Re-project its frozen position
+	// onto the camera and only drop it once that position has actually left the frame (or
+	// fallen behind the camera); otherwise keep reproducing it from its last-known location.
 	TArray<FString> KeysNoLongerVisible;
 	for (const TPair<FString, FCesiumSurroundingObject>& Pair : ObjectStorage)
 	{
-		if (!CurrentKeys.Contains(Pair.Key))
+		if (CurrentKeys.Contains(Pair.Key))
+			continue;
+
+		FVector2D ScreenPos;
+		const bool bStillInFrame = ProjectWorldToScreen(Pair.Value.HitLocationMeters * 100.0, ScreenPos);
+		if (!bStillInFrame)
 			KeysNoLongerVisible.Add(Pair.Key);
 	}
 	for (const FString& Key : KeysNoLongerVisible)
@@ -385,10 +396,11 @@ const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Sca
 	{
 		const FCesiumSurroundingObject& Entry = Pair.Value;
 
-		// Ray to the scanned feature — same visualization technique (line trace + "Draw
-		// Debug Type: For Duration") the Cesium metadata-picking tutorial uses. Drawn from the
-		// camera (the actual sweep origin), not the owner's actor origin.
-		DrawDebugLine(World, SceneCaptureComponent->GetComponentLocation(), Entry.HitLocationMeters * 100.0, RayDebugColor, false, RayDebugDuration);
+		// One ray per tracked feature, redrawn fresh every tick (LifeTime -1.f, same
+		// single-frame-refresh convention as USubAerodynamicSurfaceSC's force arrows) so it
+		// never accumulates into a trailing fan of past positions — it always points from the
+		// airplane's current position to the feature.
+		DrawDebugLine(World, Owner->GetActorLocation(), Entry.HitLocationMeters * 100.0, RayDebugColor, false, -1.0f);
 
 		LatestScanResults.Add(Entry);
 	}
@@ -416,19 +428,22 @@ bool UCesiumSurroundingsScannerComponent::GetLatestFrame(FSensorFrame& OutFrame)
 // feature) is what moves. See BuildSensorFrame()'s header doc for the field list.
 // ─────────────────────────────────────────────────────────────────────────────
 
+void UCesiumSurroundingsScannerComponent::UpdateSensorSize()
+{
+	// UAVCameraComponent assigns TextureTarget in its own BeginPlay; re-read until valid.
+	if (SceneCaptureComponent && (SensorSizeX <= 0 || SensorSizeY <= 0) && SceneCaptureComponent->TextureTarget)
+	{
+		SensorSizeX = SceneCaptureComponent->TextureTarget->SizeX;
+		SensorSizeY = SceneCaptureComponent->TextureTarget->SizeY;
+	}
+}
+
 void UCesiumSurroundingsScannerComponent::BuildSensorFrame()
 {
 	if (!bSensorEnabled || !SceneCaptureComponent)
 	{
 		bHasFrame = false;
 		return;
-	}
-
-	// UAVCameraComponent assigns TextureTarget in its own BeginPlay; re-read until valid.
-	if ((SensorSizeX <= 0 || SensorSizeY <= 0) && SceneCaptureComponent->TextureTarget)
-	{
-		SensorSizeX = SceneCaptureComponent->TextureTarget->SizeX;
-		SensorSizeY = SceneCaptureComponent->TextureTarget->SizeY;
 	}
 
 	TArray<TSharedPtr<FJsonValue>> ObjectsJson;
