@@ -4,6 +4,7 @@
 
 #include "CesiumMetadataPickingBlueprintLibrary.h"
 #include "CesiumMetadataValue.h"
+#include "Cesium3DTileset.h"
 
 #include "GameFramework/Actor.h"
 #include "Components/PrimitiveComponent.h"
@@ -11,6 +12,7 @@
 #include "Engine/World.h"
 #include "DrawDebugHelpers.h"
 #include "CollisionShape.h"
+#include "Kismet/GameplayStatics.h"
 
 UCesiumSurroundingsScannerComponent::UCesiumSurroundingsScannerComponent()
 {
@@ -26,6 +28,8 @@ void UCesiumSurroundingsScannerComponent::BeginPlay()
 		CameraComponent       = Owner->FindComponentByClass<UUAVCameraComponent>();
 		SceneCaptureComponent = Owner->FindComponentByClass<USceneCaptureComponent2D>();
 	}
+
+	Tileset = Cast<ACesium3DTileset>(UGameplayStatics::GetActorOfClass(GetWorld(), ACesium3DTileset::StaticClass()));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -37,12 +41,13 @@ void UCesiumSurroundingsScannerComponent::TickComponent(float DeltaTime, ELevelT
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 	ScanAccumulator += DeltaTime;
-	const float ScanInterval = 1.0f / FMath::Max(ScanRate, 0.01f);
+	/*const float ScanInterval = 1.0f / FMath::Max(ScanRate, 0.01f);
 	if (ScanAccumulator >= ScanInterval)
 	{
 		ScanAccumulator -= ScanInterval;
 		Scan();
-	}
+	}*/
+	Scan();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -76,6 +81,19 @@ TArray<FHitResult> UCesiumSurroundingsScannerComponent::SweepScan(const FTransfo
 	const float HalfHFovRad = FMath::DegreesToRadians(CameraComponent->HorizontalFOVDeg * 0.5f);
 	const float HalfVFovRad = FMath::DegreesToRadians(CameraComponent->VerticalFOVDeg * 0.5f);
 
+	// Broad-phase: narrow the grid down to cells that could plausibly hit an already-loaded
+	// Cesium tile before paying for a single physics query. Unset (not just empty) means "no
+	// Tileset found" — fall back to sweeping every cell, same as before this optimization.
+	TOptional<TSet<int32>> ActiveCells;
+	if (Tileset)
+	{
+		const TArray<UPrimitiveComponent*> Candidates = GatherNearbyTileComponents(Origin, Range);
+		if (Candidates.Num() == 0)
+			return ScanResults; // nothing Cesium-related loaded within range — nothing to sweep for
+
+		ActiveCells = BuildActiveCellSet(OriginTransform, Candidates, HalfHFovRad, HalfVFovRad);
+	}
+
 	for (int32 V = 0; V < VerticalLayers; ++V)
 	{
 		float VAngleRad = 0.0f;
@@ -84,6 +102,9 @@ TArray<FHitResult> UCesiumSurroundingsScannerComponent::SweepScan(const FTransfo
 
 		for (int32 H = 0; H < HorizontalRays; ++H)
 		{
+			if (ActiveCells.IsSet() && !ActiveCells->Contains(V * HorizontalRays + H))
+				continue;
+
 			float HAngleRad = 0.0f;
 			if (HorizontalRays > 1)
 				HAngleRad = -HalfHFovRad + H * (2.0f * HalfHFovRad / (HorizontalRays - 1));
@@ -107,6 +128,90 @@ TArray<FHitResult> UCesiumSurroundingsScannerComponent::SweepScan(const FTransfo
 	}
 
 	return ScanResults;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Broad-phase — cheap bounds checks over already-loaded Cesium tile components,
+// no physics involved, used to skip SweepScan grid cells that can't hit anything.
+// ─────────────────────────────────────────────────────────────────────────────
+
+TArray<UPrimitiveComponent*> UCesiumSurroundingsScannerComponent::GatherNearbyTileComponents(const FVector& Origin, float RangeCm) const
+{
+	TArray<UPrimitiveComponent*> Candidates;
+	if (!Tileset) return Candidates;
+
+	TArray<UPrimitiveComponent*> AllPrimitives;
+	Tileset->GetComponents<UPrimitiveComponent>(AllPrimitives);
+
+	for (UPrimitiveComponent* Primitive : AllPrimitives)
+	{
+		if (!Primitive || !Primitive->IsRegistered()) continue;
+
+		const FBoxSphereBounds& Bounds = Primitive->Bounds;
+		const float DistanceToSurface = FVector::Dist(Bounds.Origin, Origin) - Bounds.SphereRadius;
+		if (DistanceToSurface <= RangeCm)
+			Candidates.Add(Primitive);
+	}
+
+	return Candidates;
+}
+
+TSet<int32> UCesiumSurroundingsScannerComponent::BuildActiveCellSet(const FTransform& OriginTransform,
+	const TArray<UPrimitiveComponent*>& Candidates, float HalfHFovRad, float HalfVFovRad) const
+{
+	TSet<int32> ActiveCells;
+
+	const float HStep = (HorizontalRays > 1) ? (2.0f * HalfHFovRad / (HorizontalRays - 1)) : 0.0f;
+	const float VStep = (VerticalLayers > 1) ? (2.0f * HalfVFovRad / (VerticalLayers - 1)) : 0.0f;
+
+	auto ActivateFullGrid = [this, &ActiveCells]()
+	{
+		for (int32 V = 0; V < VerticalLayers; ++V)
+			for (int32 H = 0; H < HorizontalRays; ++H)
+				ActiveCells.Add(V * HorizontalRays + H);
+	};
+
+	for (UPrimitiveComponent* Primitive : Candidates)
+	{
+		const FBoxSphereBounds& Bounds = Primitive->Bounds;
+		const FVector LocalOrigin = OriginTransform.InverseTransformPosition(Bounds.Origin);
+
+		// Straddling/behind the camera plane — atan2-based angles become unreliable here, so
+		// conservatively sweep the whole grid this scan rather than risk silently dropping it.
+		if (LocalOrigin.X <= KINDA_SMALL_NUMBER)
+		{
+			ActivateFullGrid();
+			continue;
+		}
+
+		const float AngularRadius = FMath::Atan2(Bounds.SphereRadius, LocalOrigin.Size());
+		const float HAngle = FMath::Atan2(LocalOrigin.Y, LocalOrigin.X);
+		const float VAngle = FMath::Atan2(LocalOrigin.Z, LocalOrigin.X);
+
+		const float RawHMin = HAngle - AngularRadius;
+		const float RawHMax = HAngle + AngularRadius;
+		const float RawVMin = VAngle - AngularRadius;
+		const float RawVMax = VAngle + AngularRadius;
+
+		if (RawHMax < -HalfHFovRad || RawHMin > HalfHFovRad || RawVMax < -HalfVFovRad || RawVMin > HalfVFovRad)
+			continue; // angular footprint entirely outside the camera's FOV
+
+		const float HMin = FMath::Clamp(RawHMin, -HalfHFovRad, HalfHFovRad);
+		const float HMax = FMath::Clamp(RawHMax, -HalfHFovRad, HalfHFovRad);
+		const float VMin = FMath::Clamp(RawVMin, -HalfVFovRad, HalfVFovRad);
+		const float VMax = FMath::Clamp(RawVMax, -HalfVFovRad, HalfVFovRad);
+
+		const int32 HIndexMin = (HStep > 0.0f) ? FMath::FloorToInt((HMin + HalfHFovRad) / HStep) : 0;
+		const int32 HIndexMax = (HStep > 0.0f) ? FMath::CeilToInt((HMax + HalfHFovRad) / HStep) : HorizontalRays - 1;
+		const int32 VIndexMin = (VStep > 0.0f) ? FMath::FloorToInt((VMin + HalfVFovRad) / VStep) : 0;
+		const int32 VIndexMax = (VStep > 0.0f) ? FMath::CeilToInt((VMax + HalfVFovRad) / VStep) : VerticalLayers - 1;
+
+		for (int32 V = FMath::Clamp(VIndexMin, 0, VerticalLayers - 1); V <= FMath::Clamp(VIndexMax, 0, VerticalLayers - 1); ++V)
+			for (int32 H = FMath::Clamp(HIndexMin, 0, HorizontalRays - 1); H <= FMath::Clamp(HIndexMax, 0, HorizontalRays - 1); ++H)
+				ActiveCells.Add(V * HorizontalRays + H);
+	}
+
+	return ActiveCells;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

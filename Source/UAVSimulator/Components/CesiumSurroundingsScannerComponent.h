@@ -8,6 +8,8 @@
 
 class UUAVCameraComponent;
 class USceneCaptureComponent2D;
+class ACesium3DTileset;
+class UPrimitiveComponent;
 
 /**
  * Sweeps a small sphere (SweepMultiByChannel) along a grid of directions spanning exactly
@@ -117,11 +119,32 @@ private:
 	 * ScanRadiusMeters, from OriginTransform (the camera's own transform — see Scan()). Each
 	 * direction is built so its horizontal/vertical angle relative to OriginTransform's forward
 	 * axis lands exactly inside [-HalfFOV, +HalfFOV] — the same rectangular-frustum test a
-	 * perspective camera uses — so nothing outside the camera's view is ever swept. Returns
-	 * every hit from every sweep (a single direction can return multiple overlapping hits, same
-	 * as SweepMultiByChannel normally does).
+	 * perspective camera uses — so nothing outside the camera's view is ever swept. Before
+	 * sweeping, a broad-phase (GatherNearbyTileComponents/BuildActiveCellSet) narrows the grid
+	 * down to only the cells that could plausibly hit an already-loaded Cesium tile, so cells
+	 * pointing at empty sky/ground never pay for a physics query at all. Returns every hit from
+	 * every sweep (a single direction can return multiple overlapping hits, same as
+	 * SweepMultiByChannel normally does).
 	 */
 	TArray<FHitResult> SweepScan(const FTransform& OriginTransform, AActor* ActorToIgnore) const;
+
+	/**
+	 * Broad-phase candidate gathering, no physics involved: every currently-loaded tile
+	 * primitive under Tileset whose bounding sphere is within RangeCm of Origin. Cesium already
+	 * frustum-culls which tiles are loaded/streamed, so this is just a cheap bounds check over
+	 * whatever tile components already exist as children of the tileset actor.
+	 */
+	TArray<UPrimitiveComponent*> GatherNearbyTileComponents(const FVector& Origin, float RangeCm) const;
+
+	/**
+	 * Projects each candidate's bounding sphere into OriginTransform's H/V angle space (the same
+	 * angle convention SweepScan's grid uses) and marks every grid cell whose direction falls
+	 * within the candidate's angular footprint. SweepScan only sweeps cells in the returned set.
+	 * A candidate straddling or behind the camera plane conservatively activates the whole grid
+	 * rather than risk silently dropping it.
+	 */
+	TSet<int32> BuildActiveCellSet(const FTransform& OriginTransform, const TArray<UPrimitiveComponent*>& Candidates,
+		float HalfHFovRad, float HalfVFovRad) const;
 
 	/**
 	 * Multiple sweep directions often land on the same physical feature (e.g. several points
@@ -150,11 +173,17 @@ private:
 	USceneCaptureComponent2D* SceneCaptureComponent = nullptr;
 
 	/**
+	 * First Cesium3DTileset found in the world — supplies the loaded-tile components used for
+	 * SweepScan's broad-phase culling. Null is a safe fallback: SweepScan just sweeps the full
+	 * grid as it always did.
+	 */
+	UPROPERTY()
+	ACesium3DTileset* Tileset = nullptr;
+
+	/**
 	 * Persistent storage of currently-visible features, keyed by BuildFeatureKey(). Only ever
 	 * mutated via AddObject()/RemoveObject() — see class docs. LatestScanResults, the console
 	 * log, and the debug rays are all driven from this, not from the raw per-scan sweep result.
 	 */
 	TMap<FString, FCesiumSurroundingObject> ObjectStorage;
-
-	float ScanAccumulator = 0.0f;
 };
