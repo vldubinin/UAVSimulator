@@ -91,6 +91,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings", meta = (ClampMin = 0.01f, ClampMax = 100.0f))
 	float ScanRate = 1.0f;
 
+	/**
+	 * After this many calls to Scan(), the lower half of the vertical FOV (VAngleRad < 0,
+	 * i.e. everything below the camera's forward axis) is permanently excluded from the
+	 * sweep grid — only the upper half keeps being scanned. 0 disables the cutoff, so the
+	 * full vertical FOV is always scanned.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings", meta = (ClampMin = 0))
+	int32 FramesBeforeLowerHalfCutoff = 10;
+
 	/** Collision channel used for the sweeps. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings")
 	TEnumAsByte<ECollisionChannel> CollisionChannel = ECC_Visibility;
@@ -116,6 +125,20 @@ public:
 	/** Color of the debug ray drawn from the airplane's current position to each scanned feature. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Debug")
 	FColor RayDebugColor = FColor::Yellow;
+
+	/**
+	 * Draws a wireframe of the current sweep area every scan: four edges from the origin out to
+	 * the far corners at ScanRadiusMeters, plus the far rectangle connecting them. Reflects
+	 * FramesBeforeLowerHalfCutoff live — once the cutoff kicks in, the bottom edge sits on the
+	 * camera's forward axis instead of the bottom of the FOV, so the wireframe visibly shrinks
+	 * to the upper half.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Debug")
+	bool bDrawScanArea = true;
+
+	/** Color of the scan-area wireframe (see bDrawScanArea). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Debug")
+	FColor ScanAreaDebugColor = FColor::Cyan;
 
 	// ── Sensor output (IUAVSensorInterface) ────────────────────────────────────
 	// Property table key names read as lat/long/altitude. Configurable because different
@@ -151,6 +174,15 @@ private:
 	 * SweepMultiByChannel normally does).
 	 */
 	TArray<FHitResult> SweepScan(const FTransform& OriginTransform, AActor* ActorToIgnore) const;
+
+	/**
+	 * Draws the bDrawScanArea wireframe (see its comment): four edges from Origin to the far
+	 * corners at Range, plus the far rectangle connecting them. VMinRad/VMaxRad are the
+	 * effective vertical bounds for this scan — VMinRad is 0 instead of -HalfVFovRad once
+	 * FramesBeforeLowerHalfCutoff has kicked in, so the wireframe shrinks to match exactly what
+	 * SweepScan's grid is currently covering.
+	 */
+	void DrawScanAreaDebug(const FTransform& OriginTransform, float Range, float HalfHFovRad, float VMinRad, float VMaxRad) const;
 
 	/**
 	 * Broad-phase candidate gathering, no physics involved: every currently-loaded tile
@@ -244,6 +276,9 @@ private:
 	 * console log, and the debug rays are all driven from this, not from the raw per-scan sweep result.
 	 */
 	TMap<FString, FCesiumSurroundingObject> ObjectStorage;
+
+	/** Number of completed Scan() calls so far; compared against FramesBeforeLowerHalfCutoff. */
+	int32 ScanCount = 0;
 
 	/** SceneCaptureComponent's render-target resolution — lazily read in BuildSensorFrame() since UAVCameraComponent assigns TextureTarget in its own BeginPlay. */
 	int32 SensorSizeX = 0;

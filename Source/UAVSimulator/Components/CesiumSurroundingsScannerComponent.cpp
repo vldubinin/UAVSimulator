@@ -82,6 +82,16 @@ TArray<FHitResult> UCesiumSurroundingsScannerComponent::SweepScan(const FTransfo
 	const float HalfHFovRad = FMath::DegreesToRadians(CameraComponent->HorizontalFOVDeg * 0.5f);
 	const float HalfVFovRad = FMath::DegreesToRadians(CameraComponent->VerticalFOVDeg * 0.5f);
 
+	// After the configured number of scans, stop sweeping the lower half of the vertical FOV
+	// (everything below the camera's forward axis) entirely — ScanCount is bumped once per
+	// Scan() call, see Scan().
+	const bool bCutoffLowerHalf = FramesBeforeLowerHalfCutoff > 0 && ScanCount > FramesBeforeLowerHalfCutoff;
+
+	if (bDrawScanArea)
+	{
+		DrawScanAreaDebug(OriginTransform, Range, HalfHFovRad, bCutoffLowerHalf ? 0.0f : -HalfVFovRad, HalfVFovRad);
+	}
+
 	// Broad-phase: narrow the grid down to cells that could plausibly hit an already-loaded
 	// Cesium tile before paying for a single physics query. Unset (not just empty) means "no
 	// Tileset found" — fall back to sweeping every cell, same as before this optimization.
@@ -100,6 +110,9 @@ TArray<FHitResult> UCesiumSurroundingsScannerComponent::SweepScan(const FTransfo
 		float VAngleRad = 0.0f;
 		if (VerticalLayers > 1)
 			VAngleRad = -HalfVFovRad + V * (2.0f * HalfVFovRad / (VerticalLayers - 1));
+
+		if (bCutoffLowerHalf && VAngleRad < 0.0f)
+			continue;
 
 		for (int32 H = 0; H < HorizontalRays; ++H)
 		{
@@ -129,6 +142,43 @@ TArray<FHitResult> UCesiumSurroundingsScannerComponent::SweepScan(const FTransfo
 	}
 
 	return ScanResults;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scan-area wireframe — a cheap 8-line frustum outline (not one line per grid cell) showing
+// exactly what SweepScan is currently covering, redrawn fresh every scan (LifeTime -1.f, same
+// single-frame-refresh convention as the per-feature rays in Scan()).
+// ─────────────────────────────────────────────────────────────────────────────
+
+void UCesiumSurroundingsScannerComponent::DrawScanAreaDebug(const FTransform& OriginTransform, float Range,
+	float HalfHFovRad, float VMinRad, float VMaxRad) const
+{
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	auto DirAt = [&OriginTransform](float HAngleRad, float VAngleRad) -> FVector
+	{
+		const FVector LocalDir(1.0f, FMath::Tan(HAngleRad), FMath::Tan(VAngleRad));
+		return OriginTransform.TransformVectorNoScale(LocalDir).GetSafeNormal();
+	};
+
+	const FVector Origin = OriginTransform.GetLocation();
+	const FVector TopLeft     = Origin + DirAt(-HalfHFovRad, VMaxRad) * Range;
+	const FVector TopRight    = Origin + DirAt(+HalfHFovRad, VMaxRad) * Range;
+	const FVector BottomLeft  = Origin + DirAt(-HalfHFovRad, VMinRad) * Range;
+	const FVector BottomRight = Origin + DirAt(+HalfHFovRad, VMinRad) * Range;
+
+	// Four edges from the origin to the far corners.
+	DrawDebugLine(World, Origin, TopLeft,     ScanAreaDebugColor, false, -1.0f);
+	DrawDebugLine(World, Origin, TopRight,    ScanAreaDebugColor, false, -1.0f);
+	DrawDebugLine(World, Origin, BottomLeft,  ScanAreaDebugColor, false, -1.0f);
+	DrawDebugLine(World, Origin, BottomRight, ScanAreaDebugColor, false, -1.0f);
+
+	// Far rectangle connecting the four corners.
+	DrawDebugLine(World, TopLeft,     TopRight,    ScanAreaDebugColor, false, -1.0f);
+	DrawDebugLine(World, TopRight,    BottomRight, ScanAreaDebugColor, false, -1.0f);
+	DrawDebugLine(World, BottomRight, BottomLeft,  ScanAreaDebugColor, false, -1.0f);
+	DrawDebugLine(World, BottomLeft,  TopLeft,     ScanAreaDebugColor, false, -1.0f);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -326,6 +376,7 @@ const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Sca
 		return LatestScanResults;
 	}
 
+	++ScanCount;
 	const TArray<FHitResult> Hits = SweepScan(SceneCaptureComponent->GetComponentTransform(), Owner);
 
 	TArray<FCesiumSurroundingObject> RawEntries;
