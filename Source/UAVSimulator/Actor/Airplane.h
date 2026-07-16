@@ -39,12 +39,19 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Computer Vision")
 	TSubclassOf<UUserWidget> CameraWidgetClass;
 
+	/** Widget class to instantiate on the locally controlled pawn's HUD (e.g. WBP_AirplaneTelemetry). Set in Blueprint. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Telemetry")
+	TSubclassOf<UUserWidget> TelemetryWidgetClass;
+
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Computer Vision", meta = (AllowPrivateAccess = "true"))
 	UUAVCameraComponent* CameraComp = nullptr;
 
 	UPROPERTY()
 	UUserWidget* CameraWidget = nullptr;
+
+	UPROPERTY()
+	UUserWidget* TelemetryWidget = nullptr;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Flight", meta = (AllowPrivateAccess = "true"))
 	UFlightDynamicsComponent* FlightDynamics;

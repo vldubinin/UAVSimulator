@@ -44,7 +44,9 @@
       "Bash(\"/c/Users/DubakusPC/Documents/Python/Khai/venv/Scripts/python.exe\" -m py_compile \"/c/Users/DubakusPC/Documents/Python/Khai/cesium_objects/record_cesium_objects.py\")",
       "Bash(\"/c/Users/DubakusPC/Documents/Python/Khai/venv/Scripts/python.exe\" -m py_compile \"/c/Users/DubakusPC/Documents/Python/Khai/cesium_objects/visualize_cesium_objects.py\")",
       "Bash(\"/c/Users/DubakusPC/Documents/Python/Khai/venv/Scripts/python.exe\" -)",
-      "Bash(python export_cesium_objects_video.py)"
+      "Bash(python export_cesium_objects_video.py)",
+      "Bash(grep -i \"\\\\.uasset$\")",
+      "Bash(grep -a -o -E \"[A-Za-z0-9_./]{6,}\" \"Content/Airplanes/Cessna_172.uasset\")"
     ]
   }
 }

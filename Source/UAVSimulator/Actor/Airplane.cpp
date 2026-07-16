@@ -8,6 +8,7 @@
 #include "UAVSimulator/SceneComponent/AerodynamicSurface/AerodynamicSurfaceSC.h"
 #include "UAVSimulator/UAVSimulatorPlayerController.h"
 #include "UAVSimulator/UI/CameraViewWidget.h"
+#include "UAVSimulator/UI/AirplaneTelemetryWidget.h"
 #include "UAVSimulator/Components/CameraAltitudeComponent.h"
 #include "UAVSimulator/Components/CameraFrameComponent.h"
 #include "UAVSimulator/Components/SegmentationMaskCameraComponent.h"
@@ -53,6 +54,12 @@ void AAirplane::CleanupWidgets()
 	{
 		CameraWidget->RemoveFromParent();
 		CameraWidget = nullptr;
+	}
+
+	if (TelemetryWidget)
+	{
+		TelemetryWidget->RemoveFromParent();
+		TelemetryWidget = nullptr;
 	}
 }
 
@@ -133,6 +140,29 @@ void AAirplane::RefreshConfigurations()
 	{
 		CameraWidget->RemoveFromParent();
 		CameraWidget = nullptr;
+	}
+
+	// Telemetry HUD only ever belongs to the pawn actually being flown right now — unlike the
+	// camera widget, it's never shown for a target/tracker on someone else's PC.
+	if (TelemetryWidgetClass && !TelemetryWidget && IsLocallyControlled())
+	{
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			TelemetryWidget = CreateWidget<UUserWidget>(PC, TelemetryWidgetClass);
+			if (TelemetryWidget)
+			{
+				if (UAirplaneTelemetryWidget* TelemetryView = Cast<UAirplaneTelemetryWidget>(TelemetryWidget))
+				{
+					TelemetryView->SetAirplane(this);
+				}
+				TelemetryWidget->AddToViewport();
+			}
+		}
+	}
+	else if (!IsLocallyControlled() && TelemetryWidget)
+	{
+		TelemetryWidget->RemoveFromParent();
+		TelemetryWidget = nullptr;
 	}
 }
 
