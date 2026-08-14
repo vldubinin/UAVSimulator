@@ -18,6 +18,7 @@
 #include "UAVSimulator/Components/LidarComponent.h"
 #include "UAVSimulator/Components/DronePositionComponent.h"
 #include "UAVSimulator/Components/CesiumSurroundingsScannerComponent.h"
+#include "UAVSimulator/Components/CustomSurroundingsScannerComponent.h"
 
 AAirplane::AAirplane()
 {
@@ -202,6 +203,9 @@ void AAirplane::RefreshSensorSettings()
 
 	if (UCesiumSurroundingsScannerComponent* C = FindComponentByClass<UCesiumSurroundingsScannerComponent>())
 		C->bSensorEnabled = Subsystem->bEnableSensorCesiumSurroundings;
+
+	if (UCustomSurroundingsScannerComponent* C = FindComponentByClass<UCustomSurroundingsScannerComponent>())
+		C->bSensorEnabled = Subsystem->bEnableSensorCustomSurroundings;
 }
 
 UTexture2D* AAirplane::GetCameraOutputTexture() const

@@ -33,4 +33,7 @@ public:
 
 	UPROPERTY(BlueprintReadWrite)
 	bool bEnableSensorCesiumSurroundings = false;
+
+	UPROPERTY(BlueprintReadWrite)
+	bool bEnableSensorCustomSurroundings = false;
 };

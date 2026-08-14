@@ -46,7 +46,12 @@
       "Bash(\"/c/Users/DubakusPC/Documents/Python/Khai/venv/Scripts/python.exe\" -)",
       "Bash(python export_cesium_objects_video.py)",
       "Bash(grep -i \"\\\\.uasset$\")",
-      "Bash(grep -a -o -E \"[A-Za-z0-9_./]{6,}\" \"Content/Airplanes/Cessna_172.uasset\")"
+      "Bash(grep -a -o -E \"[A-Za-z0-9_./]{6,}\" \"Content/Airplanes/Cessna_172.uasset\")",
+      "Bash(python -m venv .venv)",
+      "Bash(\".venv/Scripts/python.exe\" -m pip install --upgrade pip -q)",
+      "Bash(\".venv/Scripts/python.exe\" -m pip install -r requirements.txt -q)",
+      "Bash(\"/c/Users/DubakusPC/Documents/MCPs/Office-Word-MCP-Server/.venv/Scripts/python.exe\" -m pip show fastmcp python-docx)",
+      "Bash(claude mcp *)"
     ]
   }
 }

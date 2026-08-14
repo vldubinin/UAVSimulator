@@ -42,6 +42,10 @@ protected:
 	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
 	TObjectPtr<UCheckBox> CesiumSurroundingsCB;
 
+	/** Optional — same convention as CesiumSurroundingsCB; add a "CustomSurroundingsCB" checkbox to the UMG Blueprint to bind it. */
+	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
+	TObjectPtr<UCheckBox> CustomSurroundingsCB;
+
 	virtual void OnSectionActivated_Implementation() override;
 
 private:
@@ -58,6 +62,7 @@ private:
 	UFUNCTION() void OnCameraAltitude(bool bIsChecked);
 	UFUNCTION() void OnPositionChanged(bool bIsChecked);
 	UFUNCTION() void OnCesiumSurroundingsChanged(bool bIsChecked);
+	UFUNCTION() void OnCustomSurroundingsChanged(bool bIsChecked);
 
 	static const FString SensorSaveSlotName;
 };

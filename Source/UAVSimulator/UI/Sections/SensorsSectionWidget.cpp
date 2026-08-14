@@ -22,6 +22,9 @@ void USensorsSectionWidget::NativeConstruct()
 
 	if (CesiumSurroundingsCB)
 		CesiumSurroundingsCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnCesiumSurroundingsChanged);
+
+	if (CustomSurroundingsCB)
+		CustomSurroundingsCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnCustomSurroundingsChanged);
 }
 
 
@@ -44,6 +47,9 @@ void USensorsSectionWidget::SyncFromGameMode()
 
 	if (CesiumSurroundingsCB)
 		CesiumSurroundingsCB->SetIsChecked(GM->bEnableSensorCesiumSurroundings);
+
+	if (CustomSurroundingsCB)
+		CustomSurroundingsCB->SetIsChecked(GM->bEnableSensorCustomSurroundings);
 }
 
 void USensorsSectionWidget::OnCameraFrameChanged(bool bIsChecked)
@@ -95,6 +101,13 @@ void USensorsSectionWidget::OnCesiumSurroundingsChanged(bool bIsChecked)
 	SaveCurrentSettings();
 }
 
+void USensorsSectionWidget::OnCustomSurroundingsChanged(bool bIsChecked)
+{
+	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
+		GM->bEnableSensorCustomSurroundings = bIsChecked;
+	SaveCurrentSettings();
+}
+
 void USensorsSectionWidget::LoadAndApplySavedSettings()
 {
 	USensorSettingsSave* Save = Cast<USensorSettingsSave>(
@@ -113,6 +126,7 @@ void USensorsSectionWidget::LoadAndApplySavedSettings()
 	GM->bEnableSensorCameraAltitude    = Save->bEnableSensorCameraAltitude;
 	GM->bEnableSensorPosition          = Save->bEnableSensorPosition;
 	GM->bEnableSensorCesiumSurroundings = Save->bEnableSensorCesiumSurroundings;
+	GM->bEnableSensorCustomSurroundings = Save->bEnableSensorCustomSurroundings;
 }
 
 void USensorsSectionWidget::SaveCurrentSettings()
@@ -131,6 +145,7 @@ void USensorsSectionWidget::SaveCurrentSettings()
 	Save->bEnableSensorCameraAltitude    = GM->bEnableSensorCameraAltitude;
 	Save->bEnableSensorPosition          = GM->bEnableSensorPosition;
 	Save->bEnableSensorCesiumSurroundings = GM->bEnableSensorCesiumSurroundings;
+	Save->bEnableSensorCustomSurroundings = GM->bEnableSensorCustomSurroundings;
 
 	UGameplayStatics::SaveGameToSlot(Save, SensorSaveSlotName, /*UserIndex=*/0);
 }

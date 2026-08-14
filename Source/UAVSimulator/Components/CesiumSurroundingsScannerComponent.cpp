@@ -87,7 +87,8 @@ TArray<FHitResult> UCesiumSurroundingsScannerComponent::SweepScan(const FTransfo
 	// Scan() call, see Scan().
 	const bool bCutoffLowerHalf = FramesBeforeLowerHalfCutoff > 0 && ScanCount > FramesBeforeLowerHalfCutoff;
 
-	if (bDrawScanArea)
+	// Debug wireframe switches off together with the component — only drawn while bSensorEnabled.
+	if (bDrawScanArea && bSensorEnabled)
 	{
 		DrawScanAreaDebug(OriginTransform, Range, HalfHFovRad, bCutoffLowerHalf ? 0.0f : -HalfVFovRad, HalfVFovRad);
 	}
@@ -440,20 +441,23 @@ const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Sca
 	for (const FString& Key : KeysNoLongerVisible)
 		RemoveObject(Key);
 
-	// Rays and LatestScanResults reflect ObjectStorage's frozen data, not this scan's fresh hits.
+	// LatestScanResults reflects ObjectStorage's frozen data, not this scan's fresh hits.
 	LatestScanResults.Reset();
 	LatestScanResults.Reserve(ObjectStorage.Num());
 	for (const TPair<FString, FCesiumSurroundingObject>& Pair : ObjectStorage)
+		LatestScanResults.Add(Pair.Value);
+
+	// Debug rays switch off together with the component — only drawn while bSensorEnabled.
+	if (bSensorEnabled)
 	{
-		const FCesiumSurroundingObject& Entry = Pair.Value;
-
-		// One ray per tracked feature, redrawn fresh every tick (LifeTime -1.f, same
-		// single-frame-refresh convention as USubAerodynamicSurfaceSC's force arrows) so it
-		// never accumulates into a trailing fan of past positions — it always points from the
-		// airplane's current position to the feature.
-		DrawDebugLine(World, Owner->GetActorLocation(), Entry.HitLocationMeters * 100.0, RayDebugColor, false, -1.0f);
-
-		LatestScanResults.Add(Entry);
+		for (const TPair<FString, FCesiumSurroundingObject>& Pair : ObjectStorage)
+		{
+			// One ray per tracked feature, redrawn fresh every tick (LifeTime -1.f, same
+			// single-frame-refresh convention as USubAerodynamicSurfaceSC's force arrows) so it
+			// never accumulates into a trailing fan of past positions — it always points from the
+			// airplane's current position to the feature.
+			DrawDebugLine(World, Owner->GetActorLocation(), Pair.Value.HitLocationMeters * 100.0, RayDebugColor, false, -1.0f);
+		}
 	}
 
 	return LatestScanResults;
