@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "UAVSimulator/Entity/SimulatorMode.h"
+#include "UAVSimulator/Entity/OnboardTargetMode.h"
 #include "UAVSimulationSubsystem.generated.h"
 
 DECLARE_MULTICAST_DELEGATE(FOnVisualSettingsChanged);
@@ -21,8 +22,12 @@ public:
 
 	bool bEnableVisualsForPlayer = true;
 	bool bEnableVisualsForTarget = false;
-	bool bEnableCameraForPlayer = true;
-	bool bEnableCameraForTarget = false;
+
+	/** Which role the onboard camera (USceneCaptureComponent2D pipeline) is active on. */
+	EOnboardTargetMode OnboardCameraMode = EOnboardTargetMode::Drone;
+
+	/** Which role the sensor bus is active on; individual sensors below still gate by type. */
+	EOnboardTargetMode SensorsMode = EOnboardTargetMode::Drone;
 
 	bool bEnableSensorAltimeter          = true;
 	bool bEnableSensorCameraInclination  = true;
@@ -41,6 +46,6 @@ public:
 	FOnSensorSettingsChanged OnSensorSettingsChanged;
 
 	void SetVisualSettings(bool bInPlayer, bool bInTarget);
-	void SetCameraSettings(bool bInPlayer, bool bInTarget);
-	void SetSensorSettings(bool bAltimeter, bool bCameraInclination, bool bLidar, bool bCameraFrame, bool bCameraAltitude, bool bSegmentationMask, bool bBBoxDetection, bool bPosition, bool bGeoPosition, bool bCesiumSurroundings, bool bCustomSurroundings);
+	void SetOnboardCameraMode(EOnboardTargetMode Mode);
+	void SetSensorSettings(EOnboardTargetMode InSensorsMode, bool bAltimeter, bool bCameraInclination, bool bLidar, bool bCameraFrame, bool bCameraAltitude, bool bSegmentationMask, bool bBBoxDetection, bool bPosition, bool bGeoPosition, bool bCesiumSurroundings, bool bCustomSurroundings);
 };

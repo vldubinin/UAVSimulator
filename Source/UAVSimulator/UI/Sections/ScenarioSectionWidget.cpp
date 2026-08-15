@@ -15,12 +15,26 @@ void UScenarioSectionWidget::NativeConstruct()
 	Super::NativeConstruct();
 
 	PopulateModeComboBox();
+	PopulateOnboardModeComboBoxes();
 	LoadAndApplySavedSettings();
 	SyncFromGameMode();
 
 	ComboBoxMode->OnSelectionChanged.AddDynamic(this, &UScenarioSectionWidget::OnModeSelectionChanged);
 	EditableTextTrajectoryName->OnTextCommitted.AddDynamic(this, &UScenarioSectionWidget::OnTrajectoryNameCommitted);
 	SpinBoxOffsetDistance->OnValueChanged.AddDynamic(this, &UScenarioSectionWidget::OnOffsetDistanceChanged);
+	ComboBoxOnboardCameraMode->OnSelectionChanged.AddDynamic(this, &UScenarioSectionWidget::OnOnboardCameraModeSelectionChanged);
+	ComboBoxSensorsMode->OnSelectionChanged.AddDynamic(this, &UScenarioSectionWidget::OnSensorsModeSelectionChanged);
+}
+
+void UScenarioSectionWidget::PopulateOnboardModeComboBoxes()
+{
+	for (UComboBoxString* ComboBox : { ComboBoxOnboardCameraMode, ComboBoxSensorsMode })
+	{
+		ComboBox->ClearOptions();
+		ComboBox->AddOption(OnboardTargetModeToString(EOnboardTargetMode::Drone));
+		ComboBox->AddOption(OnboardTargetModeToString(EOnboardTargetMode::Target));
+		ComboBox->AddOption(OnboardTargetModeToString(EOnboardTargetMode::None));
+	}
 }
 
 void UScenarioSectionWidget::PopulateModeComboBox()
@@ -42,6 +56,8 @@ void UScenarioSectionWidget::SyncFromGameMode()
 	EditableTextTrajectoryName->SetText(FText::FromString(GM->ScenarioSlotName));
 	SpinBoxOffsetDistance->SetValue(GM->TargetSpawnOffsetDistance);
 	RefreshOffsetVisibility(GM->CurrentSimulatorMode);
+	ComboBoxOnboardCameraMode->SetSelectedOption(OnboardTargetModeToString(GM->OnboardCameraMode));
+	ComboBoxSensorsMode->SetSelectedOption(OnboardTargetModeToString(GM->SensorsMode));
 }
 
 void UScenarioSectionWidget::RefreshOffsetVisibility(ESimulatorMode Mode)
@@ -80,6 +96,24 @@ void UScenarioSectionWidget::OnOffsetDistanceChanged(float Value)
 	SaveCurrentSettings();
 }
 
+void UScenarioSectionWidget::OnOnboardCameraModeSelectionChanged(FString SelectedItem, ESelectInfo::Type /*SelectionType*/)
+{
+	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
+	{
+		GM->OnboardCameraMode = StringToOnboardTargetMode(SelectedItem);
+	}
+	SaveCurrentSettings();
+}
+
+void UScenarioSectionWidget::OnSensorsModeSelectionChanged(FString SelectedItem, ESelectInfo::Type /*SelectionType*/)
+{
+	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
+	{
+		GM->SensorsMode = StringToOnboardTargetMode(SelectedItem);
+	}
+	SaveCurrentSettings();
+}
+
 void UScenarioSectionWidget::OnSectionActivated_Implementation()
 {
 	SyncFromGameMode();
@@ -99,6 +133,8 @@ void UScenarioSectionWidget::LoadAndApplySavedSettings()
 	GM->CurrentSimulatorMode      = Save->CurrentSimulatorMode;
 	GM->ScenarioSlotName          = Save->ScenarioSlotName;
 	GM->TargetSpawnOffsetDistance = Save->TargetSpawnOffsetDistance;
+	GM->OnboardCameraMode         = Save->OnboardCameraMode;
+	GM->SensorsMode               = Save->SensorsMode;
 }
 
 void UScenarioSectionWidget::SaveCurrentSettings()
@@ -113,6 +149,8 @@ void UScenarioSectionWidget::SaveCurrentSettings()
 	Save->CurrentSimulatorMode      = GM->CurrentSimulatorMode;
 	Save->ScenarioSlotName          = GM->ScenarioSlotName;
 	Save->TargetSpawnOffsetDistance = GM->TargetSpawnOffsetDistance;
+	Save->OnboardCameraMode         = GM->OnboardCameraMode;
+	Save->SensorsMode               = GM->SensorsMode;
 
 	UGameplayStatics::SaveGameToSlot(Save, ScenarioSaveSlotName, /*UserIndex=*/0);
 }
@@ -146,4 +184,22 @@ ESimulatorMode UScenarioSectionWidget::StringToMode(const FString& Str)
 	if (Str == TEXT("Playback and Auto Track"))           return ESimulatorMode::PlaybackAndAutoTrack;
 	if (Str == TEXT("Free"))               return ESimulatorMode::Free;
 	return ESimulatorMode::RecordTarget;
+}
+
+FString UScenarioSectionWidget::OnboardTargetModeToString(EOnboardTargetMode Mode)
+{
+	switch (Mode)
+	{
+	case EOnboardTargetMode::Drone:  return TEXT("Drone");
+	case EOnboardTargetMode::Target: return TEXT("Target");
+	case EOnboardTargetMode::None:   return TEXT("None");
+	}
+	return TEXT("Drone");
+}
+
+EOnboardTargetMode UScenarioSectionWidget::StringToOnboardTargetMode(const FString& Str)
+{
+	if (Str == TEXT("Target")) return EOnboardTargetMode::Target;
+	if (Str == TEXT("None"))   return EOnboardTargetMode::None;
+	return EOnboardTargetMode::Drone;
 }

@@ -22,7 +22,7 @@ void AUAVSimulatorGameModeBase::UpdateCameraSettings()
 {
 	if (UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>())
 	{
-		Subsystem->SetCameraSettings(bEnableCameraForPlayer, bEnableCameraForTarget);
+		Subsystem->SetOnboardCameraMode(OnboardCameraMode);
 	}
 }
 
@@ -30,7 +30,7 @@ void AUAVSimulatorGameModeBase::UpdateSensorSettings()
 {
 	if (UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>())
 	{
-		Subsystem->SetSensorSettings(bEnableSensorAltimeter, bEnableSensorCameraInclination, bEnableSensorLidar, bEnableSensorCameraFrame, bEnableSensorCameraAltitude, bEnableSensorSegmentationMask, bEnableSensorBBoxDetection, bEnableSensorPosition, bEnableSensorGeoPosition, bEnableSensorCesiumSurroundings, bEnableSensorCustomSurroundings);
+		Subsystem->SetSensorSettings(SensorsMode, bEnableSensorAltimeter, bEnableSensorCameraInclination, bEnableSensorLidar, bEnableSensorCameraFrame, bEnableSensorCameraAltitude, bEnableSensorSegmentationMask, bEnableSensorBBoxDetection, bEnableSensorPosition, bEnableSensorGeoPosition, bEnableSensorCesiumSurroundings, bEnableSensorCustomSurroundings);
 	}
 }
 
@@ -61,8 +61,8 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 		Subsystem->CurrentSimulatorMode    = CurrentSimulatorMode;
 		Subsystem->bEnableVisualsForPlayer = bEnableVisualsForPlayer;
 		Subsystem->bEnableVisualsForTarget = bEnableVisualsForTarget;
-		Subsystem->bEnableCameraForPlayer          = bEnableCameraForPlayer;
-		Subsystem->bEnableCameraForTarget          = bEnableCameraForTarget;
+		Subsystem->OnboardCameraMode                = OnboardCameraMode;
+		Subsystem->SensorsMode                      = SensorsMode;
 		Subsystem->bEnableSensorAltimeter          = bEnableSensorAltimeter;
 		Subsystem->bEnableSensorCameraInclination  = bEnableSensorCameraInclination;
 		Subsystem->bEnableSensorLidar              = bEnableSensorLidar;
@@ -88,8 +88,8 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 		Subsystem->CurrentSimulatorMode    = CurrentSimulatorMode;
 		Subsystem->bEnableVisualsForPlayer = bEnableVisualsForPlayer;
 		Subsystem->bEnableVisualsForTarget = bEnableVisualsForTarget;
-		Subsystem->bEnableCameraForPlayer          = bEnableCameraForPlayer;
-		Subsystem->bEnableCameraForTarget          = bEnableCameraForTarget;
+		Subsystem->OnboardCameraMode                = OnboardCameraMode;
+		Subsystem->SensorsMode                      = SensorsMode;
 		Subsystem->bEnableSensorAltimeter          = bEnableSensorAltimeter;
 		Subsystem->bEnableSensorCameraInclination  = bEnableSensorCameraInclination;
 		Subsystem->bEnableSensorLidar              = bEnableSensorLidar;

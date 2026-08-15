@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/SaveGame.h"
 #include "UAVSimulator/Entity/SimulatorMode.h"
+#include "UAVSimulator/Entity/OnboardTargetMode.h"
 
 #include "ScenarioSettingsSave.generated.h"
 
@@ -22,4 +23,10 @@ public:
 
 	UPROPERTY(BlueprintReadWrite)
 	float TargetSpawnOffsetDistance = 5000.0f;
+
+	UPROPERTY(BlueprintReadWrite)
+	EOnboardTargetMode OnboardCameraMode = EOnboardTargetMode::Drone;
+
+	UPROPERTY(BlueprintReadWrite)
+	EOnboardTargetMode SensorsMode = EOnboardTargetMode::Drone;
 };

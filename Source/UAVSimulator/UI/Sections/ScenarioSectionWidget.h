@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "SimulatorSectionWidget.h"
 #include "UAVSimulator/Entity/SimulatorMode.h"
+#include "UAVSimulator/Entity/OnboardTargetMode.h"
 #include "ScenarioSectionWidget.generated.h"
 
 class UComboBoxString;
@@ -38,11 +39,20 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UTextBlock> TargetOffsetDistanceText;
 
+	/** Selects which airplane role (Drone / Target / None) the onboard camera runs on. */
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UComboBoxString> ComboBoxOnboardCameraMode;
+
+	/** Selects which airplane role (Drone / Target / None) the sensor bus runs on. */
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UComboBoxString> ComboBoxSensorsMode;
+
 protected:
 	virtual void OnSectionActivated_Implementation() override;
 
 private:
 	void PopulateModeComboBox();
+	void PopulateOnboardModeComboBoxes();
 	void SyncFromGameMode();
 	void RefreshOffsetVisibility(ESimulatorMode Mode);
 	void LoadAndApplySavedSettings();
@@ -53,9 +63,14 @@ private:
 	UFUNCTION() void OnModeSelectionChanged(FString SelectedItem, ESelectInfo::Type SelectionType);
 	UFUNCTION() void OnTrajectoryNameCommitted(const FText& Text, ETextCommit::Type CommitType);
 	UFUNCTION() void OnOffsetDistanceChanged(float Value);
+	UFUNCTION() void OnOnboardCameraModeSelectionChanged(FString SelectedItem, ESelectInfo::Type SelectionType);
+	UFUNCTION() void OnSensorsModeSelectionChanged(FString SelectedItem, ESelectInfo::Type SelectionType);
 
 	static FString ModeToString(ESimulatorMode Mode);
 	static ESimulatorMode StringToMode(const FString& Str);
+
+	static FString OnboardTargetModeToString(EOnboardTargetMode Mode);
+	static EOnboardTargetMode StringToOnboardTargetMode(const FString& Str);
 
 	static const FString ScenarioSaveSlotName;
 };

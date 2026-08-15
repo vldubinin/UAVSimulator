@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
 #include "UAVSimulator/Entity/SimulatorMode.h"
+#include "UAVSimulator/Entity/OnboardTargetMode.h"
 #include "UAVSimulatorGameModeBase.generated.h"
 
 class AAirplane;
@@ -47,15 +48,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Simulation|VFX")
 	void UpdateVisualSettings();
 
+	/** Which airplane role the onboard camera is active on; independent of CurrentSimulatorMode. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Camera")
-	bool bEnableCameraForPlayer = true;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Camera")
-	bool bEnableCameraForTarget = false;
+	EOnboardTargetMode OnboardCameraMode = EOnboardTargetMode::Drone;
 
 	/** Pushes the current flag values to UUAVSimulationSubsystem and broadcasts to all airplanes. */
 	UFUNCTION(BlueprintCallable, Category = "Simulation|Camera")
 	void UpdateCameraSettings();
+
+	/** Which airplane role the sensor bus is active on; independent of CurrentSimulatorMode. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
+	EOnboardTargetMode SensorsMode = EOnboardTargetMode::Drone;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
 	bool bEnableSensorAltimeter = false;

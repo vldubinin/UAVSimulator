@@ -21,6 +21,21 @@
 #include "UAVSimulator/Components/CesiumSurroundingsScannerComponent.h"
 #include "UAVSimulator/Components/CustomSurroundingsScannerComponent.h"
 
+namespace
+{
+	/** Resolves an EOnboardTargetMode selection against an airplane's role tags. AutoTracker counts as Drone. */
+	bool IsRoleActiveForOnboardMode(EOnboardTargetMode Mode, bool bIsPlayer, bool bIsTarget, bool bIsAutoTracker)
+	{
+		switch (Mode)
+		{
+		case EOnboardTargetMode::Drone:  return bIsPlayer || bIsAutoTracker;
+		case EOnboardTargetMode::Target: return bIsTarget;
+		case EOnboardTargetMode::None:   return false;
+		}
+		return false;
+	}
+}
+
 AAirplane::AAirplane()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -90,9 +105,7 @@ void AAirplane::RefreshConfigurations()
 	                  || (bIsTarget      && Subsystem->bEnableVisualsForTarget)
 	                  || (bIsAutoTracker && Subsystem->bEnableVisualsForPlayer);
 
-	const bool bCameraActive = (bIsPlayer      && Subsystem->bEnableCameraForPlayer)
-	                  || (bIsTarget      && Subsystem->bEnableCameraForTarget)
-	                  || (bIsAutoTracker && Subsystem->bEnableCameraForPlayer);
+	const bool bCameraActive = IsRoleActiveForOnboardMode(Subsystem->OnboardCameraMode, bIsPlayer, bIsTarget, bIsAutoTracker);
 
 	TArray<UAerodynamicSurfaceSC*> Surfaces;
 	GetComponents<UAerodynamicSurfaceSC>(Surfaces);
@@ -178,38 +191,43 @@ void AAirplane::RefreshSensorSettings()
 	UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>();
 	if (!Subsystem) return;
 
+	const bool bIsPlayer      = ActorHasTag(FName("Player"));
+	const bool bIsTarget      = ActorHasTag(FName("Target"));
+	const bool bIsAutoTracker = ActorHasTag(FName("AutoTracker"));
+	const bool bSensorsActive = IsRoleActiveForOnboardMode(Subsystem->SensorsMode, bIsPlayer, bIsTarget, bIsAutoTracker);
+
 	if (UAltimeterComponent* C = FindComponentByClass<UAltimeterComponent>())
-		C->bSensorEnabled = Subsystem->bEnableSensorAltimeter;
+		C->bSensorEnabled = bSensorsActive && Subsystem->bEnableSensorAltimeter;
 
 	if (UCameraInclinationComponent* C = FindComponentByClass<UCameraInclinationComponent>())
-		C->bSensorEnabled = Subsystem->bEnableSensorCameraInclination;
+		C->bSensorEnabled = bSensorsActive && Subsystem->bEnableSensorCameraInclination;
 
 	if (ULidarComponent* C = FindComponentByClass<ULidarComponent>())
-		C->bSensorEnabled = Subsystem->bEnableSensorLidar;
+		C->bSensorEnabled = bSensorsActive && Subsystem->bEnableSensorLidar;
 
 	if (UCameraFrameComponent* C = FindComponentByClass<UCameraFrameComponent>())
-		C->bSensorEnabled = Subsystem->bEnableSensorCameraFrame;
+		C->bSensorEnabled = bSensorsActive && Subsystem->bEnableSensorCameraFrame;
 
 	if (UCameraAltitudeComponent* C = FindComponentByClass<UCameraAltitudeComponent>())
-		C->bSensorEnabled = Subsystem->bEnableSensorCameraAltitude;
+		C->bSensorEnabled = bSensorsActive && Subsystem->bEnableSensorCameraAltitude;
 
 	if (USegmentationMaskCameraComponent* C = FindComponentByClass<USegmentationMaskCameraComponent>())
-		C->bSensorEnabled = Subsystem->bEnableSensorSegmentationMask;
+		C->bSensorEnabled = bSensorsActive && Subsystem->bEnableSensorSegmentationMask;
 
 	if (UBBoxDetectionComponent* C = FindComponentByClass<UBBoxDetectionComponent>())
-		C->bSensorEnabled = Subsystem->bEnableSensorBBoxDetection;
+		C->bSensorEnabled = bSensorsActive && Subsystem->bEnableSensorBBoxDetection;
 
 	if (UDronePositionComponent* C = FindComponentByClass<UDronePositionComponent>())
-		C->bSensorEnabled = Subsystem->bEnableSensorPosition;
+		C->bSensorEnabled = bSensorsActive && Subsystem->bEnableSensorPosition;
 
 	if (UGeoPositionDroneComponent* C = FindComponentByClass<UGeoPositionDroneComponent>())
-		C->bSensorEnabled = Subsystem->bEnableSensorGeoPosition;
+		C->bSensorEnabled = bSensorsActive && Subsystem->bEnableSensorGeoPosition;
 
 	if (UCesiumSurroundingsScannerComponent* C = FindComponentByClass<UCesiumSurroundingsScannerComponent>())
-		C->bSensorEnabled = Subsystem->bEnableSensorCesiumSurroundings;
+		C->bSensorEnabled = bSensorsActive && Subsystem->bEnableSensorCesiumSurroundings;
 
 	if (UCustomSurroundingsScannerComponent* C = FindComponentByClass<UCustomSurroundingsScannerComponent>())
-		C->bSensorEnabled = Subsystem->bEnableSensorCustomSurroundings;
+		C->bSensorEnabled = bSensorsActive && Subsystem->bEnableSensorCustomSurroundings;
 }
 
 UTexture2D* AAirplane::GetCameraOutputTexture() const
