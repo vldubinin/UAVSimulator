@@ -10,4 +10,5 @@ enum class EMenuSection : uint8
 	Sensors     UMETA(DisplayName = "Сенсори"),
 	Environment UMETA(DisplayName = "Оточення"),
 	SyntheticData UMETA(DisplayName = "Синтетичні дані"),
+	Global      UMETA(DisplayName = "Глобальні"),
 };

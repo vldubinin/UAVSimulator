@@ -20,6 +20,9 @@ void USensorsSectionWidget::NativeConstruct()
 	CameraAltitudeCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnCameraAltitude);
 	PositionCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnPositionChanged);
 
+	if (GeoPositionCB)
+		GeoPositionCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnGeoPositionChanged);
+
 	if (CesiumSurroundingsCB)
 		CesiumSurroundingsCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnCesiumSurroundingsChanged);
 
@@ -44,6 +47,9 @@ void USensorsSectionWidget::SyncFromGameMode()
 	LidarCB->SetIsChecked(GM->bEnableSensorLidar);
 	CameraAltitudeCB->SetIsChecked(GM->bEnableSensorCameraAltitude);
 	PositionCB->SetIsChecked(GM->bEnableSensorPosition);
+
+	if (GeoPositionCB)
+		GeoPositionCB->SetIsChecked(GM->bEnableSensorGeoPosition);
 
 	if (CesiumSurroundingsCB)
 		CesiumSurroundingsCB->SetIsChecked(GM->bEnableSensorCesiumSurroundings);
@@ -94,6 +100,13 @@ void USensorsSectionWidget::OnPositionChanged(bool bIsChecked)
 	SaveCurrentSettings();
 }
 
+void USensorsSectionWidget::OnGeoPositionChanged(bool bIsChecked)
+{
+	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
+		GM->bEnableSensorGeoPosition = bIsChecked;
+	SaveCurrentSettings();
+}
+
 void USensorsSectionWidget::OnCesiumSurroundingsChanged(bool bIsChecked)
 {
 	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
@@ -125,6 +138,7 @@ void USensorsSectionWidget::LoadAndApplySavedSettings()
 	GM->bEnableSensorLidar             = Save->bEnableSensorLidar;
 	GM->bEnableSensorCameraAltitude    = Save->bEnableSensorCameraAltitude;
 	GM->bEnableSensorPosition          = Save->bEnableSensorPosition;
+	GM->bEnableSensorGeoPosition       = Save->bEnableSensorGeoPosition;
 	GM->bEnableSensorCesiumSurroundings = Save->bEnableSensorCesiumSurroundings;
 	GM->bEnableSensorCustomSurroundings = Save->bEnableSensorCustomSurroundings;
 }
@@ -144,6 +158,7 @@ void USensorsSectionWidget::SaveCurrentSettings()
 	Save->bEnableSensorLidar             = GM->bEnableSensorLidar;
 	Save->bEnableSensorCameraAltitude    = GM->bEnableSensorCameraAltitude;
 	Save->bEnableSensorPosition          = GM->bEnableSensorPosition;
+	Save->bEnableSensorGeoPosition       = GM->bEnableSensorGeoPosition;
 	Save->bEnableSensorCesiumSurroundings = GM->bEnableSensorCesiumSurroundings;
 	Save->bEnableSensorCustomSurroundings = GM->bEnableSensorCustomSurroundings;
 

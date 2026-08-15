@@ -41,9 +41,12 @@ protected:
 	TObjectPtr<UButton> ButtonSyntheticData;
 
 	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UButton> ButtonGlobal;
+
+	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UButton> ButtonStartSimulation;
 
-	// Switcher — children must be ordered: 0=Scenario, 1=Sensors, 2=Environment, 3=SyntheticData.
+	// Switcher — children must be ordered: 0=Scenario, 1=Sensors, 2=Environment, 3=SyntheticData, 4=Global.
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UWidgetSwitcher> ContentSwitcher;
 
@@ -52,6 +55,7 @@ private:
 	UFUNCTION() void OnSensorsClicked();
 	UFUNCTION() void OnEnvironmentClicked();
 	UFUNCTION() void OnSyntheticDataClicked();
+	UFUNCTION() void OnGlobalClicked();
 	UFUNCTION() void OnStartSimulationClicked();
 
 	void NotifySectionChange(EMenuSection NewSection);

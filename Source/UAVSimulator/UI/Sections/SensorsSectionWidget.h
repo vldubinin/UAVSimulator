@@ -33,6 +33,10 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UCheckBox> PositionCB;
 
+	/** Optional — same convention as CesiumSurroundingsCB; add a "GeoPositionCB" checkbox to the UMG Blueprint to bind it. */
+	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
+	TObjectPtr<UCheckBox> GeoPositionCB;
+
 	/**
 	 * Optional — meta=(BindWidget) alone (without "optional") would normally require this
 	 * widget to exist in the paired UMG Blueprint at construction time. Until someone adds a
@@ -61,6 +65,7 @@ private:
 	UFUNCTION() void OnLidarChanged(bool bIsChecked);
 	UFUNCTION() void OnCameraAltitude(bool bIsChecked);
 	UFUNCTION() void OnPositionChanged(bool bIsChecked);
+	UFUNCTION() void OnGeoPositionChanged(bool bIsChecked);
 	UFUNCTION() void OnCesiumSurroundingsChanged(bool bIsChecked);
 	UFUNCTION() void OnCustomSurroundingsChanged(bool bIsChecked);
 

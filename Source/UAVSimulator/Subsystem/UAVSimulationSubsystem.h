@@ -32,6 +32,7 @@ public:
 	bool bEnableSensorSegmentationMask   = true;
 	bool bEnableSensorBBoxDetection      = true;
 	bool bEnableSensorPosition           = true;
+	bool bEnableSensorGeoPosition        = true;
 	bool bEnableSensorCesiumSurroundings = true;
 	bool bEnableSensorCustomSurroundings = true;
 
@@ -41,5 +42,5 @@ public:
 
 	void SetVisualSettings(bool bInPlayer, bool bInTarget);
 	void SetCameraSettings(bool bInPlayer, bool bInTarget);
-	void SetSensorSettings(bool bAltimeter, bool bCameraInclination, bool bLidar, bool bCameraFrame, bool bCameraAltitude, bool bSegmentationMask, bool bBBoxDetection, bool bPosition, bool bCesiumSurroundings, bool bCustomSurroundings);
+	void SetSensorSettings(bool bAltimeter, bool bCameraInclination, bool bLidar, bool bCameraFrame, bool bCameraAltitude, bool bSegmentationMask, bool bBBoxDetection, bool bPosition, bool bGeoPosition, bool bCesiumSurroundings, bool bCustomSurroundings);
 };

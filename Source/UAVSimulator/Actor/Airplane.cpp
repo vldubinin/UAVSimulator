@@ -17,6 +17,7 @@
 #include "UAVSimulator/Components/CameraInclinationComponent.h"
 #include "UAVSimulator/Components/LidarComponent.h"
 #include "UAVSimulator/Components/DronePositionComponent.h"
+#include "UAVSimulator/Components/GeoPositionDroneComponent.h"
 #include "UAVSimulator/Components/CesiumSurroundingsScannerComponent.h"
 #include "UAVSimulator/Components/CustomSurroundingsScannerComponent.h"
 
@@ -200,6 +201,9 @@ void AAirplane::RefreshSensorSettings()
 
 	if (UDronePositionComponent* C = FindComponentByClass<UDronePositionComponent>())
 		C->bSensorEnabled = Subsystem->bEnableSensorPosition;
+
+	if (UGeoPositionDroneComponent* C = FindComponentByClass<UGeoPositionDroneComponent>())
+		C->bSensorEnabled = Subsystem->bEnableSensorGeoPosition;
 
 	if (UCesiumSurroundingsScannerComponent* C = FindComponentByClass<UCesiumSurroundingsScannerComponent>())
 		C->bSensorEnabled = Subsystem->bEnableSensorCesiumSurroundings;

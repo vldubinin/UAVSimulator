@@ -32,6 +32,9 @@ public:
 	bool bEnableSensorPosition = false;
 
 	UPROPERTY(BlueprintReadWrite)
+	bool bEnableSensorGeoPosition = false;
+
+	UPROPERTY(BlueprintReadWrite)
 	bool bEnableSensorCesiumSurroundings = false;
 
 	UPROPERTY(BlueprintReadWrite)

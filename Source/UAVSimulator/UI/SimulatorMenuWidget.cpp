@@ -14,6 +14,7 @@ void USimulatorMenuWidget::NativeConstruct()
 	ButtonSensors->OnClicked.AddDynamic(this, &USimulatorMenuWidget::OnSensorsClicked);
 	ButtonEnvironment->OnClicked.AddDynamic(this, &USimulatorMenuWidget::OnEnvironmentClicked);
 	ButtonSyntheticData->OnClicked.AddDynamic(this, &USimulatorMenuWidget::OnSyntheticDataClicked);
+	ButtonGlobal->OnClicked.AddDynamic(this, &USimulatorMenuWidget::OnGlobalClicked);
 	ButtonStartSimulation->OnClicked.AddDynamic(this, &USimulatorMenuWidget::OnStartSimulationClicked);
 
 	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
@@ -54,6 +55,7 @@ void USimulatorMenuWidget::OnScenarioClicked()    { OpenSection(EMenuSection::Sc
 void USimulatorMenuWidget::OnSensorsClicked()     { OpenSection(EMenuSection::Sensors); }
 void USimulatorMenuWidget::OnEnvironmentClicked() { OpenSection(EMenuSection::Environment); }
 void USimulatorMenuWidget::OnSyntheticDataClicked() { OpenSection(EMenuSection::SyntheticData); }
+void USimulatorMenuWidget::OnGlobalClicked()        { OpenSection(EMenuSection::Global); }
 
 void USimulatorMenuWidget::OnStartSimulationClicked()
 {

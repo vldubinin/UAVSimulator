@@ -82,6 +82,9 @@ public:
 	bool bEnableSensorPosition = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
+	bool bEnableSensorGeoPosition = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
 	bool bEnableSensorCesiumSurroundings = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
@@ -90,6 +93,13 @@ public:
 	/** Pushes sensor enable flags to UUAVSimulationSubsystem and broadcasts to all airplanes. */
 	UFUNCTION(BlueprintCallable, Category = "Simulation|Sensors")
 	void UpdateSensorSettings();
+
+	/**
+	 * Number of frames sensors should warm up for before publishing. Configured here for now —
+	 * the warm-up logic itself is not implemented yet.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Global")
+	int32 SensorWarmupFrameCount = 0;
 
 	/** Spawns actors and starts the simulation. Must be called explicitly (e.g., from the UI). */
 	UFUNCTION(BlueprintCallable, Category = "Simulator")
