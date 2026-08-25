@@ -16,21 +16,27 @@
 #include "Serialization/JsonWriter.h"
 
 // Placeholder for a future file/network-backed source — hardcoded here for now, per the sample
-// schema: [{"elementId": "...", "type": "...", "latitude": ..., "longitude": ..., "altitude": ...}]
+// schema: [{"elementId": "...", "type": "...", "latitude": ..., "longitude": ..., "altitude": ...,
+// "bboxw": ..., "bboxh": ...}]. bboxw/bboxh are optional — missing entries keep
+// FCustomSurroundingObject's struct defaults.
 static const TCHAR* DefaultCustomObjectsJson = TEXT(R"([
 	{
 		"elementId": "obj1",
 		"type": "building",
 		"latitude": 50.5656742,
 		"longitude": 31.1472513,
-		"altitude": 350
+		"altitude": 350,
+		"bboxw": 20,
+		"bboxh": 15
 	},
 	{
 		"elementId": "obj2",
 		"type": "tree",
 		"latitude": 50.5656221,
 		"longitude": 31.1472122,
-		"altitude": 350
+		"altitude": 350,
+		"bboxw": 6,
+		"bboxh": 8
 	}
 ])");
 
@@ -49,9 +55,19 @@ void UCustomSurroundingsScannerComponent::BeginPlay()
 		SceneCaptureComponent = Owner->FindComponentByClass<USceneCaptureComponent2D>();
 	}
 
+	// Fixed bbox reference orientation — captured once here, on the camera's first frame, and
+	// never updated again (see InitialCameraRightAxis/InitialCameraUpAxis).
+	if (SceneCaptureComponent)
+	{
+		const FTransform CaptureTransform = SceneCaptureComponent->GetComponentTransform();
+		InitialCameraRightAxis = CaptureTransform.GetUnitAxis(EAxis::Y);
+		InitialCameraUpAxis    = CaptureTransform.GetUnitAxis(EAxis::Z);
+	}
+
 	Georeference = ACesiumGeoreference::GetDefaultGeoreference(this);
 
 	LoadObjects();
+	LastLoadedObjectsJson = ObjectsJson;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -62,15 +78,25 @@ void UCustomSurroundingsScannerComponent::TickComponent(float DeltaTime, ELevelT
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
+	// Live-reload: pick up edits to ObjectsJson (positions, type, bboxw/bboxh, ...) without
+	// requiring a restart. Scan() below re-syncs already-visible ObjectStorage entries from the
+	// freshly reloaded AllObjects.
+	if (ObjectsJson != LastLoadedObjectsJson)
+	{
+		LoadObjects();
+		LastLoadedObjectsJson = ObjectsJson;
+	}
+
 	UpdateSensorSize();
 	Scan();
 	BuildSensorFrame();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Load — parses ObjectsJson once, converting each entry's geographic position to a world-space
-// position via Georeference. AllObjects never changes after this except for the per-scan
-// DistanceMeters refresh in Scan().
+// Load — (re)parses ObjectsJson, converting each entry's geographic position to a world-space
+// position via Georeference. Called from BeginPlay and again from TickComponent whenever
+// ObjectsJson changes (see LastLoadedObjectsJson); DistanceMeters is additionally refreshed every
+// Scan().
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UCustomSurroundingsScannerComponent::LoadObjects()
@@ -96,6 +122,8 @@ void UCustomSurroundingsScannerComponent::LoadObjects()
 		(*JsonObject)->TryGetNumberField(TEXT("latitude"), Entry.Latitude);
 		(*JsonObject)->TryGetNumberField(TEXT("longitude"), Entry.Longitude);
 		(*JsonObject)->TryGetNumberField(TEXT("altitude"), Entry.AltitudeMeters);
+		(*JsonObject)->TryGetNumberField(TEXT("bboxw"), Entry.BBoxWidthMeters);
+		(*JsonObject)->TryGetNumberField(TEXT("bboxh"), Entry.BBoxHeightMeters);
 
 		if (Entry.ObjectID.IsEmpty()) continue;
 
@@ -158,8 +186,10 @@ const TArray<FCustomSurroundingObject>& UCustomSurroundingsScannerComponent::Sca
 		if (!bVisible) continue;
 
 		CurrentlyVisibleKeys.Add(Object.ObjectID);
+		// Full overwrite (not just DistanceMeters) so a live ObjectsJson edit — position, type,
+		// bboxw/bboxh — reaches an already-visible object immediately, not only newly-added ones.
 		if (FCustomSurroundingObject* Stored = ObjectStorage.Find(Object.ObjectID))
-			Stored->DistanceMeters = Object.DistanceMeters;
+			*Stored = Object;
 		else
 			AddObject(Object.ObjectID, Object);
 	}
@@ -187,10 +217,18 @@ const TArray<FCustomSurroundingObject>& UCustomSurroundingsScannerComponent::Sca
 			DrawScanAreaDebug(SceneCaptureComponent->GetComponentTransform(), ScanRadiusMeters * 100.0f, HalfHFovRad, HalfVFovRad);
 		}
 
-		// One ray per visible object, redrawn fresh every tick (LifeTime -1.f, same
-		// single-frame-refresh convention as UCesiumSurroundingsScannerComponent's rays).
+		// One ray (+ optional bbox) per visible object, redrawn fresh every tick (LifeTime -1.f,
+		// same single-frame-refresh convention as UCesiumSurroundingsScannerComponent's rays).
 		for (const TPair<FString, FCustomSurroundingObject>& Pair : ObjectStorage)
+		{
 			DrawDebugLine(World, Owner->GetActorLocation(), Pair.Value.WorldLocationMeters * 100.0, RayDebugColor, false, -1.0f);
+
+			if (bDrawObjectBBox)
+				DrawObjectBBoxDebug(Pair.Value.WorldLocationMeters * 100.0, Pair.Value.BBoxWidthMeters, Pair.Value.BBoxHeightMeters);
+
+			if (bDrawObjectLabel)
+				DrawObjectLabelDebug(Pair.Value.WorldLocationMeters * 100.0, Pair.Value.ObjectID);
+		}
 	}
 
 	return LatestScanResults;
@@ -229,6 +267,87 @@ void UCustomSurroundingsScannerComponent::DrawScanAreaDebug(const FTransform& Or
 	DrawDebugLine(World, TopRight,    BottomRight, ScanAreaDebugColor, false, -1.0f);
 	DrawDebugLine(World, BottomRight, BottomLeft,  ScanAreaDebugColor, false, -1.0f);
 	DrawDebugLine(World, BottomLeft,  TopLeft,     ScanAreaDebugColor, false, -1.0f);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Object bbox — a rectangle around the object's point, sized from its BBoxWidthMeters/
+// BBoxHeightMeters (see FCustomSurroundingObject, populated from "bboxw"/"bboxh"). Held flat
+// against InitialCameraRightAxis/InitialCameraUpAxis (fixed at BeginPlay) rather than billboarded
+// to the camera's current transform, so it translates with its object but never rotates.
+// ─────────────────────────────────────────────────────────────────────────────
+
+void UCustomSurroundingsScannerComponent::ComputeBBoxCorners(const FVector& WorldPositionCm, float WidthMeters, float HeightMeters, FVector (&OutCorners)[4]) const
+{
+	const float HalfWidthCm  = WidthMeters * 100.0f * 0.5f;
+	const float HalfHeightCm = HeightMeters * 100.0f * 0.5f;
+
+	// TopLeft, TopRight, BottomLeft, BottomRight.
+	OutCorners[0] = WorldPositionCm + InitialCameraUpAxis * HalfHeightCm - InitialCameraRightAxis * HalfWidthCm;
+	OutCorners[1] = WorldPositionCm + InitialCameraUpAxis * HalfHeightCm + InitialCameraRightAxis * HalfWidthCm;
+	OutCorners[2] = WorldPositionCm - InitialCameraUpAxis * HalfHeightCm - InitialCameraRightAxis * HalfWidthCm;
+	OutCorners[3] = WorldPositionCm - InitialCameraUpAxis * HalfHeightCm + InitialCameraRightAxis * HalfWidthCm;
+}
+
+void UCustomSurroundingsScannerComponent::DrawObjectBBoxDebug(const FVector& WorldPositionCm, float WidthMeters, float HeightMeters) const
+{
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	FVector Corners[4];
+	ComputeBBoxCorners(WorldPositionCm, WidthMeters, HeightMeters, Corners);
+	const FVector& TopLeft     = Corners[0];
+	const FVector& TopRight    = Corners[1];
+	const FVector& BottomLeft  = Corners[2];
+	const FVector& BottomRight = Corners[3];
+
+	DrawDebugLine(World, TopLeft,     TopRight,    BBoxDebugColor, false, -1.0f, SDPG_Foreground);
+	DrawDebugLine(World, TopRight,    BottomRight, BBoxDebugColor, false, -1.0f, SDPG_Foreground);
+	DrawDebugLine(World, BottomRight, BottomLeft,  BBoxDebugColor, false, -1.0f, SDPG_Foreground);
+	DrawDebugLine(World, BottomLeft,  TopLeft,     BBoxDebugColor, false, -1.0f, SDPG_Foreground);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Object bbox — projected screen size. Reuses ComputeBBoxCorners so the reported pixel size
+// matches exactly what DrawObjectBBoxDebug draws in the world.
+// ─────────────────────────────────────────────────────────────────────────────
+
+FVector2D UCustomSurroundingsScannerComponent::ComputeBBoxScreenSize(const FVector& WorldPositionCm, float WidthMeters, float HeightMeters) const
+{
+	FVector Corners[4];
+	ComputeBBoxCorners(WorldPositionCm, WidthMeters, HeightMeters, Corners);
+
+	FVector2D Min(TNumericLimits<float>::Max(), TNumericLimits<float>::Max());
+	FVector2D Max(-TNumericLimits<float>::Max(), -TNumericLimits<float>::Max());
+	bool bAnyCornerInFront = false;
+
+	for (const FVector& Corner : Corners)
+	{
+		FVector2D ScreenPos;
+		if (!ProjectWorldToScreenUnclamped(Corner, ScreenPos)) continue; // behind camera — skip
+
+		bAnyCornerInFront = true;
+		Min.X = FMath::Min(Min.X, ScreenPos.X);
+		Min.Y = FMath::Min(Min.Y, ScreenPos.Y);
+		Max.X = FMath::Max(Max.X, ScreenPos.X);
+		Max.Y = FMath::Max(Max.Y, ScreenPos.Y);
+	}
+
+	if (!bAnyCornerInFront) return FVector2D::ZeroVector;
+	return FVector2D(Max.X - Min.X, Max.Y - Min.Y);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Object label — the "elementId" text, drawn just above the object's point.
+// ─────────────────────────────────────────────────────────────────────────────
+
+void UCustomSurroundingsScannerComponent::DrawObjectLabelDebug(const FVector& WorldPositionCm, const FString& Label) const
+{
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	// Duration 0 → drawn for the current frame only, same redrawn-every-tick convention as the
+	// other debug markers (which use LifeTime -1.0f for the same effect on lines/points).
+	DrawDebugString(World, WorldPositionCm + FVector::UpVector * 50.0f, Label, nullptr, LabelDebugColor, 0.0f, false, LabelFontScale);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -277,12 +396,18 @@ void UCustomSurroundingsScannerComponent::BuildSensorFrame()
 		FVector2D ScreenPos;
 		const bool bVisible = ProjectWorldToScreen(Entry.WorldLocationMeters * 100.0, ScreenPos);
 
+		// Pixel-space bbox size — the projected width/height of the world-space bbox
+		// (BBoxWidthMeters/BBoxHeightMeters), same projection as pixel_x/pixel_y below.
+		const FVector2D BBoxScreenSize = ComputeBBoxScreenSize(Entry.WorldLocationMeters * 100.0, Entry.BBoxWidthMeters, Entry.BBoxHeightMeters);
+
 		TSharedRef<FJsonObject> ObjectJson = MakeShared<FJsonObject>();
 		ObjectJson->SetStringField(TEXT("id"),        Entry.ObjectID);
 		ObjectJson->SetStringField(TEXT("type"),      Entry.ObjectType);
 		ObjectJson->SetNumberField(TEXT("latitude"),  Entry.Latitude);
 		ObjectJson->SetNumberField(TEXT("longitude"), Entry.Longitude);
 		ObjectJson->SetNumberField(TEXT("altitude"),  Entry.AltitudeMeters);
+		ObjectJson->SetNumberField(TEXT("bboxw"),     BBoxScreenSize.X);
+		ObjectJson->SetNumberField(TEXT("bboxh"),     BBoxScreenSize.Y);
 		ObjectJson->SetNumberField(TEXT("pixel_x"),   bVisible ? ScreenPos.X : -1.0);
 		ObjectJson->SetNumberField(TEXT("pixel_y"),   bVisible ? ScreenPos.Y : -1.0);
 		ObjectJson->SetBoolField  (TEXT("visible"),   bVisible);
@@ -309,6 +434,14 @@ void UCustomSurroundingsScannerComponent::BuildSensorFrame()
 // ─────────────────────────────────────────────────────────────────────────────
 
 bool UCustomSurroundingsScannerComponent::ProjectWorldToScreen(const FVector& WorldPositionCm, FVector2D& OutScreenPos) const
+{
+	if (!ProjectWorldToScreenUnclamped(WorldPositionCm, OutScreenPos)) return false;
+
+	return OutScreenPos.X >= 0.0f && OutScreenPos.X <= static_cast<float>(SensorSizeX) &&
+	       OutScreenPos.Y >= 0.0f && OutScreenPos.Y <= static_cast<float>(SensorSizeY);
+}
+
+bool UCustomSurroundingsScannerComponent::ProjectWorldToScreenUnclamped(const FVector& WorldPositionCm, FVector2D& OutScreenPos) const
 {
 	if (!SceneCaptureComponent || SensorSizeX <= 0 || SensorSizeY <= 0) return false;
 
@@ -358,7 +491,5 @@ bool UCustomSurroundingsScannerComponent::ProjectWorldToScreen(const FVector& Wo
 	const float ScreenY = (1.0f - Projected.Y * RHW) * (SensorSizeY * 0.5f);
 
 	OutScreenPos = FVector2D(ScreenX, ScreenY);
-
-	return ScreenX >= 0.0f && ScreenX <= static_cast<float>(SensorSizeX) &&
-	       ScreenY >= 0.0f && ScreenY <= static_cast<float>(SensorSizeY);
+	return true;
 }

@@ -92,6 +92,7 @@ private:
 	void RGBEncoderLoop();
 	void MaskEncoderLoop();
 	void ComputeFOV(float HFovDeg);
+	void LogCameraIntrinsics() const;
 
 	UPROPERTY()
 	USceneCaptureComponent2D* CaptureComponent;

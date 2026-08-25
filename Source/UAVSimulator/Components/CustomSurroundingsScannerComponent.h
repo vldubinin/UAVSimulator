@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Engine/EngineTypes.h"
 #include "UAVSimulator/Interfaces/UAVSensorInterface.h"
 #include "UAVSimulator/Structure/CustomSurroundingObject.h"
 #include "CustomSurroundingsScannerComponent.generated.h"
@@ -17,9 +18,11 @@ class ACesiumGeoreference;
  *   { "elementId": "obj1", "type": "building", "latitude": 50.5656742, "longitude": 31.1472513,
  *     "altitude": 350 }
  *
- * ObjectsJson is parsed once in BeginPlay (LoadObjects()): every entry's Latitude/Longitude/
- * AltitudeMeters is converted, once, to a world-space position via
+ * ObjectsJson is parsed in BeginPlay (LoadObjects()): every entry's Latitude/Longitude/
+ * AltitudeMeters is converted to a world-space position via
  * ACesiumGeoreference::TransformLongitudeLatitudeHeightPositionToUnreal — see AllObjects.
+ * TickComponent re-parses it whenever the string changes (see LastLoadedObjectsJson), so editing
+ * ObjectsJson — including a per-object "bboxw"/"bboxh" — takes effect live, without restarting.
  *
  * Every Scan() re-tests each loaded object against the camera's current view: within range
  * (ScanRadiusMeters) and projecting inside the camera's frame (ProjectWorldToScreen — identical
@@ -35,6 +38,9 @@ class ACesiumGeoreference;
  *   3. ObjectStorage is only ever mutated through AddObject()/RemoveObject().
  *   4. LatestScanResults, the debug rays, and the sensor JSON payload are all driven from
  *      ObjectStorage, not from AllObjects directly.
+ *
+ * Georeference is used only to convert each object's lat/long/altitude into a world-space
+ * position (LoadObjects()) — there is no further interaction with Cesium tile geometry.
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API UCustomSurroundingsScannerComponent : public UActorComponent, public IUAVSensorInterface
@@ -103,10 +109,35 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Custom Surroundings|Debug")
 	FColor ScanAreaDebugColor = FColor::Cyan;
 
+	/**
+	 * Draws a fixed-orientation rectangle (BBoxWidthMeters × BBoxHeightMeters, from ObjectsJson's
+	 * "bboxw"/"bboxh") centered on each visible object's point — see DrawObjectBBoxDebug().
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Custom Surroundings|Debug")
+	bool bDrawObjectBBox = true;
+
+	/** Color of the object bbox rectangle (see bDrawObjectBBox). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Custom Surroundings|Debug")
+	FColor BBoxDebugColor = FColor::Green;
+
+	/** Draws each visible object's "elementId" (ObjectID) as text above its point. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Custom Surroundings|Debug")
+	bool bDrawObjectLabel = true;
+
+	/** Color of the elementId label text (see bDrawObjectLabel). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Custom Surroundings|Debug")
+	FColor LabelDebugColor = FColor::White;
+
+	/** Font scale of the elementId label text (see bDrawObjectLabel). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Custom Surroundings|Debug", meta = (ClampMin = 0.1f))
+	float LabelFontScale = 1.5f;
+
 private:
 	/**
 	 * Parses ObjectsJson into AllObjects, converting each entry's Latitude/Longitude/
-	 * AltitudeMeters to WorldLocationMeters via Georeference. Called once from BeginPlay.
+	 * AltitudeMeters to WorldLocationMeters via Georeference. Called from BeginPlay, and again
+	 * from TickComponent any time ObjectsJson no longer matches LastLoadedObjectsJson — so edits
+	 * made while playing (including per-object "bboxw"/"bboxh") take effect on the next tick.
 	 */
 	void LoadObjects();
 
@@ -118,6 +149,33 @@ private:
 	 */
 	void DrawScanAreaDebug(const FTransform& OriginTransform, float Range, float HalfHFovRad, float HalfVFovRad) const;
 
+	/**
+	 * Fills OutCorners with the four world-space corners (Unreal cm) of a WidthMeters ×
+	 * HeightMeters rectangle centered on WorldPositionCm, flat against the fixed
+	 * InitialCameraRightAxis/InitialCameraUpAxis orientation. Shared by DrawObjectBBoxDebug() and
+	 * ComputeBBoxScreenSize() so both agree on exactly what shape a bbox is.
+	 */
+	void ComputeBBoxCorners(const FVector& WorldPositionCm, float WidthMeters, float HeightMeters, FVector (&OutCorners)[4]) const;
+
+	/**
+	 * Draws a rectangle of size WidthMeters × HeightMeters (converted to cm), centered on
+	 * WorldPositionCm, flat against the fixed InitialCameraRightAxis/InitialCameraUpAxis
+	 * orientation — not billboarded to the camera's current transform, so it doesn't rotate.
+	 */
+	void DrawObjectBBoxDebug(const FVector& WorldPositionCm, float WidthMeters, float HeightMeters) const;
+
+	/**
+	 * Projects WidthMeters × HeightMeters's four corners (ComputeBBoxCorners) onto the camera
+	 * frame via ProjectWorldToScreenUnclamped, then returns the pixel-space width/height of their
+	 * axis-aligned bounds — the same projection used for pixel_x/pixel_y, unclamped to the sensor
+	 * so a partially off-frame bbox still reports its true size. A corner behind the camera is
+	 * skipped; if all four are, returns (0, 0).
+	 */
+	FVector2D ComputeBBoxScreenSize(const FVector& WorldPositionCm, float WidthMeters, float HeightMeters) const;
+
+	/** Draws Label as text at WorldPositionCm (see bDrawObjectLabel). */
+	void DrawObjectLabelDebug(const FVector& WorldPositionCm, const FString& Label) const;
+
 	/** ObjectStorage operation 1/2: registers a newly-visible object and logs its discovery. */
 	void AddObject(const FString& Key, const FCustomSurroundingObject& Entry);
 
@@ -127,8 +185,10 @@ private:
 	/**
 	 * Builds and caches this tick's IUAVSensorInterface JSON payload from ObjectStorage — one
 	 * object per currently-visible entry, with id/type/latitude/longitude/altitude plus
-	 * pixel_x/pixel_y/visible from ProjectWorldToScreen. Called at the end of TickComponent,
-	 * after Scan(); does nothing (and drops the cached frame) while bSensorEnabled is false.
+	 * pixel_x/pixel_y/visible from ProjectWorldToScreen, and bboxw/bboxh as the pixel-space size of
+	 * the projected bbox (ComputeBBoxScreenSize) — not the raw BBoxWidthMeters/BBoxHeightMeters.
+	 * Called at the end of TickComponent, after Scan(); does nothing (and drops the cached frame)
+	 * while bSensorEnabled is false.
 	 */
 	void BuildSensorFrame();
 
@@ -146,13 +206,31 @@ private:
 	 * target. Identical view/projection matrix setup to
 	 * UCesiumSurroundingsScannerComponent::ProjectWorldToScreen. Returns false (not visible) if
 	 * the capture's render target size isn't known yet, the point is behind the camera, or it
-	 * falls outside the render target bounds.
+	 * falls outside the render target bounds. Thin wrapper over ProjectWorldToScreenUnclamped that
+	 * adds the bounds check.
 	 */
 	bool ProjectWorldToScreen(const FVector& WorldPositionCm, FVector2D& OutScreenPos) const;
+
+	/**
+	 * Core of ProjectWorldToScreen, minus the sensor-bounds check: same view/projection matrix
+	 * setup, but OutScreenPos is returned as-is even when it falls outside the render target (used
+	 * by ComputeBBoxScreenSize, where an off-frame corner is still meaningful). Returns false only
+	 * when the capture/sensor size isn't known yet or the point is behind the camera.
+	 */
+	bool ProjectWorldToScreenUnclamped(const FVector& WorldPositionCm, FVector2D& OutScreenPos) const;
 
 	/** Owner's scene capture — supplies the transform the visibility test is projected from. */
 	UPROPERTY()
 	USceneCaptureComponent2D* SceneCaptureComponent = nullptr;
+
+	/**
+	 * SceneCaptureComponent's Right/Up axes, captured once in BeginPlay (its first frame) and
+	 * never updated again. DrawObjectBBoxDebug() draws every object's bbox flat against this fixed
+	 * reference orientation instead of billboarding to the camera's current transform each tick,
+	 * so a box doesn't rotate/twist as the airplane moves — it only translates with its object.
+	 */
+	FVector InitialCameraRightAxis = FVector::RightVector;
+	FVector InitialCameraUpAxis    = FVector::UpVector;
 
 	/**
 	 * Resolved in BeginPlay via ACesiumGeoreference::GetDefaultGeoreference. Used once by
@@ -162,10 +240,14 @@ private:
 	ACesiumGeoreference* Georeference = nullptr;
 
 	/**
-	 * Every object parsed from ObjectsJson, with WorldLocationMeters precomputed. Populated once
-	 * in BeginPlay; only DistanceMeters is refreshed afterwards (per Scan()).
+	 * Every object parsed from ObjectsJson, with WorldLocationMeters precomputed. Rebuilt by
+	 * LoadObjects() (BeginPlay, and again whenever ObjectsJson changes); DistanceMeters is
+	 * additionally refreshed every Scan().
 	 */
 	TArray<FCustomSurroundingObject> AllObjects;
+
+	/** ObjectsJson as of the last LoadObjects() call — lets TickComponent detect live edits. */
+	FString LastLoadedObjectsJson;
 
 	/**
 	 * Persistent storage of currently-visible objects, keyed by ObjectID. Only ever mutated via

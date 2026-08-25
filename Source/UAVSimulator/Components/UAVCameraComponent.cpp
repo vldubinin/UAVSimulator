@@ -80,8 +80,7 @@ void UUAVCameraComponent::BeginPlay()
 	}
 
 	ComputeFOV(CaptureComponent->FOVAngle);
-	/* UE_LOG(LogUAV, Log, TEXT("UAVCameraComponent: Camera found on %s (HFOV=%.1f° VFOV=%.1f°)"),
-		*Owner->GetName(), HorizontalFOVDeg, VerticalFOVDeg); */
+	LogCameraIntrinsics();
 
 	// Debug shapes (DrawDebugLine/Box/Sphere/...) render into the world's line-batch
 	// components, which are plain UPrimitiveComponents with no owning actor — a scene
@@ -430,6 +429,42 @@ void UUAVCameraComponent::ComputeFOV(float HFovDeg)
 	VerticalFOVDeg = FMath::RadiansToDegrees(
 		2.0f * FMath::Atan(FMath::Tan(HFovRad * 0.5f) / AspectRatio)
 	);
+}
+
+void UUAVCameraComponent::LogCameraIntrinsics() const
+{
+	if (!CaptureComponent) return;
+
+	// Focal length in pixels, derived from horizontal FOV and resolution.
+	// Square-pixel assumption holds because VerticalFOVDeg is itself derived
+	// from HorizontalFOVDeg via the CVWidth/CVHeight aspect ratio (see ComputeFOV).
+	const float FocalPx = (CVWidth * 0.5f) / FMath::Tan(FMath::DegreesToRadians(HorizontalFOVDeg * 0.5f));
+
+	FMatrix ProjectionMatrix;
+	if (CaptureComponent->bUseCustomProjectionMatrix)
+	{
+		ProjectionMatrix = CaptureComponent->CustomProjectionMatrix;
+	}
+	else if (CaptureComponent->ProjectionType == ECameraProjectionMode::Perspective)
+	{
+		const float AspectRatio = static_cast<float>(CVWidth) / static_cast<float>(CVHeight);
+		const float HalfFOVRad  = CaptureComponent->FOVAngle * (float)PI / 360.0f;
+		ProjectionMatrix = FReversedZPerspectiveMatrix(HalfFOVRad, AspectRatio, 1.0f, GNearClippingPlane);
+	}
+	else
+	{
+		const float OrthoWidth  = CaptureComponent->OrthoWidth / 2.0f;
+		const float OrthoHeight = OrthoWidth * static_cast<float>(CVHeight) / static_cast<float>(CVWidth);
+		ProjectionMatrix = FReversedZOrthoMatrix(OrthoWidth, OrthoHeight, 0.5f / OrthoWidth, GNearClippingPlane);
+	}
+
+	UE_LOG(LogUAV, Log, TEXT("UAVCameraComponent [%s]: resolution=%dx%d HFOV=%.2f° VFOV=%.2f° focal=%.2fpx"),
+		*GetOwner()->GetName(), CVWidth, CVHeight, HorizontalFOVDeg, VerticalFOVDeg, FocalPx);
+	UE_LOG(LogUAV, Log, TEXT("UAVCameraComponent [%s]: ProjectionMatrix ="), *GetOwner()->GetName());
+	UE_LOG(LogUAV, Log, TEXT("  [%.4f %.4f %.4f %.4f]"), ProjectionMatrix.M[0][0], ProjectionMatrix.M[0][1], ProjectionMatrix.M[0][2], ProjectionMatrix.M[0][3]);
+	UE_LOG(LogUAV, Log, TEXT("  [%.4f %.4f %.4f %.4f]"), ProjectionMatrix.M[1][0], ProjectionMatrix.M[1][1], ProjectionMatrix.M[1][2], ProjectionMatrix.M[1][3]);
+	UE_LOG(LogUAV, Log, TEXT("  [%.4f %.4f %.4f %.4f]"), ProjectionMatrix.M[2][0], ProjectionMatrix.M[2][1], ProjectionMatrix.M[2][2], ProjectionMatrix.M[2][3]);
+	UE_LOG(LogUAV, Log, TEXT("  [%.4f %.4f %.4f %.4f]"), ProjectionMatrix.M[3][0], ProjectionMatrix.M[3][1], ProjectionMatrix.M[3][2], ProjectionMatrix.M[3][3]);
 }
 
 void UUAVCameraComponent::UploadToTexture()
