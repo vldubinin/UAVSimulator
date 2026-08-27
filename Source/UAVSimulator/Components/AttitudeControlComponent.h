@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "UAVSimulator/Entity/PidController.h"
 #include "AttitudeControlComponent.generated.h"
 
 struct FZmqPullState;
@@ -29,17 +30,30 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Control")
 	FString CommandEndpoint = TEXT("tcp://*:5556");
 
-	/** P-gain: roll angle error (rad) → aileron signal [-1, 1] */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Control|Gains")
-	float RollGain = 2.0f;
+	/**
+	 * Компонент присутній на кожному AAirplane (як CDO), але за замовчуванням неактивний —
+	 * не тікає і не займає ZMQ-порт (усі літаки мають однаковий CommandEndpoint за замовчуванням,
+	 * тож біндити його на кожному екземплярі одразу в BeginPlay було б помилкою). Викликається
+	 * власником (напр. GameMode для Tracker-літака в PlaybackAndAutoTrack) щоб реально увімкнути
+	 * автопілот на КОНКРЕТНОМУ екземплярі.
+	 */
+	void ActivateAutopilot();
 
-	/** P-gain: pitch angle error (rad) → elevator signal [-1, 1] */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Control|Gains")
-	float PitchGain = 2.0f;
+	/** PID: roll angle error (rad) → aileron signal [-1, 1] */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Control|PID")
+	FPidController RollPid;
 
-	/** P-gain: yaw rate error (rad/s) → rudder signal [-1, 1] */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Control|Gains")
-	float YawRateGain = 1.0f;
+	/** PID: pitch angle error (rad) → elevator signal [-1, 1] */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Control|PID")
+	FPidController PitchPid;
+
+	/** PID: yaw rate error (rad/s) → rudder signal [-1, 1] */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Control|PID")
+	FPidController YawRatePid;
+
+	/** Логувати в консоль уставку/поточний кут і вихід кожного PID щотіку. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Control")
+	bool bLogAttitudeDebug = false;
 
 protected:
 	virtual void BeginPlay() override;
@@ -49,7 +63,7 @@ protected:
 
 private:
 	void PollCommands();
-	void ApplyAttitudeControl();
+	void ApplyAttitudeControl(float DeltaTime);
 
 	FZmqPullState*           ZmqState      = nullptr;
 	UFlightDynamicsComponent* FlightDynamics = nullptr;

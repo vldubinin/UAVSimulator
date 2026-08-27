@@ -47,9 +47,10 @@ public:
 	 * @param AngularVelocity — кутова швидкість mesh у рад/с.
 	 * @param AirflowDirection — нормалізований вектор набігаючого потоку.
 	 * @param ControlState    — поточний стан органів керування.
+	 * @param DeltaTime       — час з попереднього тіку, с (для динаміки приводу керма).
 	 * @return Сумарна аеродинамічна сила та момент для всієї поверхні.
 	 */
-	AerodynamicForce CalculateForcesOnSurface(FVector CenterOfMass, FVector LinearVelocity, FVector AngularVelocity, FVector AirflowDirection, ControlInputState ControlState, bool bVisualizeForces);
+	AerodynamicForce CalculateForcesOnSurface(FVector CenterOfMass, FVector LinearVelocity, FVector AngularVelocity, FVector AirflowDirection, ControlInputState ControlState, bool bVisualizeForces, float DeltaTime);
 
 	/** Activates or deactivates all UNiagaraComponents attached to this surface. */
 	void SetNiagaraActive(bool bActive);

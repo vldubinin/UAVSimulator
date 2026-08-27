@@ -40,7 +40,8 @@ AAirplane::AAirplane()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
-	FlightDynamics = CreateDefaultSubobject<UFlightDynamicsComponent>(TEXT("FlightDynamics"));
+	FlightDynamics  = CreateDefaultSubobject<UFlightDynamicsComponent>(TEXT("FlightDynamics"));
+	AttitudeControl = CreateDefaultSubobject<UAttitudeControlComponent>(TEXT("AttitudeControl"));
 	// CameraComp is not a CDO — created dynamically in RefreshConfigurations when camera is enabled.
 }
 

@@ -49,6 +49,9 @@ public:
 
 	float GetAngleOfAttack() const;
 	FVector GetLeftWingtipWorldPosition() const;
+
+	/** @return Повітряна швидкість (модуль лінійної швидкості mesh), м/с. */
+	float GetAirspeed() const { return PhysicsState->GetLinearVelocity().Size() / 100.0f; }
 	const TArray<TArray<FTrailingVortexNode>>& GetVortexWakeLines() const { return VortexWakeLines; }
 
 	UFUNCTION(BlueprintCallable, CallInEditor, meta = (DisplayName = "Розрахувати поляри для ЛА"), Category = "Автоматизація")

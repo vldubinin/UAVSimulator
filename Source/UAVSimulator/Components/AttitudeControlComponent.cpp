@@ -1,4 +1,5 @@
 #include "AttitudeControlComponent.h"
+#include "UAVSimulator/UAVSimulator.h"
 #include "UAVSimulator/Components/FlightDynamicsComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Dom/JsonObject.h"
@@ -35,31 +36,67 @@ struct FZmqPullState
 
 UAttitudeControlComponent::UAttitudeControlComponent()
 {
-	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bCanEverTick     = true;
+	PrimaryComponentTick.bStartWithTickEnabled = false; // тікає лише після ActivateAutopilot()
+
+	// Roll/Pitch регулюють КУТ — обертальна динаміка (момент керма -> кутове прискорення ->
+	// кутова швидкість -> кут) це фактично подвійний інтегратор. Чистий П (Kd=0) на такому
+	// об'єкті класично дає незгасаючі/наростаючі коливання (регулятор проскакує через 0 і
+	// щоразу штовхає сильніше в інший бік) — звідси "задирає ніс -> валиться на крило" навіть
+	// без жодної команди ззовні. Kd додає демпфування за швидкістю зміни кута. Це стартові
+	// значення для тюнінгу — фінальні підбираються в PIE через Details-панель.
+	RollPid.Kp = 2.0f;
+	RollPid.Kd = 0.4f;
+	RollPid.bIsAngularError = true;   // крен — кут, що проходить через ±180°
+
+	PitchPid.Kp = 2.0f;
+	PitchPid.Kd = 0.4f;
+	PitchPid.bIsAngularError = true;  // тангаж — так само кут
+
+	// YawRatePid регулює ШВИДКІСТЬ повороту, а не курсовий кут (одинарний інтегратор) —
+	// тому чистого П тут достатньо для стійкості, Kd не потрібен.
+	YawRatePid.Kp = 1.0f;
+	YawRatePid.bIsAngularError = false; // це швидкість, не кут — обгортання не потрібне
 }
 
 void UAttitudeControlComponent::BeginPlay()
 {
 	Super::BeginPlay();
+	// Свідомо нічого не робимо тут: компонент присутній на кожному літаку, але ZMQ-порт і тік
+	// вмикаються лише явним викликом ActivateAutopilot() для того екземпляра, що справді має
+	// керуватись автопілотом (див. коментар у .h).
+}
+
+void UAttitudeControlComponent::ActivateAutopilot()
+{
+	if (ZmqState) return; // вже активовано
 
 	FlightDynamics = GetOwner()->FindComponentByClass<UFlightDynamicsComponent>();
 	if (!FlightDynamics)
 	{
-		/* UE_LOG(LogTemp, Error, TEXT("AttitudeControlComponent: no UFlightDynamicsComponent found on %s"),
-		       *GetOwner()->GetName()); */
-		SetComponentTickEnabled(false);
+		UE_LOG(LogUAV, Error, TEXT("AttitudeControlComponent: не знайдено UFlightDynamicsComponent на %s — автопілот не активовано"),
+			*GetOwner()->GetName());
 		return;
 	}
+
+	// Blueprint-графа акторного тіку (напр. Cessna_172) теж пише в
+	// UpdateAileron/Elevator/Rudder/ThrottleControl (напр. колесо миші реасертовує
+	// накопичений throttle щокадру незалежно від фактичного скролу). Порядок тіків
+	// між нею та цим компонентом не гарантований, тож без явного prerequisite ручне
+	// керування час від часу перебиває ZMQ-команди назад у 0. Тікаємо після власного
+	// тіку актора, щоб команди автопілота завжди були останнім записом за кадр.
+	AddTickPrerequisiteActor(GetOwner());
 
 	try
 	{
 		ZmqState = new FZmqPullState(CommandEndpoint);
-		/* UE_LOG(LogTemp, Log, TEXT("AttitudeControlComponent: ZMQ PULL bound to %s"), *CommandEndpoint); */
+		SetComponentTickEnabled(true);
+		UE_LOG(LogUAV, Log, TEXT("AttitudeControlComponent: автопілот активовано на %s, ZMQ PULL прив'язано до %s"),
+			*GetOwner()->GetName(), *CommandEndpoint);
 	}
 	catch (const zmq::error_t& E)
 	{
-		UE_LOG(LogTemp, Error, TEXT("AttitudeControlComponent: ZMQ bind failed — %hs"), E.what());
-		SetComponentTickEnabled(false);
+		UE_LOG(LogUAV, Error, TEXT("AttitudeControlComponent: ZMQ bind failed — %hs"), E.what());
 	}
 }
 
@@ -78,7 +115,7 @@ void UAttitudeControlComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 	if (!ZmqState || !FlightDynamics) return;
 
 	PollCommands();
-	ApplyAttitudeControl();
+	ApplyAttitudeControl(DeltaTime);
 }
 
 void UAttitudeControlComponent::PollCommands()
@@ -88,14 +125,26 @@ void UAttitudeControlComponent::PollCommands()
 	{
 		while (ZmqState->Socket.recv(&Msg, ZMQ_DONTWAIT))
 		{
-			const FString Json = UTF8_TO_TCHAR(static_cast<const char*>(Msg.data()));
+			// zmq::message_t НЕ гарантує null-термінований буфер — Msg.size() це точна довжина
+			// корисного навантаження. Каст напряму в C-рядок (без явної довжини) читав би пам'ять
+			// за межами повідомлення, доки випадково не натрапить на нульовий байт деінде в купі.
+			const FUTF8ToTCHAR Converter(static_cast<const char*>(Msg.data()), static_cast<int32>(Msg.size()));
+			const FString Json(Converter.Length(), Converter.Get());
 
 			TSharedPtr<FJsonObject> Obj;
 			TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Json);
-			if (!FJsonSerializer::Deserialize(Reader, Obj) || !Obj.IsValid()) continue;
+			if (!FJsonSerializer::Deserialize(Reader, Obj) || !Obj.IsValid())
+			{
+				UE_LOG(LogUAV, Warning, TEXT("AttitudeControlComponent: не вдалося розпарсити вхідний JSON: %s"), *Json);
+				continue;
+			}
 
 			FString CommandType;
-			if (!Obj->TryGetStringField(TEXT("command_type"), CommandType)) continue;
+			if (!Obj->TryGetStringField(TEXT("command_type"), CommandType))
+			{
+				UE_LOG(LogUAV, Warning, TEXT("AttitudeControlComponent: у вхідному повідомленні відсутнє поле command_type: %s"), *Json);
+				continue;
+			}
 
 			if (CommandType == TEXT("SET_ATTITUDE_TARGET"))
 			{
@@ -103,6 +152,15 @@ void UAttitudeControlComponent::PollCommands()
 				TargetPitch   = (float)Obj->GetNumberField(TEXT("pitch"));
 				TargetYawRate = (float)Obj->GetNumberField(TEXT("yaw_rate"));
 				TargetThrust  = (float)Obj->GetNumberField(TEXT("thrust"));
+
+				UE_LOG(LogUAV, Log,
+					TEXT("AttitudeControlComponent: вхідний сигнал SET_ATTITUDE_TARGET — roll=%.1f° pitch=%.1f° yaw_rate=%.1f°/s thrust=%.2f"),
+					FMath::RadiansToDegrees(TargetRoll), FMath::RadiansToDegrees(TargetPitch),
+					FMath::RadiansToDegrees(TargetYawRate), TargetThrust);
+			}
+			else
+			{
+				UE_LOG(LogUAV, Warning, TEXT("AttitudeControlComponent: невідомий command_type '%s'"), *CommandType);
 			}
 		}
 	}
@@ -112,7 +170,7 @@ void UAttitudeControlComponent::PollCommands()
 	}
 }
 
-void UAttitudeControlComponent::ApplyAttitudeControl()
+void UAttitudeControlComponent::ApplyAttitudeControl(float DeltaTime)
 {
 	const FRotator Rot = GetOwner()->GetActorRotation();
 	const float CurrentRoll  = FMath::DegreesToRadians(Rot.Roll);
@@ -124,9 +182,23 @@ void UAttitudeControlComponent::ApplyAttitudeControl()
 		YawRateRadS = FMath::DegreesToRadians(Mesh->GetPhysicsAngularVelocityInDegrees().Z);
 	}
 
-	const float AileronCmd  = FMath::Clamp(RollGain    * (TargetRoll    - CurrentRoll),  -1.f, 1.f);
-	const float ElevatorCmd = FMath::Clamp(PitchGain   * (TargetPitch   - CurrentPitch), -1.f, 1.f);
-	const float RudderCmd   = FMath::Clamp(YawRateGain * (TargetYawRate - YawRateRadS),  -1.f, 1.f);
+	// Гейн-шедулінг (за наявності налаштованої кривої) масштабує коефіцієнти за повітряною
+	// швидкістю — аеродинамічний відгук керма зростає як V².
+	const float Airspeed = FlightDynamics->GetAirspeed();
+
+	const float AileronCmd  = RollPid.Update(TargetRoll, CurrentRoll, DeltaTime, Airspeed);
+	const float ElevatorCmd = PitchPid.Update(TargetPitch, CurrentPitch, DeltaTime, Airspeed);
+	const float RudderCmd   = YawRatePid.Update(TargetYawRate, YawRateRadS, DeltaTime, Airspeed);
+
+	if (bLogAttitudeDebug)
+	{
+		UE_LOG(LogUAV, Log,
+			TEXT("%s: Roll ціль=%.1f° поточ=%.1f° вихід=%.2f | Pitch ціль=%.1f° поточ=%.1f° вихід=%.2f | YawRate ціль=%.1f°/с поточ=%.1f°/с вихід=%.2f"),
+			*GetOwner()->GetName(),
+			FMath::RadiansToDegrees(TargetRoll),    FMath::RadiansToDegrees(CurrentRoll),    AileronCmd,
+			FMath::RadiansToDegrees(TargetPitch),   FMath::RadiansToDegrees(CurrentPitch),   ElevatorCmd,
+			FMath::RadiansToDegrees(TargetYawRate), FMath::RadiansToDegrees(YawRateRadS),    RudderCmd);
+	}
 
 	FlightDynamics->UpdateAileronControl(AileronCmd, -AileronCmd);
 	FlightDynamics->UpdateElevatorControl(ElevatorCmd, ElevatorCmd);

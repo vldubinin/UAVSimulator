@@ -55,10 +55,12 @@ public:
 	 * @param GlobalCenterOfMassInWorld — центр мас ЛА у світових координатах.
 	 * @param AirflowDirection          — нормалізований вектор набігаючого потоку.
 	 * @param ControlState             — поточний стан органів керування.
+	 * @param DeltaTime                — час з попереднього тіку, с (для динаміки приводу керма).
 	 * @return FAerodynamicForce з позиційною силою (підйом+опір) та моментом.
 	 */
 	FAerodynamicForce CalculateForcesOnSubSurface(FVector LinearVelocity, FVector AngularVelocity,
-		FVector GlobalCenterOfMassInWorld, FVector AirflowDirection, FControlInputState ControlState, bool bVisualizeForces);
+		FVector GlobalCenterOfMassInWorld, FVector AirflowDirection, FControlInputState ControlState,
+		bool bVisualizeForces, float DeltaTime);
 
 private:
 	TArray<FVector> Start3DProfile;

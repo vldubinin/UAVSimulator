@@ -227,9 +227,15 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 
 		if (TrackerAirplane)
 		{
-			UAttitudeControlComponent* AttCtrl = NewObject<UAttitudeControlComponent>(TrackerAirplane);
-			AttCtrl->CommandEndpoint = AttitudeCommandEndpoint;
-			AttCtrl->RegisterComponent();
+			// AttitudeControl присутній на КОЖНОМУ AAirplane (CDO), але неактивний за
+			// замовчуванням — тут вмикаємо його саме для Tracker'а. Конфігурація PID
+			// (Kp/Ki/Kd тощо) при цьому береться з Details-панелі конкретного
+			// Blueprint-класу TrackerAirplaneClass, а не з коду.
+			if (UAttitudeControlComponent* AttCtrl = TrackerAirplane->FindComponentByClass<UAttitudeControlComponent>())
+			{
+				AttCtrl->CommandEndpoint = AttitudeCommandEndpoint;
+				AttCtrl->ActivateAutopilot();
+			}
 
 			if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
 			{

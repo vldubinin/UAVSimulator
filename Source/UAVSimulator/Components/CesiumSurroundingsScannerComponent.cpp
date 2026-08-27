@@ -349,8 +349,8 @@ void UCesiumSurroundingsScannerComponent::AddObject(const FString& Key, const FC
 	}
 
 	const AActor* Owner = GetOwner();
-	UE_LOG(LogUAV, Log, TEXT("CesiumSurroundingsScanner: у полі зору з'явився %s (%s) — %.1f м від %s: %s"),
-		*Entry.ActorName, *Entry.ComponentName, Entry.DistanceMeters, Owner ? *Owner->GetName() : TEXT("?"), *MetadataLine);
+	/*UE_LOG(LogUAV, Log, TEXT("CesiumSurroundingsScanner: у полі зору з'явився %s (%s) — %.1f м від %s: %s"),
+		*Entry.ActorName, *Entry.ComponentName, Entry.DistanceMeters, Owner ? *Owner->GetName() : TEXT("?"), *MetadataLine);*/
 }
 
 void UCesiumSurroundingsScannerComponent::RemoveObject(const FString& Key)

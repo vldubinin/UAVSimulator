@@ -6,6 +6,7 @@
 #include "GameFramework/Pawn.h"
 #include "UAVSimulator/Components/UAVCameraComponent.h"
 #include "UAVSimulator/Components/FlightDynamicsComponent.h"
+#include "UAVSimulator/Components/AttitudeControlComponent.h"
 
 #include "Airplane.generated.h"
 
@@ -55,4 +56,13 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Flight", meta = (AllowPrivateAccess = "true"))
 	UFlightDynamicsComponent* FlightDynamics;
+
+	/**
+	 * Присутній на кожному літаку (як FlightDynamics), але неактивний, доки хтось явно не
+	 * викличе ActivateAutopilot() (напр. GameMode для Tracker-літака в PlaybackAndAutoTrack).
+	 * Кожен Blueprint-нащадок AAirplane отримує власну, збережувану конфігурацію
+	 * RollPid/PitchPid/YawRatePid у цій самій Details-панелі.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Autopilot", meta = (AllowPrivateAccess = "true"))
+	UAttitudeControlComponent* AttitudeControl;
 };

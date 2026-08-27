@@ -78,7 +78,7 @@ void USubAerodynamicSurfaceSC::InitComponent(
 FAerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(
 	FVector LinearVelocity, FVector AngularVelocity,
 	FVector GlobalCenterOfMassInWorld, FVector AirflowDirection,
-	FControlInputState ControlState, bool bVisualizeForces)
+	FControlInputState ControlState, bool bVisualizeForces, float DeltaTime)
 {
 	const FTransform& Transform = GetComponentTransform();
 
@@ -110,14 +110,23 @@ FAerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(
 	float AoA             = UAerodynamicPhysicsLibrary::CalculateAngleOfAttack(WorldAirVelocity, AverageChordDirection, GetUpVector());
 	float DynamicPressure = 0.5f * AirDensity * (Speed * Speed);  // q = 0.5 * ρ * V² (Па)
 
-	// Визначаємо кут відхилення закрилка та переміщуємо фізичний компонент-закрилок
-	int32 FlapAngle = (int32)ControlInputMapper::ResolveFlapAngle(FlapType, IsMirror, MinFlapAngle, MaxFlapAngle, ControlState);
+	// Визначаємо командний кут відхилення закрилка (без завчасного округлення — привід працює з плавним значенням)
+	float CommandedAngle = ControlInputMapper::ResolveFlapAngle(FlapType, IsMirror, MinFlapAngle, MaxFlapAngle, ControlState);
+
+	// Просуваємо привід у бік командного кута (перехідний процес) і отримуємо фактичний кут поверхні.
+	// Саме фактичний, а не командний кут визначає аеродинамічну силу — інакше лаг приводу був би
+	// лише косметичною анімацією, не впливаючи на фізику польоту.
+	float PhysicalAngle = CommandedAngle;
 	if (ControlSurface)
 	{
-		ControlSurface->Move((float)FlapAngle);
+		PhysicalAngle = ControlSurface->Move(CommandedAngle, DeltaTime);
 	}
+	// Захист від перерегулювання приводу: AerodynamicProfileLookup::FindProfile мовчки повертає
+	// nullptr (силу 0) якщо кут виходить за межі рядків таблиці.
+	PhysicalAngle = FMath::Clamp(PhysicalAngle, MinFlapAngle, MaxFlapAngle);
+	const int32 FlapAngle = FMath::RoundToInt(PhysicalAngle);
 
-	// Знаходимо профіль для поточного кута закрилка (nullptr якщо таблиця не задана)
+	// Знаходимо профіль для поточного (фактичного) кута закрилка (nullptr якщо таблиця не задана)
 	FAerodynamicProfileRow* Profile = AerodynamicProfileLookup::FindProfile(AerodynamicTable, FlapAngle);
 
 	// Розраховуємо сили в Ньютонах, конвертуємо у внутрішні одиниці Unreal (kg·cm/s²)

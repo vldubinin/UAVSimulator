@@ -86,7 +86,7 @@ void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 	{
 		CurrentBoundVortices.Empty();
 
-		const float SpeedMs = PhysicsState->GetLinearVelocity().Size() / 100.0f;
+		const float SpeedMs = GetAirspeed();
 
 		FAerodynamicForce TotalForce;
 		for (UAerodynamicSurfaceSC* Surface : Surfaces)
@@ -97,7 +97,8 @@ void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 				PhysicsState->GetAngularVelocity(),
 				PhysicsState->GetAirflowDirection(),
 				ControlState,
-				bVisualizeForces);
+				bVisualizeForces,
+				DeltaTime);
 			TotalForce.PositionalForce += SurfaceForce.PositionalForce;
 			TotalForce.RotationalForce += SurfaceForce.RotationalForce;
 
