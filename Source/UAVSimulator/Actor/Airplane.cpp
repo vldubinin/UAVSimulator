@@ -235,3 +235,13 @@ UTexture2D* AAirplane::GetCameraOutputTexture() const
 {
 	return CameraComp ? CameraComp->OutputTexture : nullptr;
 }
+
+float AAirplane::GetAirspeedMs() const
+{
+	return FlightDynamics ? FlightDynamics->GetAirspeed() * 3.6f: 0.0f;
+}
+
+float AAirplane::GetAirspeedKmh() const
+{
+	return GetAirspeedMs() * 3.6f;
+}

@@ -13,7 +13,14 @@ float UAirplaneTelemetryWidget::GetAltitudeMeters() const
 
 float UAirplaneTelemetryWidget::GetAirspeedMs() const
 {
-	return Airplane ? Airplane->GetVelocity().Size() * 0.01f : 0.0f;
+	// Через AAirplane::GetAirspeedMs() → FlightDynamics (швидкість фізичного тіла фюзеляжу).
+	// Actor->GetVelocity() тут давало хибне значення: корінь актора не симулює фізику.
+	return Airplane ? Airplane->GetAirspeedMs() : 0.0f;
+}
+
+float UAirplaneTelemetryWidget::GetAirspeedKmh() const
+{
+	return Airplane ? Airplane->GetAirspeedKmh() : 0.0f;
 }
 
 float UAirplaneTelemetryWidget::GetPitchDeg() const

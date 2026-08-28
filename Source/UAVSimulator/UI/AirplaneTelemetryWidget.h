@@ -26,9 +26,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Telemetry")
 	float GetAltitudeMeters() const;
 
-	/** Швидкість руху ЛА (м/с), довжина вектора швидкості актора. */
+	/** Справжня повітряна швидкість ЛА (м/с) — швидкість фізичного тіла фюзеляжу, як у логах. */
 	UFUNCTION(BlueprintPure, Category = "Telemetry")
 	float GetAirspeedMs() const;
+
+	/** Та сама швидкість у км/год (для звірки з крейсерською ~210). */
+	UFUNCTION(BlueprintPure, Category = "Telemetry")
+	float GetAirspeedKmh() const;
 
 	/** Кут тангажу (pitch) актора, градуси. */
 	UFUNCTION(BlueprintPure, Category = "Telemetry")

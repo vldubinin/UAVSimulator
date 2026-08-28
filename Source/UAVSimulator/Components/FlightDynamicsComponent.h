@@ -52,6 +52,8 @@ public:
 
 	/** @return Повітряна швидкість (модуль лінійної швидкості mesh), м/с. */
 	float GetAirspeed() const { return PhysicsState->GetLinearVelocity().Size() / 100.0f; }
+	/** @return Та сама швидкість у км/год — зручно для порівняння з крейсерською. */
+	float GetAirspeedKmh() const { return GetAirspeed() * 3.6f; }
 	const TArray<TArray<FTrailingVortexNode>>& GetVortexWakeLines() const { return VortexWakeLines; }
 
 	UFUNCTION(BlueprintCallable, CallInEditor, meta = (DisplayName = "Розрахувати поляри для ЛА"), Category = "Автоматизація")
@@ -64,6 +66,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation Settings",
 		meta = (ToolTip = "Увімкнути/вимкнути малювання векторів сил та моментів (Debug Arrows)"))
 	bool bVisualizeForces = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation Settings",
+		meta = (ToolTip = "Друкувати в лог справжню швидкість, тягу та баланс сил кожні 0.5 с (LogUAV) + вивід на екран"))
+	bool bLogFlightDebug = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation Settings",
 		meta = (ToolTip = "Початкова швидкість літака при старті симуляції (м/с)"))
@@ -119,4 +125,7 @@ private:
 
 	void UpdateVortexWake();
 	FVector GetInducedVelocity(const FVector& TargetPosCm) const;
+
+	/** Акумулятор часу для дроселювання діагностичного логу (див. bLogFlightDebug). */
+	float DebugLogAccumulator = 0.0f;
 };

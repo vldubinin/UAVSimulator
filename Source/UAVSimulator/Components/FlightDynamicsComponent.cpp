@@ -5,6 +5,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Components/StaticMeshComponent.h"
 #include "Curves/CurveFloat.h"
+#include "Engine/Engine.h"
 #include "UAVSimulator/Util/AerodynamicDebugRenderer.h"
 
 UFlightDynamicsComponent::UFlightDynamicsComponent()
@@ -88,6 +89,9 @@ void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 
 		const float SpeedMs = GetAirspeed();
 
+		// Сумарна індуктивна сила від несучої лінії (для діагностики опору)
+		FVector TotalInducedForceUU = FVector::ZeroVector;
+
 		FAerodynamicForce TotalForce;
 		for (UAerodynamicSurfaceSC* Surface : Surfaces)
 		{
@@ -144,6 +148,7 @@ void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 				FVector InducedForceN  = AirDensity * LocalGamma * FVector::CrossProduct(SegmentDl_m, Vind_ms);
 				FVector InducedForceUU = InducedForceN * 100.0f;
 				Mesh->AddForceAtLocation(InducedForceUU, SegmentCenterCm);
+				TotalInducedForceUU += InducedForceUU;
 				// ---------------------------------
 
 				FBoundVortex BV;
@@ -160,6 +165,10 @@ void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 		// Інерція розкручування двигуна
 		CurrentThrottle = FMath::FInterpTo(CurrentThrottle, TargetThrottle, DeltaTime, EngineSpoolSpeed);
 
+		// Значення для діагностичного логу (заповнюються нижче, якщо двигун працює)
+		float LoggedThrustMultiplier = 0.0f;
+		float LoggedActualThrustN    = 0.0f;
+
 		if (CurrentThrottle > 0.01f)
 		{
 			float ThrustMultiplier = 1.0f;
@@ -175,6 +184,50 @@ void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 			const float ActualThrust        = MaxStaticThrust * CurrentThrottle * ThrustMultiplier;
 			const FVector ThrustLocationWorld = Owner->GetActorTransform().TransformPosition(EngineThrustOffsetLocal);
 			Mesh->AddForceAtLocation(Owner->GetActorForwardVector() * ActualThrust, ThrustLocationWorld);
+
+			LoggedThrustMultiplier = ThrustMultiplier;
+			LoggedActualThrustN    = ActualThrust / 100.0f;  // внутрішні одиниці (kg·cm/s²) → Н
+		}
+
+		// ── Діагностика розгону: справжня швидкість + баланс поздовжніх сил ──
+		if (bLogFlightDebug)
+		{
+			DebugLogAccumulator += DeltaTime;
+			if (DebugLogAccumulator >= 0.5f)
+			{
+				DebugLogAccumulator = 0.0f;
+
+				const FVector VelCmS   = PhysicsState->GetLinearVelocity();   // cm/s
+				const FVector VelDir   = VelCmS.GetSafeNormal();
+				const float   SpeedKmh = VelCmS.Size() / 100.0f * 3.6f;
+				const float   HorizKmh = FVector(VelCmS.X, VelCmS.Y, 0.f).Size() / 100.0f * 3.6f;
+				const float   VertMs   = VelCmS.Z / 100.0f;
+
+				// Розкладаємо сумарну аеродинамічну силу: опір = проекція на -V, підйом = складова +Z
+				const FVector AeroN        = TotalForce.PositionalForce / 100.0f;                 // Н
+				const float   DragN        = VelDir.IsNearlyZero() ? 0.f : -FVector::DotProduct(AeroN, VelDir);
+				const float   LiftUpN      = AeroN.Z;
+				const float   InducedDragN = VelDir.IsNearlyZero() ? 0.f : -FVector::DotProduct(TotalInducedForceUU / 100.0f, VelDir);
+
+				const float   MassKg  = Mesh->GetMass();
+				const float   WeightN = MassKg * 9.81f;
+
+				UE_LOG(LogUAV, Warning,
+					TEXT("[Розгін] %s | V=%.1f км/год (%.1f м/с) гор=%.1f верт=%.1f м/с | AoA=%.1f° | ")
+					TEXT("газ ц/факт=%.2f/%.2f | Kтяги=%.3f Тяга=%.0f Н | опір поляри=%.0f Н індукт=%.0f Н разом=%.0f Н | ")
+					TEXT("підйом=%.0f Н вага=%.0f Н | маса=%.1f кг"),
+					*Owner->GetName(), SpeedKmh, VelCmS.Size() / 100.0f, HorizKmh, VertMs, GetAngleOfAttack(),
+					TargetThrottle, CurrentThrottle, LoggedThrustMultiplier, LoggedActualThrustN,
+					DragN, InducedDragN, DragN + InducedDragN, LiftUpN, WeightN, MassKg);
+
+				if (GEngine)
+				{
+					GEngine->AddOnScreenDebugMessage((uint64)Owner->GetUniqueID(), 0.7f, FColor::Cyan,
+						FString::Printf(TEXT("%s  V=%.1f км/год  AoA=%.1f°  газ=%.2f  Kтяги=%.2f  тяга=%.0f Н  опір=%.0f Н"),
+							*Owner->GetName(), SpeedKmh, GetAngleOfAttack(), CurrentThrottle,
+							LoggedThrustMultiplier, LoggedActualThrustN, DragN + InducedDragN));
+				}
+			}
 		}
 
 		/* UE_LOG(LogUAV, Log, TEXT("%s Location: %s"), *Owner->GetName(), *Owner->GetActorLocation().ToString()); */

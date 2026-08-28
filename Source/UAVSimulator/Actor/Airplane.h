@@ -32,6 +32,18 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Computer Vision")
 	UTexture2D* GetCameraOutputTexture() const;
 
+	/**
+	 * Справжня повітряна швидкість — модуль швидкості фізичного тіла фюзеляжу (той самий
+	 * показник, що друкує FlightDynamics у лог). НЕ використовуй Actor->GetVelocity() для
+	 * телеметрії: корінь актора (DefaultSceneRoot) не симулює фізику й дає хибне значення.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Telemetry")
+	float GetAirspeedMs() const;
+
+	/** Та сама швидкість у км/год (для звірки з крейсерською ~210). */
+	UFUNCTION(BlueprintPure, Category = "Telemetry")
+	float GetAirspeedKmh() const;
+
 	void RefreshConfigurations();
 	void RefreshSensorSettings();
 	void CleanupWidgets();
