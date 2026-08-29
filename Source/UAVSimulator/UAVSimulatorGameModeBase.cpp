@@ -243,6 +243,38 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 			}
 		}
 	}
+	else if (CurrentSimulatorMode == ESimulatorMode::AutoTrack)
+	{
+		// Те саме, що PlaybackAndAutoTrack, але без дрона-цілі та без відтворення
+		// записаного сценарію: спавнимо лише трекер на PlayerStart, вмикаємо на ньому
+		// автопілот (він отримує уставки атитюду ззовні через ZMQ) і опановуємо його.
+		if (!TrackerAirplaneClass)
+		{
+			/* UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TrackerAirplaneClass is not set.")); */
+			return;
+		}
+
+		AAirplane* TrackerAirplane = GetWorld()->SpawnActorDeferred<AAirplane>(
+			TrackerAirplaneClass, SpawnTransform, nullptr, nullptr, AlwaysSpawn);
+		if (!TrackerAirplane) return;
+		TrackerAirplane->Tags.Add(FName("AutoTracker"));
+		TrackerAirplane->FinishSpawning(SpawnTransform);
+
+		// AttitudeControl присутній на КОЖНОМУ AAirplane (CDO), але неактивний за
+		// замовчуванням — тут вмикаємо його саме для Tracker'а. Конфігурація PID
+		// (Kp/Ki/Kd тощо) при цьому береться з Details-панелі конкретного
+		// Blueprint-класу TrackerAirplaneClass, а не з коду.
+		if (UAttitudeControlComponent* AttCtrl = TrackerAirplane->FindComponentByClass<UAttitudeControlComponent>())
+		{
+			AttCtrl->CommandEndpoint = AttitudeCommandEndpoint;
+			AttCtrl->ActivateAutopilot();
+		}
+
+		if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+		{
+			PC->Possess(TrackerAirplane);
+		}
+	}
 	else if (CurrentSimulatorMode == ESimulatorMode::Playback)
 	{
 		if (!TargetAirplaneClass)

@@ -57,4 +57,14 @@ public:
 	/** Логувати в консоль бажаний (командний) і фактичний (лагований) кут цієї поверхні щотіку. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Actuator", meta = (DisplayName = "Логувати кути (debug)"))
 		bool bLogAngleDebug = false;
+
+private:
+	/**
+	 * Монтажний (авторський) відносний поворот поверхні, заданий у Blueprint — нахил під
+	 * V-подібність / стрілоподібність крила тощо. Захоплюється один раз при першому Move()
+	 * і слугує базою, поверх якої накладається кут відхилення керма. Без цього привід
+	 * перезаписував би поворот повністю й поверхня «лягала» б горизонтально на старті.
+	 */
+	FQuat RestRelativeRotation = FQuat::Identity;
+	bool bRestRotationCaptured = false;
 };

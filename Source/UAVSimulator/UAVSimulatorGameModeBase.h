@@ -34,7 +34,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulator")
 	float TargetSpawnOffsetDistance = 5000.0f;
 
-	/** ZMQ PULL endpoint for attitude commands in PlaybackAndAutoTrack mode. */
+	/** ZMQ PULL endpoint for attitude commands in PlaybackAndAutoTrack / AutoTrack modes. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulator")
 	FString AttitudeCommandEndpoint = TEXT("tcp://*:5556");
 

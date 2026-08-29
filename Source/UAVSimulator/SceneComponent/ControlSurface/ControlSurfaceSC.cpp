@@ -11,6 +11,14 @@ UControlSurfaceSC::UControlSurfaceSC()
 
 float UControlSurfaceSC::Move(float TargetAngle, float DeltaTime)
 {
+	// Запамʼятовуємо монтажну орієнтацію поверхні (з Blueprint) один раз — до того, як
+	// привід уперше її змінить. Далі кут відхилення накладається поверх цієї бази.
+	if (!bRestRotationCaptured)
+	{
+		RestRelativeRotation = GetRelativeRotation().Quaternion();
+		bRestRotationCaptured = true;
+	}
+
 	// Просуваємо привід у бік командного кута з урахуванням перехідного процесу (див. FActuatorDynamics).
 	const float LogicalAngle = Actuator.Advance(TargetAngle, DeltaTime);
 
@@ -25,18 +33,21 @@ float UControlSurfaceSC::Move(float TargetAngle, float DeltaTime)
 	}
 
 	// Кожна вісь повертає компонент по-різному: X — крен (Roll), Y — тангаж (Pitch), Z — рискання (Yaw)
-	FRotator NewRotation;
+	FRotator DeflectionRotator;
 	if (AxisType == EAxisType::X) {
-		NewRotation = FRotator(0.f, 0.f, VisualAngle);  // Roll
+		DeflectionRotator = FRotator(0.f, 0.f, VisualAngle);  // Roll
 	}
 	else if (AxisType == EAxisType::Y) {
-		NewRotation = FRotator(VisualAngle, 0.f, 0.f);  // Pitch
+		DeflectionRotator = FRotator(VisualAngle, 0.f, 0.f);  // Pitch
 	}
 	else {
-		NewRotation = FRotator(0.f, VisualAngle, 0.f);  // Yaw
+		DeflectionRotator = FRotator(0.f, VisualAngle, 0.f);  // Yaw
 	}
 
-	SetRelativeRotation(NewRotation);
+	// Відхилення керма — навколо власної (локальної) осі завісу, тому накладаємо його
+	// поверх монтажної орієнтації: Rest * Deflection. Якщо RestRelativeRotation == Identity
+	// (поверхня без авторського нахилу), поведінка ідентична попередній.
+	SetRelativeRotation(RestRelativeRotation * DeflectionRotator.Quaternion());
 
 	return LogicalAngle;
 }
