@@ -91,6 +91,7 @@ void UAttitudeControlComponent::ActivateAutopilot()
 	{
 		ZmqState = new FZmqPullState(CommandEndpoint);
 		SetComponentTickEnabled(true);
+		bInputSourceEnabled = true; // тепер координатор (UPilotInputComponent) враховує цей тир
 		UE_LOG(LogUAV, Log, TEXT("AttitudeControlComponent: автопілот активовано на %s, ZMQ PULL прив'язано до %s"),
 			*GetOwner()->GetName(), *CommandEndpoint);
 	}
@@ -102,6 +103,7 @@ void UAttitudeControlComponent::ActivateAutopilot()
 
 void UAttitudeControlComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	bInputSourceEnabled = false;
 	delete ZmqState;
 	ZmqState = nullptr;
 	Super::EndPlay(EndPlayReason);
@@ -115,7 +117,7 @@ void UAttitudeControlComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 	if (!ZmqState || !FlightDynamics) return;
 
 	PollCommands();
-	ApplyAttitudeControl(DeltaTime);
+	ComputeCommands(DeltaTime);
 }
 
 void UAttitudeControlComponent::PollCommands()
@@ -170,7 +172,18 @@ void UAttitudeControlComponent::PollCommands()
 	}
 }
 
-void UAttitudeControlComponent::ApplyAttitudeControl(float DeltaTime)
+bool UAttitudeControlComponent::GetPilotCommand(FPilotCommand& OutCommand)
+{
+	OutCommand.Roll             = LastAileron;
+	OutCommand.Pitch            = LastElevator;
+	OutCommand.Yaw              = LastRudder;
+	OutCommand.ThrottleRate     = 0.f;
+	OutCommand.ThrottleAbsolute = LastThrust;     // автопілот задає газ абсолютно [0,1]
+	OutCommand.bHasInput        = (ZmqState != nullptr); // активований => завжди володіє літаком
+	return OutCommand.bHasInput;
+}
+
+void UAttitudeControlComponent::ComputeCommands(float DeltaTime)
 {
 	const FRotator Rot = GetOwner()->GetActorRotation();
 	const float CurrentRoll  = FMath::DegreesToRadians(Rot.Roll);
@@ -200,8 +213,10 @@ void UAttitudeControlComponent::ApplyAttitudeControl(float DeltaTime)
 			FMath::RadiansToDegrees(TargetYawRate), FMath::RadiansToDegrees(YawRateRadS),    RudderCmd);
 	}
 
-	FlightDynamics->UpdateAileronControl(AileronCmd, -AileronCmd);
-	FlightDynamics->UpdateElevatorControl(ElevatorCmd, ElevatorCmd);
-	FlightDynamics->UpdateRudderControl(RudderCmd);
-	FlightDynamics->UpdateThrottleControl(TargetThrust);
+	// Запис у FlightDynamics робить координатор (UPilotInputComponent) — тут лише кешуємо.
+	// Диференціал елеронів (L, -L) координатор формує сам із скаляра Roll.
+	LastAileron  = AileronCmd;
+	LastElevator = ElevatorCmd;
+	LastRudder   = RudderCmd;
+	LastThrust   = TargetThrust;
 }

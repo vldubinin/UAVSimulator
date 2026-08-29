@@ -29,12 +29,34 @@ Unreal Engine 5.7 UAV (Unmanned Aerial Vehicle) flight dynamics simulator. Writt
 
 ### Main Actor: AAirplane
 
-`AAirplane` (`Actor/Airplane.h/cpp`) is the sole aircraft pawn. `PhysicalAirplane` has been deleted — do not reference it. The actor owns two CDO components:
+`AAirplane` (`Actor/Airplane.h/cpp`) is the sole aircraft pawn. `PhysicalAirplane` has been deleted — do not reference it. The actor owns these CDO components:
 
 - **`UFlightDynamicsComponent`** — all aerodynamics, physics forces, vortex wake, engine thrust
-- **`UUAVCameraComponent`** — onboard OpenCV camera (is a `UActorComponent`, not a `USceneComponent`; cannot be attached to a scene hierarchy)
+- **`UAttitudeControlComponent`** — ZMQ autopilot; also an `IPilotInputSource` (tier 100), see *Pilot Input*
+- **`UPilotInputComponent`** — coordinator for all control input; the sole writer to `UFlightDynamicsComponent`'s control API, see *Pilot Input*
+- **`UKeyboardPilotInputComponent`** / **`UGamepadPilotInputComponent`** — `IPilotInputSource` implementations (tier 0)
 
-`AAirplane::GetCameraOutputTexture()` exposes `UUAVCameraComponent::OutputTexture` for UI/sensor consumers.
+`UUAVCameraComponent` (onboard OpenCV camera) is *not* a CDO — it is created lazily in `RefreshConfigurations()` when the camera is enabled; it is a `UActorComponent`, not a `USceneComponent`, so it has no transform and cannot be attached to a scene hierarchy. `AAirplane::GetCameraOutputTexture()` exposes `UUAVCameraComponent::OutputTexture` for UI/sensor consumers.
+
+### Pilot Input
+
+All control input flows through one interface, mirroring the *Sensor Bus* pattern:
+
+- **`IPilotInputSource`** (`Interfaces/PilotInputSource.h`) — the contract: `GetInputSourceId()`, `GetInputSourcePriority()`, `BindInput(UInputComponent*)`, `GetPilotCommand(FPilotCommand&)`, plus a `bInputSourceEnabled` gate. Modelled on `IUAVSensorInterface`.
+- **`FPilotCommand`** (`Structure/PilotCommand.h`) — per-frame normalized intent: `Roll/Pitch/Yaw` [-1,1], `ThrottleRate` [-1,1] (incremental), `ThrottleAbsolute` (>=0 ⇒ source sets throttle directly), `bHasInput`.
+- **`UPilotInputComponent`** (`Components/PilotInputComponent.h`) — the coordinator. Auto-discovers all `IPilotInputSource` components on the owner (or an explicit `InputSources` list), and each tick: collects commands from *enabled sources whose `bHasInput` is true*, keeps only the **highest active priority tier**, **sums** its axes with `clamp[-1,1]`, then is the **sole caller** of `UFlightDynamicsComponent::UpdateAileron/Elevator/Rudder/ThrottleControl`. Owns the throttle accumulator `Throttle01` (`ThrottleModel`/`ThrottleRampRate`). `bInvertPitch` (default true, aviation-standard) is applied **only to the human tier** (priority 0), never to autopilot. Gated by `ShouldDrive()` — locally-controlled `APawn` with a `UFlightDynamicsComponent`.
+- **Sources**: `UKeyboardPilotInputComponent` (tier 0, binds `Kbd{Roll,Pitch,Yaw,Throttle}`, straight passthrough), `UGamepadPilotInputComponent` (tier 0, binds `Pad{Roll,Pitch,Yaw,Throttle}`, per-axis deadzone→expo→sensitivity), `UAttitudeControlComponent` (tier 100, ZMQ; exclusive whenever `ActivateAutopilot()` has run — its PID output is cached in `ComputeCommands()` and returned via `GetPilotCommand()`; it no longer writes the API itself).
+- **Tick order** (per frame, set via prerequisites in `AAirplane::BeginPlay`): `AAirplane::Tick` → `UAttitudeControlComponent` (compute only) → `UPilotInputComponent` (combine + write) → `UFlightDynamicsComponent` (consume). Needed because `UFlightDynamicsComponent` zeroes `ControlState` at the end of its own tick (`FlightDynamicsComponent.cpp`).
+- **Gamepad — RC Mode 2** (8BitDo SN30 Pro+ must be in **XInput** mode: hold START+X on power-on):
+
+  | Axis | Keyboard | Gamepad (XInput) |
+  |------|----------|------------------|
+  | Roll | `A` / `D` | right stick X (`Gamepad_RightX`) |
+  | Pitch | `Down` / `Up` | right stick Y (`Gamepad_RightY`) |
+  | Yaw | `Left` / `Right` | left stick X (`Gamepad_LeftX`) |
+  | Throttle (incremental) | `S` / `W` | left stick Y (`Gamepad_LeftY`) |
+
+  Legacy input only — no EnhancedInput, no RawInput device config (`Config/DefaultInput.ini` axis names `Kbd*` / `Pad*`). `Gamepad_Special_Right` (Start) also opens the menu.
 
 ### Aerodynamic Surface Hierarchy
 
@@ -73,7 +95,7 @@ Getters backed by `UUAVPhysicsStateComponent` (updated at the top of each tick):
 - `GetAllVortexPositions()` — flat array of `CurrentWorldCoP` from all sub-surfaces
 - `GetAllVortexGammas()` — flat array of `CurrentGamma` from all sub-surfaces
 
-These are only valid after `UFlightDynamicsComponent` has ticked in the current frame. Any component that reads them must call `AddTickPrerequisiteComponent(DynamicsComp)` in `BeginPlay`. `AttitudeControlComponent` is the one component that *writes* into this API (see below) rather than reading it — it drives `UpdateAileronControl/UpdateElevatorControl/UpdateRudderControl/UpdateThrottleControl` directly.
+These are only valid after `UFlightDynamicsComponent` has ticked in the current frame. Any component that reads them must call `AddTickPrerequisiteComponent(DynamicsComp)` in `BeginPlay`. `UpdateAileronControl/UpdateElevatorControl/UpdateRudderControl/UpdateThrottleControl` are written by exactly one component — `UPilotInputComponent` (see *Pilot Input*), which aggregates keyboard, gamepad, and the ZMQ autopilot and is a tick prerequisite of `UFlightDynamicsComponent`.
 
 ### VFX Architecture
 
@@ -123,7 +145,7 @@ A parallel, opt-in sensor system publishes UAV telemetry over ZeroMQ for externa
 - **`FSensorFrame`** (`Structure/SensorFrame.h`) — wire struct: `Topic` (FString), `Payload` (`TArray<uint8>`, pre-serialized JSON/bytes), `Timestamp` (double).
 - **`USensorBusComponent`** (`Components/SensorBusComponent.h`) — auto-discovers all `IUAVSensorInterface` components on its owning actor (or an explicit list), polls each at `BusRate` Hz, and publishes one ZMQ PUB multipart message (JSON envelope + N raw payload parts) on `Endpoint` (default `tcp://*:5555`).
 - **Concrete sensors**: `AltimeterComponent` (actor Z altitude), `CameraAltitudeComponent`/`CameraInclinationComponent` (read the camera's `USceneCaptureComponent2D` transform), `LidarComponent` (spherical raycast sweep via `SensorUtilityLibrary::FindActors`), `BBoxDetectionComponent`/`KeyPointDetectionComponent` (same ray-sweep pattern, project bounding boxes/`UKeyPointComponent` positions to screen space), `DronePositionComponent` (world position in metres), `CameraFrameComponent`/`SegmentationMaskCameraComponent` (thin adapters forwarding `UUAVCameraComponent`'s RGB output / segmentation mask onto `"camera"`/`"segmentation_mask"` topics).
-- **`AttitudeControlComponent`** is the inverse direction: a ZMQ PULL command receiver that parses `SET_ATTITUDE_TARGET` JSON, runs P-controllers on roll/pitch/yaw-rate, and writes into `UFlightDynamicsComponent`'s control-surface API. It requires a sibling `UFlightDynamicsComponent` (found via `FindComponentByClass` in `BeginPlay`) and disables its own tick if absent.
+- **`AttitudeControlComponent`** is the inverse direction: a ZMQ PULL command receiver that parses `SET_ATTITUDE_TARGET` JSON and runs P-controllers on roll/pitch/yaw-rate. It requires a sibling `UFlightDynamicsComponent` (found via `FindComponentByClass` in `BeginPlay`) and disables its own tick if absent. It no longer writes the control API directly — its PID output is cached in `ComputeCommands()` and handed to `UPilotInputComponent` via `IPilotInputSource::GetPilotCommand()` (tier 100, exclusive whenever `ActivateAutopilot()` has run). See *Pilot Input*.
 - **`UKeyPointComponent`** (`SceneComponent/KeyPoint/KeyPointComponent.h`) is a plain `USceneComponent` with a `PointID` FString, hand-placed in Blueprint on the airframe to mark physical landmarks (nose, wingtip, etc.). It is *not* part of the aerodynamic surface hierarchy — it's consumed by `KeyPointDetectionComponent` (runtime) and `DroneKeyPointDatasetActor` (offline export).
 
 `r.CustomDepth=3` (`Config/DefaultEngine.ini`) is enabled to support the segmentation-mask render pipeline.
@@ -176,7 +198,7 @@ Two `CallInEditor` tool actors under `DatasetGen/` generate offline training dat
 
 | File | Role |
 |------|------|
-| `Actor/Airplane.h/cpp` | Main aircraft pawn; owns `FlightDynamicsComponent` and `UAVCameraComponent`; `RefreshVisualEffects()` toggles VFX per role |
+| `Actor/Airplane.h/cpp` | Main aircraft pawn; owns `FlightDynamicsComponent`, `AttitudeControlComponent`, `PilotInputComponent` + keyboard/gamepad sources; `SetupPlayerInputComponent` fans out `BindInput` to every `IPilotInputSource`; `RefreshVisualEffects()` toggles VFX per role |
 | `Components/FlightDynamicsComponent.h/cpp` | All aerodynamics, physics forces, vortex wake |
 | `SceneComponent/AeroVisualizer/AeroVisualizerComponent.h/cpp` | Niagara wake-vortex VFX: spawns in BeginPlay, pushes wingtip position + AoA each tick |
 | `Subsystem/UAVSimulationSubsystem.h/cpp` | World subsystem; holds VFX enable flags, broadcasts `OnVisualSettingsChanged` |
@@ -185,8 +207,11 @@ Two `CallInEditor` tool actors under `DatasetGen/` generate offline training dat
 | `Components/FlightRecorderComponent.h/cpp` | Records flight frames to `UFlightScenarioSave` save game |
 | `Components/UAVCameraComponent.h/cpp` | Onboard camera + OpenCV processing (`UActorComponent`, no scene transform) |
 | `Components/SensorBusComponent.h` | Discovers `IUAVSensorInterface` components on the owner and publishes `FSensorFrame`s over ZMQ PUB |
-| `Components/AttitudeControlComponent.h/cpp` | ZMQ PULL command receiver; P-controllers driving `FlightDynamicsComponent` control surfaces |
+| `Components/AttitudeControlComponent.h/cpp` | ZMQ PULL command receiver; P-controllers; `IPilotInputSource` tier 100 (feeds `UPilotInputComponent`, no longer writes the API directly) |
 | `Interfaces/UAVSensorInterface.h` | Contract implemented by all sensor components (Altimeter, Lidar, BBox/KeyPoint detection, camera adapters, etc.) |
+| `Interfaces/PilotInputSource.h` + `Structure/PilotCommand.h` | `IPilotInputSource` contract + `FPilotCommand` frame — control-input analogue of `IUAVSensorInterface`/`FSensorFrame` |
+| `Components/PilotInputComponent.h/cpp` | Coordinator: discovers `IPilotInputSource` components, combines by priority tier (sum+clamp), sole writer of `FlightDynamicsComponent`'s control API; owns throttle accumulator |
+| `Components/KeyboardPilotInputComponent.h/cpp` · `Components/GamepadPilotInputComponent.h/cpp` | `IPilotInputSource` tier 0: keyboard (`Kbd*` axes, passthrough) / gamepad (`Pad*` axes, deadzone+expo+sensitivity; RC Mode 2; SN30 Pro+ XInput) |
 | `DatasetGen/DroneDatasetGeneratorActor.h/cpp` | Editor tool: orbit-capture + OpenCV silhouette extraction for ML bounding-shape datasets |
 | `DatasetGen/DroneKeyPointDatasetActor.h/cpp` | Editor tool: exports normalized `UKeyPointComponent` positions for ML keypoint datasets |
 | `UI/SimulatorMenuWidget.h/cpp` | Top-level UMG menu; switches between `Scenario`/`Sensors`/`Environment`/`SyntheticData` section widgets |

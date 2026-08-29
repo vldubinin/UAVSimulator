@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "UAVSimulator/Entity/PidController.h"
+#include "UAVSimulator/Interfaces/PilotInputSource.h"
 #include "AttitudeControlComponent.generated.h"
 
 struct FZmqPullState;
@@ -19,12 +20,21 @@ class UFlightDynamicsComponent;
  * Unreal side:    zmq.PULL ← bind("tcp://*:5556")
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
-class UAVSIMULATOR_API UAttitudeControlComponent : public UActorComponent
+class UAVSIMULATOR_API UAttitudeControlComponent : public UActorComponent, public IPilotInputSource
 {
 	GENERATED_BODY()
 
 public:
 	UAttitudeControlComponent();
+
+	// ── IPilotInputSource ────────────────────────────────────────────────────────
+	// Автопілот — джерело найвищого (ексклюзивного) тиру: доки активований, повністю
+	// перебиває клавіатуру/джойстик. Запис у FlightDynamics робить координатор
+	// (UPilotInputComponent), цей компонент лише ОБЧИСЛЮЄ команди в ComputeCommands().
+	virtual FName GetInputSourceId() const override { return FName(TEXT("autopilot")); }
+	virtual int32 GetInputSourcePriority() const override { return 100; }
+	virtual void BindInput(class UInputComponent* /*InputComponent*/) override {}
+	virtual bool GetPilotCommand(FPilotCommand& OutCommand) override;
 
 	/** ZMQ PULL endpoint. Algorithm connects with zmq.PUSH. Example: "tcp://*:5556" */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Control")
@@ -63,7 +73,8 @@ protected:
 
 private:
 	void PollCommands();
-	void ApplyAttitudeControl(float DeltaTime);
+	/** Запускає PID за прийнятою уставкою і кешує результат у Last* (запис робить координатор). */
+	void ComputeCommands(float DeltaTime);
 
 	FZmqPullState*           ZmqState      = nullptr;
 	UFlightDynamicsComponent* FlightDynamics = nullptr;
@@ -72,4 +83,10 @@ private:
 	float TargetPitch   = 0.f;
 	float TargetYawRate = 0.f;
 	float TargetThrust  = 0.f;
+
+	// Останні обчислені команди — віддаються координатору через GetPilotCommand().
+	float LastAileron  = 0.f;
+	float LastElevator = 0.f;
+	float LastRudder   = 0.f;
+	float LastThrust   = 0.f;
 };

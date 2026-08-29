@@ -1,9 +1,12 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Airplane.h"
+#include "UAVSimulator/UAVSimulator.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/InputComponent.h"
 #include "Blueprint/UserWidget.h"
 #include "GameFramework/PlayerController.h"
+#include "UAVSimulator/Interfaces/PilotInputSource.h"
 #include "UAVSimulator/Subsystem/UAVSimulationSubsystem.h"
 #include "UAVSimulator/SceneComponent/AerodynamicSurface/AerodynamicSurfaceSC.h"
 #include "UAVSimulator/UAVSimulatorPlayerController.h"
@@ -42,6 +45,12 @@ AAirplane::AAirplane()
 
 	FlightDynamics  = CreateDefaultSubobject<UFlightDynamicsComponent>(TEXT("FlightDynamics"));
 	AttitudeControl = CreateDefaultSubobject<UAttitudeControlComponent>(TEXT("AttitudeControl"));
+
+	// Керування пілота: координатор + джерела вводу (кожне реалізує IPilotInputSource).
+	PilotInput    = CreateDefaultSubobject<UPilotInputComponent>(TEXT("PilotInput"));
+	KeyboardInput = CreateDefaultSubobject<UKeyboardPilotInputComponent>(TEXT("KeyboardInput"));
+	GamepadInput  = CreateDefaultSubobject<UGamepadPilotInputComponent>(TEXT("GamepadInput"));
+
 	// CameraComp is not a CDO — created dynamically in RefreshConfigurations when camera is enabled.
 }
 
@@ -55,6 +64,20 @@ void AAirplane::OnConstruction(const FTransform& Transform)
 void AAirplane::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Порядок за кадр для керування:
+	//   AAirplane::Tick -> UAttitudeControlComponent (ZMQ+PID, лише обчислення)
+	//                   -> UPilotInputComponent (зведення + ЄДИНИЙ запис у FlightDynamics)
+	//                   -> UFlightDynamicsComponent (споживання; обнуляє ControlState наприкінці тіку)
+	if (PilotInput)
+	{
+		PilotInput->AddTickPrerequisiteActor(this);
+		if (AttitudeControl) PilotInput->AddTickPrerequisiteComponent(AttitudeControl);
+	}
+	if (PilotInput && FlightDynamics)
+	{
+		FlightDynamics->AddTickPrerequisiteComponent(PilotInput);
+	}
 
 	if (UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>())
 	{
@@ -91,6 +114,31 @@ void AAirplane::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
 	RefreshConfigurations();
+}
+
+void AAirplane::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+{
+	Super::SetupPlayerInputComponent(PlayerInputComponent);
+
+	UE_LOG(LogUAV, Log, TEXT("AAirplane::SetupPlayerInputComponent на %s — InputComponent %s"),
+		*GetName(), PlayerInputComponent ? TEXT("валідний") : TEXT("NULL"));
+
+	// Кожне джерело вводу прив'язує власні осі/клавіші. Актор лишається агностичним
+	// до конкретних пристроїв — так само, як SensorBusComponent агностичний до сенсорів.
+	int32 SourceCount = 0;
+	for (UActorComponent* Comp : GetComponents())
+	{
+		if (Comp && Comp->Implements<UPilotInputSource>())
+		{
+			if (IPilotInputSource* Source = Cast<IPilotInputSource>(Comp))
+			{
+				UE_LOG(LogUAV, Log, TEXT("  BindInput -> джерело '%s'"), *Source->GetInputSourceId().ToString());
+				Source->BindInput(PlayerInputComponent);
+				++SourceCount;
+			}
+		}
+	}
+	UE_LOG(LogUAV, Log, TEXT("AAirplane::SetupPlayerInputComponent — прив'язано джерел: %d"), SourceCount);
 }
 
 void AAirplane::RefreshConfigurations()

@@ -24,6 +24,7 @@ void AUAVSimulatorPlayerController::SetupInputComponent()
 	Super::SetupInputComponent();
 
 	InputComponent->BindKey(EKeys::Q, IE_Pressed, this, &AUAVSimulatorPlayerController::OnQPressed);
+	InputComponent->BindKey(EKeys::Gamepad_Special_Right, IE_Pressed, this, &AUAVSimulatorPlayerController::OnQPressed); // Start на SN30 Pro+
 }
 
 void AUAVSimulatorPlayerController::ShowMenu()

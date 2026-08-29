@@ -7,6 +7,9 @@
 #include "UAVSimulator/Components/UAVCameraComponent.h"
 #include "UAVSimulator/Components/FlightDynamicsComponent.h"
 #include "UAVSimulator/Components/AttitudeControlComponent.h"
+#include "UAVSimulator/Components/PilotInputComponent.h"
+#include "UAVSimulator/Components/KeyboardPilotInputComponent.h"
+#include "UAVSimulator/Components/GamepadPilotInputComponent.h"
 
 #include "Airplane.generated.h"
 
@@ -25,6 +28,7 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void PossessedBy(AController* NewController) override;
+	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 public:
 	virtual void Tick(float DeltaTime) override;
@@ -73,8 +77,20 @@ private:
 	 * Присутній на кожному літаку (як FlightDynamics), але неактивний, доки хтось явно не
 	 * викличе ActivateAutopilot() (напр. GameMode для Tracker-літака в PlaybackAndAutoTrack).
 	 * Кожен Blueprint-нащадок AAirplane отримує власну, збережувану конфігурацію
-	 * RollPid/PitchPid/YawRatePid у цій самій Details-панелі.
+	 * RollPid/PitchPid/YawRatePid у цій самій Details-панелі. Реалізує IPilotInputSource (tier 100).
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Autopilot", meta = (AllowPrivateAccess = "true"))
 	UAttitudeControlComponent* AttitudeControl;
+
+	/** Координатор керування пілота: дискаверить джерела вводу, зводить, пише у FlightDynamics. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Pilot Input", meta = (AllowPrivateAccess = "true"))
+	UPilotInputComponent* PilotInput;
+
+	/** Джерело вводу: клавіатура (IPilotInputSource, tier 0). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Pilot Input", meta = (AllowPrivateAccess = "true"))
+	UKeyboardPilotInputComponent* KeyboardInput;
+
+	/** Джерело вводу: джойстик / геймпад (IPilotInputSource, tier 0). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Pilot Input", meta = (AllowPrivateAccess = "true"))
+	UGamepadPilotInputComponent* GamepadInput;
 };
