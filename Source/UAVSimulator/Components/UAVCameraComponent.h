@@ -14,6 +14,8 @@
 
 #include "UAVCameraComponent.generated.h"
 
+class ACesiumCameraManager;
+
 /**
  * Manages the onboard camera: RGB capture, OpenCV processing, optional segmentation
  * mask capture, and per-tick stable JPEG payloads for downstream consumers.
@@ -50,6 +52,7 @@ public:
 	bool GetMaskFrame(TArray<uint8>& OutPayload, double& OutTimestamp) const;
 
 	virtual void OnRegister() override;
+	virtual void OnUnregister() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 #if WITH_EDITOR
@@ -93,6 +96,23 @@ private:
 	void MaskEncoderLoop();
 	void ComputeFOV(float HFovDeg);
 	void LogCameraIntrinsics() const;
+
+	// ── Cesium scene-capture camera registration ─────────────────────────────
+	/** Find or spawn the Cesium camera manager for this (game) world. */
+	void ResolveCesiumCameraManager();
+	/** Per-frame add-or-update of our FCesiumCamera so Cesium refines tiles for this capture. */
+	void SyncCesiumSceneCaptureCamera();
+	/** Remove our FCesiumCamera on disable / teardown. */
+	void UnregisterCesiumSceneCaptureCamera();
+
+	/** Cesium camera manager for this world (resolved lazily; self-nulls). */
+	TWeakObjectPtr<ACesiumCameraManager> CesiumCameraManager;
+
+	/** Stable id from ACesiumCameraManager::AddCamera; INDEX_NONE while unregistered. */
+	int32 CesiumCameraId = INDEX_NONE;
+
+	/** True between a successful AddCamera and its RemoveCamera. */
+	bool bCesiumCameraRegistered = false;
 
 	UPROPERTY()
 	USceneCaptureComponent2D* CaptureComponent;

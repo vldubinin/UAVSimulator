@@ -3,6 +3,8 @@
 
 #include "CesiumGeoreference.h"
 #include "Cesium3DTileset.h"
+#include "CesiumCameraManager.h"
+#include "CesiumCamera.h"
 
 #include "Components/SceneCaptureComponent2D.h"
 #include "Engine/TextureRenderTarget2D.h"
@@ -80,6 +82,11 @@ void AYoloMarkerDatasetActor::GenerateDataset()
 	TArray<AActor*> Tilesets;
 	UGameplayStatics::GetAllActorsOfClass(World, ACesium3DTileset::StaticClass(), Tilesets);
 	Tileset = Tilesets.Num() > 0 ? Cast<ACesium3DTileset>(Tilesets[0]) : nullptr;
+
+	// Cesium only feeds tile selection from player/editor cameras and standalone
+	// ASceneCapture2D actors — never a capture component nested in an actor. Register
+	// our capture pose with the camera manager so tiles under each shot are streamed.
+	CesiumCameraManager = ACesiumCameraManager::GetDefaultCameraManager(this);
 
 	if (!LoadObjects() || Objects.Num() == 0)
 	{
@@ -172,6 +179,10 @@ void AYoloMarkerDatasetActor::ProcessCurrentShot()
 		ResolveGroundHeights(Target);
 
 	PlaceCameraForShot(Target, Shot);
+
+	// Feed the new pose to Cesium every tick (including during the settle wait) so the
+	// tiles under it actively stream/refine rather than depending on another camera.
+	SyncCesiumCaptureCamera();
 
 	// Hold the pose for a few ticks so Cesium streams the tiles under it before we read.
 	if (SettleCounter < SettleFrames)
@@ -757,10 +768,54 @@ void AYoloMarkerDatasetActor::FinishGeneration(bool bCancelled)
 
 	bRunning = false;
 	SetActorTickEnabled(false);
+	UnregisterCesiumCaptureCamera();
 	CaptureComp->TextureTarget = nullptr;
 	RenderTarget = nullptr;
 
 	UE_LOG(LogUAV, Log, TEXT("YoloMarkerDataset: %s — збережено %d кадрів з %d спроб (%d заплановано) → %s"),
 		bCancelled ? TEXT("СКАСОВАНО") : TEXT("ГОТОВО"),
 		SavedFrameCount, AttemptedShotCount, Shots.Num(), *OutputRootDir);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cesium camera registration — see GenerateDataset() for why this is needed.
+// Mirrors ACesium3DTileset::GetSceneCaptures gating (perspective, sized RT, valid FOV)
+// and the stable-id ACesiumCameraManager API used by AAirplane's onboard camera.
+// ─────────────────────────────────────────────────────────────────────────────
+
+void AYoloMarkerDatasetActor::SyncCesiumCaptureCamera()
+{
+	if (!CaptureComp || !RenderTarget ||
+		CaptureComp->ProjectionType != ECameraProjectionMode::Perspective ||
+		CaptureComp->FOVAngle <= 0.f ||
+		RenderTarget->SizeX < 1 || RenderTarget->SizeY < 1)
+		return;
+
+	if (!CesiumCameraManager.IsValid())
+		CesiumCameraManager = ACesiumCameraManager::GetDefaultCameraManager(this);
+	ACesiumCameraManager* Mgr = CesiumCameraManager.Get();
+	if (!Mgr)
+		return;
+
+	// FOVAngle is horizontal degrees — passed straight through, exactly as Cesium does
+	// for level scene captures. OverrideAspectRatio stays 0 (derived from ViewportSize).
+	const FCesiumCamera Cam(
+		FVector2D(RenderTarget->SizeX, RenderTarget->SizeY),
+		CaptureComp->GetComponentLocation(),
+		CaptureComp->GetComponentRotation(),
+		CaptureComp->FOVAngle);
+
+	if (CesiumCameraId == INDEX_NONE)
+		CesiumCameraId = Mgr->AddCamera(Cam);
+	else if (!Mgr->UpdateCamera(CesiumCameraId, Cam))
+		CesiumCameraId = Mgr->AddCamera(Cam); // manager recreated / id lost — re-add
+}
+
+void AYoloMarkerDatasetActor::UnregisterCesiumCaptureCamera()
+{
+	if (CesiumCameraId == INDEX_NONE)
+		return;
+	if (ACesiumCameraManager* Mgr = CesiumCameraManager.Get())
+		Mgr->RemoveCamera(CesiumCameraId);
+	CesiumCameraId = INDEX_NONE;
 }

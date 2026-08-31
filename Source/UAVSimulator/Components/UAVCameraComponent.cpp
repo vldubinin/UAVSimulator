@@ -7,6 +7,8 @@
 #include "Modules/ModuleManager.h"
 #include "Engine/World.h"
 #include "Components/LineBatchComponent.h"
+#include "CesiumCameraManager.h"
+#include "CesiumCamera.h"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Minimal FRunnable wrapper
@@ -49,6 +51,12 @@ void UUAVCameraComponent::OnRegister()
 		if (USceneCaptureComponent2D* Comp = Owner->FindComponentByClass<USceneCaptureComponent2D>())
 			ComputeFOV(Comp->FOVAngle);
 	}
+}
+
+void UUAVCameraComponent::OnUnregister()
+{
+	UnregisterCesiumSceneCaptureCamera();
+	Super::OnUnregister();
 }
 
 #if WITH_EDITOR
@@ -139,10 +147,17 @@ void UUAVCameraComponent::BeginPlay()
 	bMaskEncoderRunning = true;
 	MaskEncoderRunnable = new FLambdaRunnable([this]() { MaskEncoderLoop(); });
 	MaskEncoderThread   = FRunnableThread::Create(MaskEncoderRunnable, TEXT("UAV_MaskEncoder"), 0, TPri_BelowNormal);
+
+	// Register this scene capture as a Cesium camera so tiles in its view are refined
+	// independently of the main player camera's frustum (SyncCesiumSceneCaptureCamera
+	// re-resolves if this fails now).
+	ResolveCesiumCameraManager();
 }
 
 void UUAVCameraComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	UnregisterCesiumSceneCaptureCamera();
+
 	if (RGBEncoderThread)
 	{
 		bRGBEncoderRunning = false;
@@ -183,6 +198,68 @@ void UUAVCameraComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Cesium scene-capture camera registration
+//
+// Cesium's ACesium3DTileset only feeds tile selection / LOD / culling from player
+// cameras, editor viewports, and standalone ASceneCapture2D *actors*. Our capture
+// is a USceneCaptureComponent2D living inside the pawn Blueprint, so Cesium never
+// sees it and tiles in its view direction get culled by the main camera's frustum.
+// Fix: mirror the capture into ACesiumCameraManager as an FCesiumCamera every frame.
+// ─────────────────────────────────────────────────────────────────────────────
+
+void UUAVCameraComponent::ResolveCesiumCameraManager()
+{
+	const UWorld* World = GetWorld();
+	if (!World || !World->IsGameWorld()) return;
+	CesiumCameraManager = ACesiumCameraManager::GetDefaultCameraManager(this);
+}
+
+void UUAVCameraComponent::SyncCesiumSceneCaptureCamera()
+{
+	// Mirror ACesium3DTileset::GetSceneCaptures gating: perspective, sized RT, valid FOV.
+	if (!CaptureComponent || !RenderTarget ||
+		CaptureComponent->ProjectionType != ECameraProjectionMode::Perspective ||
+		CaptureComponent->FOVAngle <= 0.f ||
+		RenderTarget->SizeX < 1 || RenderTarget->SizeY < 1)
+	{
+		UnregisterCesiumSceneCaptureCamera();
+		return;
+	}
+
+	if (!CesiumCameraManager.IsValid()) ResolveCesiumCameraManager();
+	ACesiumCameraManager* Mgr = CesiumCameraManager.Get();
+	if (!Mgr) return;
+
+	// FOVAngle is horizontal degrees — passed straight through, exactly as Cesium
+	// does for level scene captures. OverrideAspectRatio stays 0 (derived from size).
+	const FCesiumCamera Cam(
+		FVector2D(RenderTarget->SizeX, RenderTarget->SizeY),
+		CaptureComponent->GetComponentLocation(),
+		CaptureComponent->GetComponentRotation(),
+		CaptureComponent->FOVAngle);
+
+	if (!bCesiumCameraRegistered || CesiumCameraId == INDEX_NONE)
+	{
+		CesiumCameraId = Mgr->AddCamera(Cam);
+		bCesiumCameraRegistered = true;
+	}
+	else if (!Mgr->UpdateCamera(CesiumCameraId, Cam))
+	{
+		// Manager recreated (e.g. seamless travel) or id lost — re-add.
+		CesiumCameraId = Mgr->AddCamera(Cam);
+	}
+}
+
+void UUAVCameraComponent::UnregisterCesiumSceneCaptureCamera()
+{
+	if (!bCesiumCameraRegistered) return;
+	if (ACesiumCameraManager* Mgr = CesiumCameraManager.Get())
+		Mgr->RemoveCamera(CesiumCameraId);
+	CesiumCameraId = INDEX_NONE;
+	bCesiumCameraRegistered = false;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Tick
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -193,12 +270,18 @@ void UUAVCameraComponent::SetCameraProcessingEnabled(bool bEnable)
 	SetComponentTickEnabled(bEnable);
 	if (CaptureComponent)
 		CaptureComponent->bCaptureEveryFrame = bEnable;
+
+	// Tick stops when disabled, so the Cesium camera must be removed from here.
+	if (!bEnable)
+		UnregisterCesiumSceneCaptureCamera();
 }
 
 void UUAVCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	if (!bIsProcessingEnabled) return;
+
+	SyncCesiumSceneCaptureCamera();
 
 	// Snapshot latest encoded results into tick-stable caches before processing.
 	// Consumers calling GetRGBFrame() / GetMaskFrame() this tick see a consistent snapshot.

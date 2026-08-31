@@ -11,6 +11,7 @@
 
 class ACesiumGeoreference;
 class ACesium3DTileset;
+class ACesiumCameraManager;
 class FJsonValue;
 
 /**
@@ -193,6 +194,14 @@ private:
 	UPROPERTY() ACesiumGeoreference*      Georeference  = nullptr;
 	UPROPERTY() ACesium3DTileset*         Tileset       = nullptr;
 
+	/** Cesium camera manager for this world; the sweep feeds it the capture pose so
+	 *  Cesium actively streams/refines tiles for each shot instead of relying on
+	 *  SettleFrames alone. Resolved lazily, self-nulls. */
+	TWeakObjectPtr<ACesiumCameraManager> CesiumCameraManager;
+
+	/** Stable id from ACesiumCameraManager::AddCamera; INDEX_NONE while unregistered. */
+	int32 CesiumCameraId = INDEX_NONE;
+
 	// ── Run state ─────────────────────────────────────────────────────────────
 	bool  bRunning           = false;
 	int32 ShotCursor         = 0;
@@ -224,6 +233,8 @@ private:
 	void    ResolveGroundHeights(FCustomSurroundingObject& Object) const;
 
 	void PlaceCameraForShot(const FCustomSurroundingObject& Target, const FShot& Shot);
+	void SyncCesiumCaptureCamera();        // add-or-update the FCesiumCamera from the current pose
+	void UnregisterCesiumCaptureCamera();  // remove it when the sweep ends
 	bool ProjectMetersToPixels(const FVector& WorldMeters, FVector2D& OutPixels) const;
 	bool ComputeMarkerLabel(const FCustomSurroundingObject& Object, FLabel& OutLabel) const;
 
