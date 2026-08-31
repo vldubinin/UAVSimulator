@@ -81,7 +81,11 @@ void AYoloMarkerDatasetActor::GenerateDataset()
 
 	TArray<AActor*> Tilesets;
 	UGameplayStatics::GetAllActorsOfClass(World, ACesium3DTileset::StaticClass(), Tilesets);
-	Tileset = Tilesets.Num() > 0 ? Cast<ACesium3DTileset>(Tilesets[0]) : nullptr;
+	SweepTilesets.Reset();
+	for (AActor* A : Tilesets)
+		if (ACesium3DTileset* T = Cast<ACesium3DTileset>(A))
+			SweepTilesets.Add(T);
+	Tileset = SweepTilesets.Num() > 0 ? SweepTilesets[0].Get() : nullptr;
 
 	// Cesium only feeds tile selection from player/editor cameras and standalone
 	// ASceneCapture2D actors — never a capture component nested in an actor. Register
@@ -128,11 +132,14 @@ void AYoloMarkerDatasetActor::GenerateDataset()
 
 	ShotCursor         = 0;
 	SettleCounter      = 0;
+	ReadyStreak        = 0;
 	SavedFrameCount    = 0;
 	AttemptedShotCount = 0;
 	ManifestFrames.Reset();
 	ValEveryN = FMath::Max(2, FMath::RoundToInt(1.0f / FMath::Clamp(ValSplit, 0.02f, 0.9f)));
 	Rng.Initialize(1337);
+
+	BeginTilesetCaptureMode();
 
 	bRunning = true;
 	SetActorTickEnabled(true);
@@ -173,10 +180,13 @@ void AYoloMarkerDatasetActor::ProcessCurrentShot()
 	const FShot& Shot = Shots[ShotCursor];
 	FCustomSurroundingObject& Target = Objects[Shot.MarkerIdx];
 
-	// Retried until every corner lands a tile hit — a far marker's tiles may not be
-	// streamed in yet when its first shot comes up.
-	if (bSnapMarkersToTileSurface && !Target.bGroundHeightResolved)
-		ResolveGroundHeights(Target);
+	// Snap EVERY marker onto the tile surface, not just the shot's target — otherwise
+	// non-target markers keep their ellipsoid-level (underground) footprints and project
+	// to bogus screen boxes. Retried each tick until a marker's corners all hit a tile.
+	if (bSnapMarkersToTileSurface)
+		for (FCustomSurroundingObject& Obj : Objects)
+			if (!Obj.bGroundHeightResolved)
+				ResolveGroundHeights(Obj);
 
 	PlaceCameraForShot(Target, Shot);
 
@@ -184,12 +194,26 @@ void AYoloMarkerDatasetActor::ProcessCurrentShot()
 	// tiles under it actively stream/refine rather than depending on another camera.
 	SyncCesiumCaptureCamera();
 
-	// Hold the pose for a few ticks so Cesium streams the tiles under it before we read.
-	if (SettleCounter < SettleFrames)
-	{
-		++SettleCounter;
+	// Wait until the tileset reports it has finished loading for this view — a fixed
+	// frame count is not enough, tile streaming is async and pose-dependent. Keep a
+	// minimum hold, require the ready state to be stable, and cap the total wait.
+	++SettleCounter;
+
+	const float  Progress   = MinTilesetLoadProgress();
+	const bool   bTilesReady = Progress >= TileLoadProgressTarget;
+	ReadyStreak = bTilesReady ? ReadyStreak + 1 : 0;
+
+	const bool bMinDone  = SettleCounter >= FMath::Max(SettleFrames, 1);
+	const bool bStable   = ReadyStreak   >= FMath::Max(TileReadyHoldFrames, 1);
+	const bool bTimeout  = SettleCounter >= FMath::Max(MaxSettleFrames, SettleFrames);
+
+	if (!bTimeout && !(bMinDone && bStable))
 		return;
-	}
+
+	if (bTimeout && !(bMinDone && bStable))
+		UE_LOG(LogUAV, Warning,
+			TEXT("YoloMarkerDataset: постріл %d — тайли не догрузились за %d кадрів (progress %.1f%%), знімаю як є"),
+			ShotCursor, SettleCounter, Progress);
 
 	CaptureComp->CaptureScene();
 
@@ -201,8 +225,21 @@ void AYoloMarkerDatasetActor::ProcessCurrentShot()
 	{
 		TArray<FLabel> Labels;
 		bool bTargetSeen = false;
+		const FVector CamCm = CaptureComp->GetComponentLocation();
 		for (const FCustomSurroundingObject& Object : Objects)
 		{
+			// No reliable ground height yet → its footprint is still at ellipsoid level;
+			// projecting it would drop a box in the wrong place. Skip until resolved.
+			if (bSnapMarkersToTileSurface && !Object.bGroundHeightResolved)
+				continue;
+
+			if (MaxLabelDistanceMeters > 0.0f &&
+				FVector::Distance(CamCm, Object.WorldLocationMeters * 100.0) > MaxLabelDistanceMeters * 100.0)
+				continue;
+
+			if (bRequireLineOfSight && !IsMarkerVisibleFromCamera(Object))
+				continue;
+
 			FLabel Label;
 			if (ComputeMarkerLabel(Object, Label))
 			{
@@ -221,6 +258,7 @@ void AYoloMarkerDatasetActor::ProcessCurrentShot()
 
 	++ShotCursor;
 	SettleCounter = 0;
+	ReadyStreak   = 0;
 
 	if ((ShotCursor % 50) == 0 || ShotCursor == Shots.Num())
 		UE_LOG(LogUAV, Log, TEXT("YoloMarkerDataset: %d/%d пострілів, збережено %d кадрів"),
@@ -464,7 +502,12 @@ void AYoloMarkerDatasetActor::PlaceCameraForShot(const FCustomSurroundingObject&
 	const FVector Dir = (FMath::Cos(ElRad) * (FMath::Cos(AzRad) * North + FMath::Sin(AzRad) * East)
 	                     + FMath::Sin(ElRad) * Up).GetSafeNormal();
 
-	const FVector CamPos = TargetCm + Dir * (Shot.RadiusMeters * 100.0);
+	// Orbit a dome lifted a fixed height above the marker (a raised hemisphere), then
+	// push the pose further up if it would still dip under / graze a Cesium tile.
+	const FVector DomeCentreCm = TargetCm + Up * (FMath::Max(DomeLiftMeters, 0.0f) * 100.0);
+	FVector CamPos = DomeCentreCm + Dir * (Shot.RadiusMeters * 100.0);
+	CamPos = LiftAboveTileSurface(CamPos, Up);
+
 	FRotator LookRot = (TargetCm - CamPos).GetSafeNormal().Rotation();
 
 	if (AimJitterDeg > KINDA_SMALL_NUMBER)
@@ -474,6 +517,44 @@ void AYoloMarkerDatasetActor::PlaceCameraForShot(const FCustomSurroundingObject&
 	}
 
 	CaptureComp->SetWorldLocationAndRotation(CamPos, LookRot);
+}
+
+// Vertical (local-up) trace through the camera; if a Cesium tile surface is closer
+// than CameraGroundClearanceMeters — or above the camera, i.e. it spawned underground —
+// return a position sitting exactly that clearance above the highest such surface.
+FVector AYoloMarkerDatasetActor::LiftAboveTileSurface(const FVector& CamPosCm, const FVector& UpDir) const
+{
+	UWorld* World = GetWorld();
+	if (!World || CameraGroundClearanceMeters <= 0.0f || UpDir.IsNearlyZero())
+		return CamPosCm;
+
+	const double SpanCm      = FMath::Max(GroundTraceSpanMeters, 1.0f) * 100.0;
+	const double ClearanceCm = CameraGroundClearanceMeters * 100.0;
+
+	const FVector Start = CamPosCm + UpDir * SpanCm;
+	const FVector End   = CamPosCm - UpDir * SpanCm;
+
+	FCollisionQueryParams Params(TEXT("YoloMarkerCameraClearance"), /*bTraceComplex=*/true, this);
+	TArray<FHitResult> Hits;
+	World->LineTraceMultiByChannel(Hits, Start, End, GroundTraceChannel, Params);
+
+	const FHitResult* Highest = nullptr;
+	for (const FHitResult& Hit : Hits)
+	{
+		const AActor* HitActor = Hit.GetActor();
+		// Accept any Cesium3DTileset hit; if the scene has none, accept any blocking geometry.
+		if (Tileset && (!HitActor || !HitActor->IsA<ACesium3DTileset>()))
+			continue;
+		if (!Highest || FVector::DotProduct(Hit.ImpactPoint - Highest->ImpactPoint, UpDir) > 0.0)
+			Highest = &Hit;
+	}
+	if (!Highest)
+		return CamPosCm;
+
+	if (FVector::DotProduct(CamPosCm - Highest->ImpactPoint, UpDir) >= ClearanceCm)
+		return CamPosCm;
+
+	return Highest->ImpactPoint + UpDir * ClearanceCm;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -612,6 +693,55 @@ bool AYoloMarkerDatasetActor::ComputeMarkerLabel(const FCustomSurroundingObject&
 	OutLabel.H               = ClipH;
 	OutLabel.VisibleFraction = VisibleFraction;
 	return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Line-of-sight test — projection alone boxes every marker inside the frustum,
+// including those hidden behind terrain or buildings. Trace from the camera to the
+// footprint centre + corners; the marker is visible if ANY ray reaches its point
+// without hitting geometry first (within a small tolerance for flush ground points).
+// ─────────────────────────────────────────────────────────────────────────────
+
+bool AYoloMarkerDatasetActor::IsMarkerVisibleFromCamera(const FCustomSurroundingObject& Object) const
+{
+	UWorld* World = GetWorld();
+	if (!World || !CaptureComp)
+		return true; // nothing to test against — don't filter
+
+	const FVector CamCm  = CaptureComp->GetComponentLocation();
+	const FVector UpDir  = GeographicUpMeters(Object.Latitude, Object.Longitude).GetSafeNormal();
+	const double  LiftCm = 50.0;                                   // 0.5 m off the surface
+	const double  TolCm  = FMath::Max(LineOfSightToleranceMeters, 0.0f) * 100.0;
+
+	TArray<FVector, TInlineAllocator<12>> Points;
+	Points.Add(Object.WorldLocationMeters * 100.0);
+	for (const FVector& Corner : Object.BBoxCornersWorldMeters)
+		Points.Add(Corner * 100.0);
+	if (MarkerHeightMeters > KINDA_SMALL_NUMBER)
+	{
+		const FVector Raise = UpDir * (MarkerHeightMeters * 100.0);
+		Points.Add(Object.WorldLocationMeters * 100.0 + Raise);
+		for (const FVector& Corner : Object.BBoxCornersWorldMeters)
+			Points.Add(Corner * 100.0 + Raise);
+	}
+
+	for (const FVector& Raw : Points)
+	{
+		const FVector Pt     = Raw + UpDir * LiftCm;
+		const double  DistCm = FVector::Distance(CamCm, Pt);
+		if (DistCm <= KINDA_SMALL_NUMBER)
+			return true;
+
+		FCollisionQueryParams Params(TEXT("YoloMarkerLineOfSight"), /*bTraceComplex=*/true, this);
+		FHitResult Hit;
+		if (!World->LineTraceSingleByChannel(Hit, CamCm, Pt, GroundTraceChannel, Params))
+			return true; // clear ray
+
+		if (FVector::Distance(CamCm, Hit.ImpactPoint) >= DistCm - TolCm)
+			return true; // blocker is at/behind the marker point
+	}
+
+	return false;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -769,6 +899,7 @@ void AYoloMarkerDatasetActor::FinishGeneration(bool bCancelled)
 	bRunning = false;
 	SetActorTickEnabled(false);
 	UnregisterCesiumCaptureCamera();
+	EndTilesetCaptureMode();
 	CaptureComp->TextureTarget = nullptr;
 	RenderTarget = nullptr;
 
@@ -797,13 +928,15 @@ void AYoloMarkerDatasetActor::SyncCesiumCaptureCamera()
 	if (!Mgr)
 		return;
 
-	// FOVAngle is horizontal degrees — passed straight through, exactly as Cesium does
-	// for level scene captures. OverrideAspectRatio stays 0 (derived from ViewportSize).
+	// FOVAngle is horizontal degrees. Register a slightly WIDER frustum than we render
+	// (×1.2, capped at 170°) so Cesium also loads/refines the tiles just past the frame
+	// edge — otherwise those edge tiles lag a frame or two behind and show up as gaps.
+	const float RegisterFov = FMath::Min(CaptureComp->FOVAngle * 1.2f, 170.0f);
 	const FCesiumCamera Cam(
 		FVector2D(RenderTarget->SizeX, RenderTarget->SizeY),
 		CaptureComp->GetComponentLocation(),
 		CaptureComp->GetComponentRotation(),
-		CaptureComp->FOVAngle);
+		RegisterFov);
 
 	if (CesiumCameraId == INDEX_NONE)
 		CesiumCameraId = Mgr->AddCamera(Cam);
@@ -818,4 +951,50 @@ void AYoloMarkerDatasetActor::UnregisterCesiumCaptureCamera()
 	if (ACesiumCameraManager* Mgr = CesiumCameraManager.Get())
 		Mgr->RemoveCamera(CesiumCameraId);
 	CesiumCameraId = INDEX_NONE;
+}
+
+// updateTilesetOptionsFromProperties() copies these members into the native tileset
+// options every tick, so setting them directly takes effect next frame — no refresh.
+void AYoloMarkerDatasetActor::BeginTilesetCaptureMode()
+{
+	SavedTilesetCulling.Reset();
+	for (const TObjectPtr<ACesium3DTileset>& T : SweepTilesets)
+	{
+		if (!T)
+		{
+			SavedTilesetCulling.Add({ false, false });
+			continue;
+		}
+		SavedTilesetCulling.Add({ T->ForbidHoles, T->EnableFogCulling });
+		T->ForbidHoles      = true;   // never render a black gap — show the parent tile instead
+		T->EnableFogCulling = false;  // keep horizon / frame-edge tiles in the working set
+	}
+}
+
+void AYoloMarkerDatasetActor::EndTilesetCaptureMode()
+{
+	for (int32 i = 0; i < SweepTilesets.Num(); ++i)
+	{
+		ACesium3DTileset* T = SweepTilesets[i].Get();
+		if (!T || !SavedTilesetCulling.IsValidIndex(i))
+			continue;
+		T->ForbidHoles      = SavedTilesetCulling[i].ForbidHoles;
+		T->EnableFogCulling = SavedTilesetCulling[i].FogCulling;
+	}
+	SavedTilesetCulling.Reset();
+	SweepTilesets.Reset();
+}
+
+float AYoloMarkerDatasetActor::MinTilesetLoadProgress() const
+{
+	float MinProgress = 100.0f;
+	bool  bAny = false;
+	for (const TObjectPtr<ACesium3DTileset>& T : SweepTilesets)
+	{
+		if (!T)
+			continue;
+		bAny = true;
+		MinProgress = FMath::Min(MinProgress, T->GetLoadProgress());
+	}
+	return bAny ? MinProgress : 100.0f;
 }

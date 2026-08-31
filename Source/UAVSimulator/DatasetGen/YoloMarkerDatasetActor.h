@@ -114,20 +114,50 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Sweep", meta = (ClampMin = 0.0))
 	float MarkerHeightMeters = 0.0f;
 
+	/** Raise the whole orbit dome this far above the marker along local up. The camera
+	 *  still aims at the marker itself; this only lifts the trajectory so low-elevation
+	 *  rings form a raised hemisphere instead of skimming the tile surface. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Sweep", meta = (ClampMin = 0.0))
+	float DomeLiftMeters = 5.0f;
+
+	/** Minimum vertical gap (metres) between the camera and the Cesium tile surface
+	 *  directly below/above it. Every pose is pushed straight up along local up until it
+	 *  clears this, so the camera never dips under or lies on the terrain. 0 disables. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Sweep", meta = (ClampMin = 0.0))
+	float CameraGroundClearanceMeters = 15.0f;
+
 	// ── Label acceptance ──────────────────────────────────────────────────────
 	/** Drop a marker's box if its on-screen width or height is below this (pixels). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Filter", meta = (ClampMin = 0.0))
 	float MinBBoxPixels = 12.0f;
 
-	/** Drop a marker's box if less than this fraction of its projected area is inside
-	 *  the frame (1 = must be fully on-screen). */
+	/** A marker is labelled only if at least this fraction of its projected box lies
+	 *  inside the frame (0.5 = more than half must be in view; 1 = fully on-screen).
+	 *  Markers that pass are recorded with the box CLIPPED to the frame, so a partially
+	 *  visible marker gets a box covering only its visible part. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Filter", meta = (ClampMin = 0.0, ClampMax = 1.0))
-	float MinVisibleFraction = 0.25f;
+	float MinVisibleFraction = 0.5f;
 
 	/** Discard the whole frame unless the orbit's target marker itself produced a
 	 *  valid box (skips poses where terrain/other buildings hide the target). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Filter")
 	bool bRequireTargetVisible = true;
+
+	/** Only label a marker if the camera has a clear line of sight to it. Without this
+	 *  every marker whose footprint falls inside the frustum is boxed, including ones
+	 *  hidden behind terrain or buildings. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Filter")
+	bool bRequireLineOfSight = true;
+
+	/** Slack (metres) when comparing the line-of-sight hit distance to the marker
+	 *  distance — covers ground-snapped points sitting flush on a tile. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Filter", meta = (ClampMin = 0.0))
+	float LineOfSightToleranceMeters = 3.0f;
+
+	/** Drop a marker's box if it is farther than this from the camera (metres).
+	 *  0 disables the distance cap. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Filter", meta = (ClampMin = 0.0))
+	float MaxLabelDistanceMeters = 0.0f;
 
 	// ── Ground snapping (mirrors UCustomSurroundingsScannerComponent) ──────────
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Ground")
@@ -140,10 +170,26 @@ public:
 	float GroundTraceSpanMeters = 20000.0f;
 
 	// ── Timing ────────────────────────────────────────────────────────────────
-	/** Ticks to wait after each camera move before capturing, so Cesium can stream
-	 *  the tiles under the new pose. Raise it if frames come out with missing terrain. */
+	/** Minimum ticks to hold each pose before capturing (lets the camera move and the
+	 *  Cesium view registration propagate). The real wait is gated on tile load
+	 *  progress below — this is just the floor. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Timing", meta = (ClampMin = 1))
 	int32 SettleFrames = 8;
+
+	/** Hard cap on ticks spent waiting for one pose. If the tileset never reports
+	 *  ready within this many ticks the frame is captured anyway (and logged). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Timing", meta = (ClampMin = 1))
+	int32 MaxSettleFrames = 180;
+
+	/** Capture once ACesium3DTileset::GetLoadProgress() for the shot's view reaches
+	 *  this percentage. Lower it (e.g. 98) if 100 is rarely hit on your connection. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Timing", meta = (ClampMin = 1.0, ClampMax = 100.0))
+	float TileLoadProgressTarget = 100.0f;
+
+	/** Require the "tiles ready" state for this many consecutive ticks before
+	 *  capturing — absorbs the brief drop from 100 as Cesium discovers new tiles. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Timing", meta = (ClampMin = 1))
+	int32 TileReadyHoldFrames = 3;
 
 	// ── Output ────────────────────────────────────────────────────────────────
 	/** Dataset root. Gets images/{train,val}/, labels/{train,val}/, data.yaml, dataset.json. */
@@ -206,6 +252,7 @@ private:
 	bool  bRunning           = false;
 	int32 ShotCursor         = 0;
 	int32 SettleCounter      = 0;
+	int32 ReadyStreak        = 0;   // consecutive ticks the tileset has reported ready
 	int32 SavedFrameCount    = 0;
 	int32 AttemptedShotCount = 0;
 	int32 ValEveryN          = 6;
@@ -216,6 +263,12 @@ private:
 	TMap<FString, int32>             ClassMap;    // ObjectType → class id
 	TArray<FString>                  ClassNames;  // class id → name
 	TArray<TSharedPtr<FJsonValue>>   ManifestFrames;
+
+	/** Every ACesium3DTileset in the level, plus the culling flags they had before the
+	 *  sweep forced ForbidHoles / disabled fog culling. Restored in FinishGeneration. */
+	struct FTilesetCulling { bool ForbidHoles; bool FogCulling; };
+	UPROPERTY() TArray<TObjectPtr<ACesium3DTileset>> SweepTilesets;
+	TArray<FTilesetCulling>                          SavedTilesetCulling;
 
 	FString ImagesTrainDir;
 	FString ImagesValDir;
@@ -232,11 +285,24 @@ private:
 	FVector GeographicUpMeters(double LatitudeDeg, double LongitudeDeg) const;
 	void    ResolveGroundHeights(FCustomSurroundingObject& Object) const;
 
+	/** Force ForbidHoles on / fog culling off for every tileset for the duration of the
+	 *  sweep (so frames never contain black tile gaps), and restore afterwards. */
+	void  BeginTilesetCaptureMode();
+	void  EndTilesetCaptureMode();
+	/** Lowest GetLoadProgress() across all sweep tilesets — the shot is only captured
+	 *  once this reaches TileLoadProgressTarget. 100 when there are no tilesets. */
+	float MinTilesetLoadProgress() const;
+
 	void PlaceCameraForShot(const FCustomSurroundingObject& Target, const FShot& Shot);
+	/** Push a camera position straight up along UpDir until it clears the Cesium tile
+	 *  surface by CameraGroundClearanceMeters. Returns the (possibly raised) position. */
+	FVector LiftAboveTileSurface(const FVector& CamPosCm, const FVector& UpDir) const;
 	void SyncCesiumCaptureCamera();        // add-or-update the FCesiumCamera from the current pose
 	void UnregisterCesiumCaptureCamera();  // remove it when the sweep ends
 	bool ProjectMetersToPixels(const FVector& WorldMeters, FVector2D& OutPixels) const;
 	bool ComputeMarkerLabel(const FCustomSurroundingObject& Object, FLabel& OutLabel) const;
+	/** True if the camera has an unobstructed line of sight to any test point of the marker. */
+	bool IsMarkerVisibleFromCamera(const FCustomSurroundingObject& Object) const;
 
 	void ProcessCurrentShot();
 	bool SaveFrame(const TArray<FColor>& Pixels, const TArray<FLabel>& Labels,
