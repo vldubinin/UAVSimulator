@@ -7,9 +7,11 @@ map_object_marker.py
 1. При старті питає latitude та longitude.
 2. Відкриває вікно з картою Google у вказаних координатах.
 3. Кнопка "+" -> дропдаун зі списком типів об'єктів (building, tree, other).
-4. Після вибору типу треба клікнути мишкою 4 точки (кути) на карті; з них
-   обчислюється охоплююча рамка bbox: pointTop = (min lat, min lon),
-   pointBottom = (max lat, max lon).
+4. Після вибору типу треба клікнути мишкою 4 точки (кути) на карті; кожен
+   клік стає окремим іменованим кутом bbox. Спершу дві крайні точки за
+   довготою — x_min / x_max, з решти двох за широтою — y_min / y_max.
+   Кожен кут зберігає власні latitude та longitude (рамка завжди має 4
+   вершини й може бути повернутою).
 5. Формується JSON-об'єкт і додається в масив, який пишеться у файл map_objects.json.
 6. Поставлені кутові маркери можна перетягувати мишкою — координати оновлюються у файлі.
 7. Праворуч є список об'єктів: кнопка "Видалити обране" / клавіша Del видаляє об'єкт,
@@ -37,6 +39,8 @@ except ImportError:
 # ---------------------------------------------------------------------------
 OUTPUT_FILE = "map_objects.json"
 OBJECT_TYPES = ["building", "tree", "other"]
+# Іменовані кути bbox: x = longitude, y = latitude.
+BBOX_KEYS = ["x_min", "y_min", "x_max", "y_max"]
 ALTITUDE = 350
 START_ZOOM = 17
 DRAG_HIT_RADIUS = 22  # px — наскільки близько до маркера треба клікнути, щоб схопити його
@@ -174,11 +178,13 @@ class MapApp:
     def _draw_existing(self):
         for obj in self.objects:
             try:
-                pt = obj["bbox"]["pointTop"]
-                pb = obj["bbox"]["pointBottom"]
+                bbox = obj["bbox"]
                 eid = obj["elementId"]
-                self._place_corner_marker(pt["latitude"], pt["longitude"], eid, "pointTop", obj.get("type", ""))
-                self._place_corner_marker(pb["latitude"], pb["longitude"], eid, "pointBottom", obj.get("type", ""))
+                for key in BBOX_KEYS:
+                    p = bbox[key]
+                    self._place_corner_marker(
+                        p["latitude"], p["longitude"], eid, key, obj.get("type", "")
+                    )
                 self._redraw_bbox(obj)
             except (KeyError, TypeError):
                 pass
@@ -193,16 +199,18 @@ class MapApp:
         self.corner_markers.append({"element_id": element_id, "which": which, "marker": marker})
         return marker
 
+    def _bbox_corners_ordered(self, obj):
+        """4 кути bbox у порядку обходу по колу (за кутом навколо центроїда)."""
+        bbox = obj["bbox"]
+        pts = [(bbox[k]["latitude"], bbox[k]["longitude"]) for k in BBOX_KEYS]
+        clat = sum(p[0] for p in pts) / len(pts)
+        clon = sum(p[1] for p in pts) / len(pts)
+        pts.sort(key=lambda p: math.atan2(p[0] - clat, p[1] - clon))
+        return pts
+
     def _redraw_bbox(self, obj):
         eid = obj["elementId"]
-        pt = obj["bbox"]["pointTop"]
-        pb = obj["bbox"]["pointBottom"]
-        corners = [
-            (pt["latitude"], pt["longitude"]),
-            (pt["latitude"], pb["longitude"]),
-            (pb["latitude"], pb["longitude"]),
-            (pb["latitude"], pt["longitude"]),
-        ]
+        corners = self._bbox_corners_ordered(obj)
         poly = self.polygons.get(eid)
         if poly is not None:
             poly.position_list = corners
@@ -252,13 +260,13 @@ class MapApp:
             return
         obj = self.objects[sel[0]]
         try:
-            pt = obj["bbox"]["pointTop"]
-            pb = obj["bbox"]["pointBottom"]
+            bbox = obj["bbox"]
+            pts = [(bbox[k]["latitude"], bbox[k]["longitude"]) for k in BBOX_KEYS]
         except (KeyError, TypeError):
             return
         self.map_widget.set_position(
-            (pt["latitude"] + pb["latitude"]) / 2.0,
-            (pt["longitude"] + pb["longitude"]) / 2.0,
+            sum(p[0] for p in pts) / len(pts),
+            sum(p[1] for p in pts) / len(pts),
         )
 
     def delete_selected(self):
@@ -321,18 +329,27 @@ class MapApp:
 
     def _finalize_object(self):
         pts = self.pending_points[:self.POINTS_PER_OBJECT]
-        lats = [p[0] for p in pts]
-        lons = [p[1] for p in pts]
-        min_lat, max_lat = min(lats), max(lats)
-        min_lon, max_lon = min(lons), max(lons)
+        # Кожен із 4 кліків стає окремим кутом, щоб рамка завжди мала 4 вершини.
+        # Спершу дві крайні точки за довготою (x), потім з решти двох — за широтою (y).
+        rest = list(pts)
+        x_min_pt = min(rest, key=lambda p: p[1]); rest.remove(x_min_pt)
+        x_max_pt = max(rest, key=lambda p: p[1]); rest.remove(x_max_pt)
+        rest.sort(key=lambda p: p[0])
+        y_min_pt, y_max_pt = rest[0], rest[1]
+        corner_pts = {
+            "x_min": x_min_pt,
+            "y_min": y_min_pt,
+            "x_max": x_max_pt,
+            "y_max": y_max_pt,
+        }
         eid = f"obj{self.next_id}"
 
         obj = {
             "elementId": eid,
             "type": self.pending_type,
             "bbox": {
-                "pointTop": {"latitude": min_lat, "longitude": min_lon},
-                "pointBottom": {"latitude": max_lat, "longitude": max_lon},
+                key: {"latitude": p[0], "longitude": p[1]}
+                for key, p in corner_pts.items()
             },
             "altitude": ALTITUDE,
         }
@@ -341,8 +358,9 @@ class MapApp:
 
         # тимчасові маркери прибираємо, ставимо стилізовані кутові маркери (їх можна тягати)
         self._clear_pending_markers()
-        self._place_corner_marker(min_lat, min_lon, eid, "pointTop", obj["type"])
-        self._place_corner_marker(max_lat, max_lon, eid, "pointBottom", obj["type"])
+        for key in BBOX_KEYS:
+            p = corner_pts[key]
+            self._place_corner_marker(p[0], p[1], eid, key, obj["type"])
         self._redraw_bbox(obj)
 
         self._save()

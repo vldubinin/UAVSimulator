@@ -1,0 +1,1543 @@
+[
+    {
+        "elementId": "obj0",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04189497766118,
+                "longitude": 36.28469594326694
+            },
+            "y_min": {
+                "latitude": 50.04131273943388,
+                "longitude": 36.28496416416843
+            },
+            "x_max": {
+                "latitude": 50.04171927337797,
+                "longitude": 36.28711529579837
+            },
+            "y_max": {
+                "latitude": 50.04228772608651,
+                "longitude": 36.286825617224764
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj1",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.0432008472076,
+                "longitude": 36.284079602868474
+            },
+            "y_min": {
+                "latitude": 50.04208462766196,
+                "longitude": 36.28461604467145
+            },
+            "x_max": {
+                "latitude": 50.04234645926815,
+                "longitude": 36.28610735288373
+            },
+            "y_max": {
+                "latitude": 50.04347645297646,
+                "longitude": 36.285554817826664
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj2",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04234645926815,
+                "longitude": 36.287207550371164
+            },
+            "y_min": {
+                "latitude": 50.041802123537835,
+                "longitude": 36.28748113569068
+            },
+            "x_max": {
+                "latitude": 50.04193648546273,
+                "longitude": 36.28804976400184
+            },
+            "y_max": {
+                "latitude": 50.04247048426736,
+                "longitude": 36.28779227193641
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj3",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.042107001253115,
+                "longitude": 36.288189238870615
+            },
+            "y_min": {
+                "latitude": 50.04197263980547,
+                "longitude": 36.288258976305
+            },
+            "x_max": {
+                "latitude": 50.04205187865343,
+                "longitude": 36.288666672075266
+            },
+            "y_max": {
+                "latitude": 50.042179349569146,
+                "longitude": 36.28858620580482
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj4",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04257209566794,
+                "longitude": 36.28832871373939
+            },
+            "y_min": {
+                "latitude": 50.042358497311014,
+                "longitude": 36.288430637681955
+            },
+            "x_max": {
+                "latitude": 50.04244807093124,
+                "longitude": 36.288950986230844
+            },
+            "y_max": {
+                "latitude": 50.042675449370414,
+                "longitude": 36.28884369787025
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj5",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.042301652426886,
+                "longitude": 36.28864789661216
+            },
+            "y_min": {
+                "latitude": 50.042079439961185,
+                "longitude": 36.28874982055473
+            },
+            "x_max": {
+                "latitude": 50.04224136232468,
+                "longitude": 36.2895732587223
+            },
+            "y_max": {
+                "latitude": 50.0424549612028,
+                "longitude": 36.289460605943674
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj6",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04270645543776,
+                "longitude": 36.289160198534006
+            },
+            "y_min": {
+                "latitude": 50.042542812078445,
+                "longitude": 36.28924334701347
+            },
+            "x_max": {
+                "latitude": 50.0425824310482,
+                "longitude": 36.289406961763376
+            },
+            "y_max": {
+                "latitude": 50.04273918404268,
+                "longitude": 36.28932649549293
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj7",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04248252227914,
+                "longitude": 36.28997949468365
+            },
+            "y_min": {
+                "latitude": 50.042322323301626,
+                "longitude": 36.29006264316311
+            },
+            "x_max": {
+                "latitude": 50.04272195846392,
+                "longitude": 36.29204479562512
+            },
+            "y_max": {
+                "latitude": 50.042876988450196,
+                "longitude": 36.291956282727625
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj8",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.040794962361566,
+                "longitude": 36.28581284896663
+            },
+            "y_min": {
+                "latitude": 50.04064164828429,
+                "longitude": 36.28608106986812
+            },
+            "x_max": {
+                "latitude": 50.04078807185175,
+                "longitude": 36.286239320199996
+            },
+            "y_max": {
+                "latitude": 50.04092588186021,
+                "longitude": 36.28597646371654
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj9",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.040905210384174,
+                "longitude": 36.286205296305695
+            },
+            "y_min": {
+                "latitude": 50.04074500614297,
+                "longitude": 36.28631794908432
+            },
+            "x_max": {
+                "latitude": 50.04077773608517,
+                "longitude": 36.28642791965393
+            },
+            "y_max": {
+                "latitude": 50.04093449497261,
+                "longitude": 36.286323310235
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj10",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04097067002779,
+                "longitude": 36.286557470776245
+            },
+            "y_min": {
+                "latitude": 50.040727779848645,
+                "longitude": 36.286675809814255
+            },
+            "x_max": {
+                "latitude": 50.04078807185175,
+                "longitude": 36.28701913256816
+            },
+            "y_max": {
+                "latitude": 50.041034406963455,
+                "longitude": 36.28691152236621
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj11",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04100985964014,
+                "longitude": 36.28693700335185
+            },
+            "y_min": {
+                "latitude": 50.040902626449046,
+                "longitude": 36.28697991869609
+            },
+            "x_max": {
+                "latitude": 50.04092243661483,
+                "longitude": 36.287106653072044
+            },
+            "y_max": {
+                "latitude": 50.041029239106955,
+                "longitude": 36.287056361653015
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj12",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04105981558313,
+                "longitude": 36.287204353570615
+            },
+            "y_min": {
+                "latitude": 50.040955409485605,
+                "longitude": 36.287261051218
+            },
+            "x_max": {
+                "latitude": 50.04097565028483,
+                "longitude": 36.28738204991785
+            },
+            "y_max": {
+                "latitude": 50.04108522418936,
+                "longitude": 36.28732706463305
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj13",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04113516578128,
+                "longitude": 36.287462343985
+            },
+            "y_min": {
+                "latitude": 50.04100321221049,
+                "longitude": 36.287531680755706
+            },
+            "x_max": {
+                "latitude": 50.04103421935793,
+                "longitude": 36.2876651206542
+            },
+            "y_max": {
+                "latitude": 50.04116229696181,
+                "longitude": 36.287597124988
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj14",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04121354470543,
+                "longitude": 36.28797559499105
+            },
+            "y_min": {
+                "latitude": 50.04111837028089,
+                "longitude": 36.28802588641008
+            },
+            "x_max": {
+                "latitude": 50.04114937735396,
+                "longitude": 36.28815195023378
+            },
+            "y_max": {
+                "latitude": 50.041241967800154,
+                "longitude": 36.28810702323278
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj15",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04124928889758,
+                "longitude": 36.28815012686289
+            },
+            "y_min": {
+                "latitude": 50.04114593212461,
+                "longitude": 36.2882055856316
+            },
+            "x_max": {
+                "latitude": 50.04117521656621,
+                "longitude": 36.28833011996497
+            },
+            "y_max": {
+                "latitude": 50.04127297479339,
+                "longitude": 36.288274652513735
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj16",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04129696976297,
+                "longitude": 36.28836814771526
+            },
+            "y_min": {
+                "latitude": 50.04116949650422,
+                "longitude": 36.28842715631359
+            },
+            "x_max": {
+                "latitude": 50.04119275178613,
+                "longitude": 36.28853511522644
+            },
+            "y_max": {
+                "latitude": 50.041318071722465,
+                "longitude": 36.28847409497135
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj17",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04134983016044,
+                "longitude": 36.28856967440464
+            },
+            "y_min": {
+                "latitude": 50.041179722376235,
+                "longitude": 36.28864879957058
+            },
+            "x_max": {
+                "latitude": 50.04122838618364,
+                "longitude": 36.28885600021698
+            },
+            "y_max": {
+                "latitude": 50.04139031141776,
+                "longitude": 36.288757429035684
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj18",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04139818974611,
+                "longitude": 36.28890025666573
+            },
+            "y_min": {
+                "latitude": 50.04131076742795,
+                "longitude": 36.288950548084756
+            },
+            "x_max": {
+                "latitude": 50.04134263568059,
+                "longitude": 36.28908801129677
+            },
+            "y_max": {
+                "latitude": 50.04142532077798,
+                "longitude": 36.28903771987774
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj19",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.0414466357775,
+                "longitude": 36.28919283914297
+            },
+            "y_min": {
+                "latitude": 50.041357490940456,
+                "longitude": 36.28920557963579
+            },
+            "x_max": {
+                "latitude": 50.04136911853728,
+                "longitude": 36.28929342198103
+            },
+            "y_max": {
+                "latitude": 50.04145611009827,
+                "longitude": 36.28927866983145
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj20",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04148456557116,
+                "longitude": 36.28938773306291
+            },
+            "y_min": {
+                "latitude": 50.04134977172954,
+                "longitude": 36.289440706690954
+            },
+            "x_max": {
+                "latitude": 50.041372165620814,
+                "longitude": 36.28954799505155
+            },
+            "y_max": {
+                "latitude": 50.04150093029293,
+                "longitude": 36.28948161037843
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj21",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04154331329918,
+                "longitude": 36.289563417753385
+            },
+            "y_min": {
+                "latitude": 50.04140593571448,
+                "longitude": 36.28962712021749
+            },
+            "x_max": {
+                "latitude": 50.041433589395766,
+                "longitude": 36.28974968319977
+            },
+            "y_max": {
+                "latitude": 50.04156364585295,
+                "longitude": 36.28967726355637
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj22",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.0415606313033,
+                "longitude": 36.289775164836044
+            },
+            "y_min": {
+                "latitude": 50.041450815436825,
+                "longitude": 36.28983012328061
+            },
+            "x_max": {
+                "latitude": 50.04147564561812,
+                "longitude": 36.28993808219346
+            },
+            "y_max": {
+                "latitude": 50.04158087184735,
+                "longitude": 36.2898844648534
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj23",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04159579702048,
+                "longitude": 36.28998032698544
+            },
+            "y_min": {
+                "latitude": 50.04150622180997,
+                "longitude": 36.290023210048844
+            },
+            "x_max": {
+                "latitude": 50.041528615628266,
+                "longitude": 36.2901258368245
+            },
+            "y_max": {
+                "latitude": 50.04161689884863,
+                "longitude": 36.29008560368928
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj24",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04167073000089,
+                "longitude": 36.29028745321929
+            },
+            "y_min": {
+                "latitude": 50.041364106950375,
+                "longitude": 36.29044033913314
+            },
+            "x_max": {
+                "latitude": 50.041395113864716,
+                "longitude": 36.29062004713714
+            },
+            "y_max": {
+                "latitude": 50.04170518190665,
+                "longitude": 36.29047252564132
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj25",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04161573915303,
+                "longitude": 36.290716606661675
+            },
+            "y_min": {
+                "latitude": 50.04148654413823,
+                "longitude": 36.29077025084197
+            },
+            "x_max": {
+                "latitude": 50.041631242531444,
+                "longitude": 36.291499811694024
+            },
+            "y_max": {
+                "latitude": 50.041756991971326,
+                "longitude": 36.29143275646865
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj26",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04191891542245,
+                "longitude": 36.29157115498754
+            },
+            "y_min": {
+                "latitude": 50.041610571359115,
+                "longitude": 36.29171273439201
+            },
+            "x_max": {
+                "latitude": 50.04164674590485,
+                "longitude": 36.29190768099318
+            },
+            "y_max": {
+                "latitude": 50.04195681232151,
+                "longitude": 36.291761591827594
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj27",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04201882536452,
+                "longitude": 36.29209360807212
+            },
+            "y_min": {
+                "latitude": 50.0417104819429,
+                "longitude": 36.292249176194986
+            },
+            "x_max": {
+                "latitude": 50.041744933820134,
+                "longitude": 36.292423519780954
+            },
+            "y_max": {
+                "latitude": 50.0420549996026,
+                "longitude": 36.292265269449075
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj28",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04208083832741,
+                "longitude": 36.292435327561435
+            },
+            "y_min": {
+                "latitude": 50.04197791399096,
+                "longitude": 36.29249165395075
+            },
+            "x_max": {
+                "latitude": 50.04200073823524,
+                "longitude": 36.29260497728163
+            },
+            "y_max": {
+                "latitude": 50.04209978671677,
+                "longitude": 36.29254798034006
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj29",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.042178712644265,
+                "longitude": 36.29281679923514
+            },
+            "y_min": {
+                "latitude": 50.04203832235821,
+                "longitude": 36.292893242192065
+            },
+            "x_max": {
+                "latitude": 50.04210421110187,
+                "longitude": 36.2931782268999
+            },
+            "y_max": {
+                "latitude": 50.04223426574224,
+                "longitude": 36.29310513670424
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj30",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04247273989065,
+                "longitude": 36.29304143424014
+            },
+            "y_min": {
+                "latitude": 50.042398669447024,
+                "longitude": 36.29306289191226
+            },
+            "x_max": {
+                "latitude": 50.0424555142163,
+                "longitude": 36.29333513612727
+            },
+            "y_max": {
+                "latitude": 50.04252097174598,
+                "longitude": 36.29329624409655
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj31",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04180701207279,
+                "longitude": 36.29303441752103
+            },
+            "y_min": {
+                "latitude": 50.04172777282066,
+                "longitude": 36.29306392182019
+            },
+            "x_max": {
+                "latitude": 50.04178117320059,
+                "longitude": 36.293345553766756
+            },
+            "y_max": {
+                "latitude": 50.04186041236458,
+                "longitude": 36.29330532063153
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj32",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04242979230519,
+                "longitude": 36.293980001488194
+            },
+            "y_min": {
+                "latitude": 50.042004762499474,
+                "longitude": 36.29416507391022
+            },
+            "x_max": {
+                "latitude": 50.04206677548054,
+                "longitude": 36.294457434692845
+            },
+            "y_max": {
+                "latitude": 50.04249569640634,
+                "longitude": 36.29428040889786
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj33",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.0413799044894,
+                "longitude": 36.29240327222007
+            },
+            "y_min": {
+                "latitude": 50.04123006805932,
+                "longitude": 36.29246764523643
+            },
+            "x_max": {
+                "latitude": 50.0412696881125,
+                "longitude": 36.29265539986747
+            },
+            "y_max": {
+                "latitude": 50.04141438715934,
+                "longitude": 36.292580298015054
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj34",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04142644539356,
+                "longitude": 36.29285577041031
+            },
+            "y_min": {
+                "latitude": 50.041274855943115,
+                "longitude": 36.29294696551682
+            },
+            "x_max": {
+                "latitude": 50.04148673651921,
+                "longitude": 36.29399839145066
+            },
+            "y_max": {
+                "latitude": 50.04163488010634,
+                "longitude": 36.293915242971195
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj35",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04044827396158,
+                "longitude": 36.2924748967302
+            },
+            "y_min": {
+                "latitude": 50.040422434358064,
+                "longitude": 36.292681426824345
+            },
+            "x_max": {
+                "latitude": 50.040775574402375,
+                "longitude": 36.292775304139866
+            },
+            "y_max": {
+                "latitude": 50.0408031364429,
+                "longitude": 36.29257413846375
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj36",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04117043233411,
+                "longitude": 36.29216971305644
+            },
+            "y_min": {
+                "latitude": 50.04084830246187,
+                "longitude": 36.29220458177363
+            },
+            "x_max": {
+                "latitude": 50.04085002508725,
+                "longitude": 36.29240038303172
+            },
+            "y_max": {
+                "latitude": 50.041172154947944,
+                "longitude": 36.29236819652354
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj37",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04108602418085,
+                "longitude": 36.29082543570365
+            },
+            "y_min": {
+                "latitude": 50.04082590832623,
+                "longitude": 36.29084421116676
+            },
+            "x_max": {
+                "latitude": 50.04083452145656,
+                "longitude": 36.29103733021583
+            },
+            "y_max": {
+                "latitude": 50.04109635988106,
+                "longitude": 36.291018554752725
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj38",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.0412531177281,
+                "longitude": 36.29047943074073
+            },
+            "y_min": {
+                "latitude": 50.041111863427204,
+                "longitude": 36.29053810281701
+            },
+            "x_max": {
+                "latitude": 50.04115320619244,
+                "longitude": 36.29074463291116
+            },
+            "y_max": {
+                "latitude": 50.04129962819963,
+                "longitude": 36.29066953105874
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj39",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.040589963829255,
+                "longitude": 36.290524691771935
+            },
+            "y_min": {
+                "latitude": 50.04055206585117,
+                "longitude": 36.29077413721032
+            },
+            "x_max": {
+                "latitude": 50.04073811018375,
+                "longitude": 36.290814370345544
+            },
+            "y_max": {
+                "latitude": 50.04076911750241,
+                "longitude": 36.29056492490716
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj40",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04019314120433,
+                "longitude": 36.290420085620354
+            },
+            "y_min": {
+                "latitude": 50.04016385616365,
+                "longitude": 36.29066416664071
+            },
+            "x_max": {
+                "latitude": 50.04047910007437,
+                "longitude": 36.2907339040751
+            },
+            "y_max": {
+                "latitude": 50.0405066622851,
+                "longitude": 36.2905005518908
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj41",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04013284845407,
+                "longitude": 36.291039675902795
+            },
+            "y_min": {
+                "latitude": 50.04010873133276,
+                "longitude": 36.29123279495187
+            },
+            "x_max": {
+                "latitude": 50.04047737743567,
+                "longitude": 36.29133203668542
+            },
+            "y_max": {
+                "latitude": 50.0405066622851,
+                "longitude": 36.291138917636346
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj42",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.040401581271865,
+                "longitude": 36.29142005145596
+            },
+            "y_min": {
+                "latitude": 50.04036196050224,
+                "longitude": 36.29170973002957
+            },
+            "x_max": {
+                "latitude": 50.040490414727145,
+                "longitude": 36.291752645373805
+            },
+            "y_max": {
+                "latitude": 50.040515275472714,
+                "longitude": 36.29144687354611
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj43",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04005630792321,
+                "longitude": 36.291752645373805
+            },
+            "y_min": {
+                "latitude": 50.040030468108725,
+                "longitude": 36.29194844663189
+            },
+            "x_max": {
+                "latitude": 50.040347435538735,
+                "longitude": 36.29202354848431
+            },
+            "y_max": {
+                "latitude": 50.04036810725497,
+                "longitude": 36.29182774722622
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj44",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.03999347819032,
+                "longitude": 36.292354727847794
+            },
+            "y_min": {
+                "latitude": 50.039969360998995,
+                "longitude": 36.292553211314896
+            },
+            "x_max": {
+                "latitude": 50.040284606186844,
+                "longitude": 36.29264708863042
+            },
+            "y_max": {
+                "latitude": 50.04031216850924,
+                "longitude": 36.2924459229543
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj45",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.03997280631279,
+                "longitude": 36.292681359538136
+            },
+            "y_min": {
+                "latitude": 50.039943521137715,
+                "longitude": 36.29289861846834
+            },
+            "x_max": {
+                "latitude": 50.040060661730834,
+                "longitude": 36.29292544055849
+            },
+            "y_max": {
+                "latitude": 50.040084778876285,
+                "longitude": 36.2927108638373
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj46",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.03991475667172,
+                "longitude": 36.29307296205431
+            },
+            "y_min": {
+                "latitude": 50.039894084760284,
+                "longitude": 36.293233894595204
+            },
+            "x_max": {
+                "latitude": 50.040014670784814,
+                "longitude": 36.29327144552141
+            },
+            "y_max": {
+                "latitude": 50.04003017468028,
+                "longitude": 36.293097101935444
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj47",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.03988202614118,
+                "longitude": 36.293448471316395
+            },
+            "y_min": {
+                "latitude": 50.03984757292702,
+                "longitude": 36.293689870127736
+            },
+            "x_max": {
+                "latitude": 50.03994297553033,
+                "longitude": 36.29371401000887
+            },
+            "y_max": {
+                "latitude": 50.039971604382245,
+                "longitude": 36.293480657824574
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj48",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.03995274151186,
+                "longitude": 36.29385169011414
+            },
+            "y_min": {
+                "latitude": 50.03987866717998,
+                "longitude": 36.293910698712466
+            },
+            "x_max": {
+                "latitude": 50.0399665227703,
+                "longitude": 36.294178919613955
+            },
+            "y_max": {
+                "latitude": 50.040037151657685,
+                "longitude": 36.29410649997055
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj49",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04010433513709,
+                "longitude": 36.29423792821228
+            },
+            "y_min": {
+                "latitude": 50.040023370419526,
+                "longitude": 36.294315712273715
+            },
+            "x_max": {
+                "latitude": 50.04006643677566,
+                "longitude": 36.29444982272446
+            },
+            "y_max": {
+                "latitude": 50.040162905273185,
+                "longitude": 36.2943854497081
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj50",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04037823604162,
+                "longitude": 36.28859599450362
+            },
+            "y_min": {
+                "latitude": 50.040067375717,
+                "longitude": 36.288810571224815
+            },
+            "x_max": {
+                "latitude": 50.04054877732485,
+                "longitude": 36.28886957982314
+            },
+            "y_max": {
+                "latitude": 50.04057633949557,
+                "longitude": 36.28865680162818
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj51",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04028321358991,
+                "longitude": 36.28944570016577
+            },
+            "y_min": {
+                "latitude": 50.040262541837144,
+                "longitude": 36.28960168113184
+            },
+            "x_max": {
+                "latitude": 50.040422747688346,
+                "longitude": 36.289641914267065
+            },
+            "y_max": {
+                "latitude": 50.04044341937214,
+                "longitude": 36.2894863461442
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj52",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.040234979486264,
+                "longitude": 36.28984534930899
+            },
+            "y_min": {
+                "latitude": 50.04022636624836,
+                "longitude": 36.28994995546057
+            },
+            "x_max": {
+                "latitude": 50.04035556465454,
+                "longitude": 36.289984824177765
+            },
+            "y_max": {
+                "latitude": 50.040362455226436,
+                "longitude": 36.289874853608154
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj53",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04021086241626,
+                "longitude": 36.290078701493286
+            },
+            "y_min": {
+                "latitude": 50.04019535857914,
+                "longitude": 36.290215494153045
+            },
+            "x_max": {
+                "latitude": 50.04038829486224,
+                "longitude": 36.29026645612433
+            },
+            "y_max": {
+                "latitude": 50.04040035335419,
+                "longitude": 36.29010284137442
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj54",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.040751872203224,
+                "longitude": 36.28873787723049
+            },
+            "y_min": {
+                "latitude": 50.040734645911364,
+                "longitude": 36.28890953860744
+            },
+            "x_max": {
+                "latitude": 50.040832835692186,
+                "longitude": 36.28893099627956
+            },
+            "y_max": {
+                "latitude": 50.04085178457414,
+                "longitude": 36.28877006373867
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj55",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04041079047388,
+                "longitude": 36.288324817042195
+            },
+            "y_min": {
+                "latitude": 50.040376337639195,
+                "longitude": 36.28851793609127
+            },
+            "x_max": {
+                "latitude": 50.040502090366225,
+                "longitude": 36.288555487017476
+            },
+            "y_max": {
+                "latitude": 50.04052620728993,
+                "longitude": 36.28835432134136
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj56",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04105333131024,
+                "longitude": 36.289801921848664
+            },
+            "y_min": {
+                "latitude": 50.04097064557215,
+                "longitude": 36.28981265068472
+            },
+            "x_max": {
+                "latitude": 50.04097409081408,
+                "longitude": 36.29005728914129
+            },
+            "y_max": {
+                "latitude": 50.04105160869216,
+                "longitude": 36.29005192472326
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj57",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.0406520682942,
+                "longitude": 36.28945722321487
+            },
+            "y_min": {
+                "latitude": 50.04064506909403,
+                "longitude": 36.28957985593664
+            },
+            "x_max": {
+                "latitude": 50.04078804739602,
+                "longitude": 36.28962008907186
+            },
+            "y_max": {
+                "latitude": 50.04079493790583,
+                "longitude": 36.28948866083013
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj58",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04089151360879,
+                "longitude": 36.2899131987474
+            },
+            "y_min": {
+                "latitude": 50.040812272845535,
+                "longitude": 36.289915880956414
+            },
+            "x_max": {
+                "latitude": 50.040901849088,
+                "longitude": 36.2902189705751
+            },
+            "y_max": {
+                "latitude": 50.04081744072538,
+                "longitude": 36.29021628836608
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj59",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.0417071685984,
+                "longitude": 36.29435959367035
+            },
+            "y_min": {
+                "latitude": 50.041557644129256,
+                "longitude": 36.29443469552277
+            },
+            "x_max": {
+                "latitude": 50.04162654807837,
+                "longitude": 36.294719009678346
+            },
+            "y_max": {
+                "latitude": 50.04178674946609,
+                "longitude": 36.29462781457184
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj60",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04165152573549,
+                "longitude": 36.294724374096376
+            },
+            "y_min": {
+                "latitude": 50.041126130898924,
+                "longitude": 36.294963761250955
+            },
+            "x_max": {
+                "latitude": 50.041162305809706,
+                "longitude": 36.29521857110737
+            },
+            "y_max": {
+                "latitude": 50.041698035821035,
+                "longitude": 36.294969125668985
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj61",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.040851160917946,
+                "longitude": 36.29479478208302
+            },
+            "y_min": {
+                "latitude": 50.04081326314606,
+                "longitude": 36.295063002984506
+            },
+            "x_max": {
+                "latitude": 50.04109577308942,
+                "longitude": 36.295151515882
+            },
+            "y_max": {
+                "latitude": 50.04113194802307,
+                "longitude": 36.29488865939854
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj62",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04082190902505,
+                "longitude": 36.29437099305866
+            },
+            "y_min": {
+                "latitude": 50.04065481397693,
+                "longitude": 36.294454141538125
+            },
+            "x_max": {
+                "latitude": 50.040718551331935,
+                "longitude": 36.29475991336582
+            },
+            "y_max": {
+                "latitude": 50.0408787556614,
+                "longitude": 36.29467676488636
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj63",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04072952122216,
+                "longitude": 36.294747580778846
+            },
+            "y_min": {
+                "latitude": 50.040205838943436,
+                "longitude": 36.29498361517216
+            },
+            "x_max": {
+                "latitude": 50.04021100688856,
+                "longitude": 36.295251836073646
+            },
+            "y_max": {
+                "latitude": 50.040779477456866,
+                "longitude": 36.29500775505329
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj64",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.0405799931432,
+                "longitude": 36.286654267752084
+            },
+            "y_min": {
+                "latitude": 50.04056621206085,
+                "longitude": 36.28680447145692
+            },
+            "x_max": {
+                "latitude": 50.04066482899151,
+                "longitude": 36.2868366579651
+            },
+            "y_max": {
+                "latitude": 50.040685500571065,
+                "longitude": 36.2866757254242
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj65",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.040650621128066,
+                "longitude": 36.28700831934205
+            },
+            "y_min": {
+                "latitude": 50.04063684006601,
+                "longitude": 36.28713438316575
+            },
+            "x_max": {
+                "latitude": 50.04071780374897,
+                "longitude": 36.287142429792794
+            },
+            "y_max": {
+                "latitude": 50.040731584787785,
+                "longitude": 36.28704050585023
+            }
+        },
+        "altitude": 0
+    },
+    {
+        "elementId": "obj66",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.04048697076064,
+                "longitude": 36.28754538204217
+            },
+            "y_min": {
+                "latitude": 50.04047491229045,
+                "longitude": 36.28768485691094
+            },
+            "x_max": {
+                "latitude": 50.04058171577819,
+                "longitude": 36.287735818882226
+            },
+            "y_max": {
+                "latitude": 50.04059894212492,
+                "longitude": 36.28758829738641
+            }
+        },
+        "altitude": 0
+    }
+]

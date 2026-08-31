@@ -15,14 +15,24 @@ class ACesiumGeoreference;
  * from a fixed JSON list (ObjectsJson — hardcoded for now, a placeholder for a future file/
  * network-backed source) instead of a Cesium 3D Tiles sweep. Each JSON entry looks like:
  *
- *   { "elementId": "obj1", "type": "building", "latitude": 50.5656742, "longitude": 31.1472513,
- *     "altitude": 350 }
+ *   {
+ *     "elementId": "obj3",
+ *     "type": "building",
+ *     "bbox": {
+ *       "x_min": { "latitude": 50.4094702, "longitude": 30.6122947 },
+ *       "x_max": { "latitude": 50.4094685, "longitude": 30.6127346 },
+ *       "y_min": { "latitude": 50.4097497, "longitude": 30.6127507 },
+ *       "y_max": { "latitude": 50.4097548, "longitude": 30.6123148 }
+ *     },
+ *     "altitude": 350
+ *   }
  *
- * ObjectsJson is parsed in BeginPlay (LoadObjects()): every entry's Latitude/Longitude/
- * AltitudeMeters is converted to a world-space position via
- * ACesiumGeoreference::TransformLongitudeLatitudeHeightPositionToUnreal — see AllObjects.
- * TickComponent re-parses it whenever the string changes (see LastLoadedObjectsJson), so editing
- * ObjectsJson — including a per-object "bboxw"/"bboxh" — takes effect live, without restarting.
+ * ObjectsJson is parsed in BeginPlay (LoadObjects()): every "bbox" corner (x_min, x_max, y_min,
+ * y_max) is converted to a world-space position via
+ * ACesiumGeoreference::TransformLongitudeLatitudeHeightPositionToUnreal — see AllObjects. The
+ * footprint centre (mean of the four corners) becomes Latitude/Longitude/WorldLocationMeters.
+ * TickComponent re-parses ObjectsJson whenever the string changes (see LastLoadedObjectsJson), so
+ * editing an entry's corners, type or altitude takes effect live, without restarting.
  *
  * Every Scan() re-tests each loaded object against the camera's current view: within range
  * (ScanRadiusMeters) and projecting inside the camera's frame (ProjectWorldToScreen — identical
@@ -74,11 +84,11 @@ public:
 	TArray<FCustomSurroundingObject> LatestScanResults;
 
 	/**
-	 * Source JSON — an array of {elementId, type, latitude, longitude, altitude} objects, e.g.:
-	 * [{"elementId":"obj1","type":"building","latitude":50.5656742,"longitude":31.1472513,"altitude":350}]
-	 * Hardcoded as an editable default for now; a placeholder for a future file/network-backed
-	 * source. Parsed once in BeginPlay via LoadObjects() — editing it at runtime has no effect
-	 * until the component is re-initialized.
+	 * Source JSON — an array of {elementId, type, bbox, altitude} objects, where "bbox" is
+	 * { x_min, x_max, y_min, y_max }, each a { latitude, longitude } pair (see the class comment
+	 * and Tools/TestingPlatform/attitude_control/map_objects.json). Hardcoded as an editable
+	 * default for now; a placeholder for a future file/network-backed source. Parsed in BeginPlay
+	 * via LoadObjects() and re-parsed by TickComponent whenever this string changes.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Custom Surroundings", meta = (MultiLine = true))
 	FString ObjectsJson;
@@ -110,13 +120,13 @@ public:
 	FColor ScanAreaDebugColor = FColor::Cyan;
 
 	/**
-	 * Draws a fixed-orientation rectangle (BBoxWidthMeters × BBoxHeightMeters, from ObjectsJson's
-	 * "bboxw"/"bboxh") centered on each visible object's point — see DrawObjectBBoxDebug().
+	 * Draws the object's footprint quad — the four "bbox" corners (BBoxCornersWorldMeters), edge
+	 * to edge in winding order — see DrawObjectBBoxDebug().
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Custom Surroundings|Debug")
 	bool bDrawObjectBBox = true;
 
-	/** Color of the object bbox rectangle (see bDrawObjectBBox). */
+	/** Color of the object bbox quad (see bDrawObjectBBox). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Custom Surroundings|Debug")
 	FColor BBoxDebugColor = FColor::Green;
 
@@ -134,10 +144,11 @@ public:
 
 private:
 	/**
-	 * Parses ObjectsJson into AllObjects, converting each entry's Latitude/Longitude/
-	 * AltitudeMeters to WorldLocationMeters via Georeference. Called from BeginPlay, and again
-	 * from TickComponent any time ObjectsJson no longer matches LastLoadedObjectsJson — so edits
-	 * made while playing (including per-object "bboxw"/"bboxh") take effect on the next tick.
+	 * Parses ObjectsJson into AllObjects, converting each entry's four "bbox" corners to world
+	 * space via Georeference (BBoxCornersWorldMeters) and taking their mean as the footprint
+	 * centre (Latitude/Longitude/WorldLocationMeters). Called from BeginPlay, and again from
+	 * TickComponent any time ObjectsJson no longer matches LastLoadedObjectsJson — so edits made
+	 * while playing take effect on the next tick.
 	 */
 	void LoadObjects();
 
@@ -150,28 +161,20 @@ private:
 	void DrawScanAreaDebug(const FTransform& OriginTransform, float Range, float HalfHFovRad, float HalfVFovRad) const;
 
 	/**
-	 * Fills OutCorners with the four world-space corners (Unreal cm) of a WidthMeters ×
-	 * HeightMeters rectangle centered on WorldPositionCm, flat against the fixed
-	 * InitialCameraRightAxis/InitialCameraUpAxis orientation. Shared by DrawObjectBBoxDebug() and
-	 * ComputeBBoxScreenSize() so both agree on exactly what shape a bbox is.
+	 * Draws CornersMeters (the object's four "bbox" corners, in metres) as a closed quad — each
+	 * corner scaled to cm and joined to the next in order. Not billboarded: these are real
+	 * world-space points, so the quad sits on the object's actual footprint.
 	 */
-	void ComputeBBoxCorners(const FVector& WorldPositionCm, float WidthMeters, float HeightMeters, FVector (&OutCorners)[4]) const;
+	void DrawObjectBBoxDebug(const TArray<FVector>& CornersMeters) const;
 
 	/**
-	 * Draws a rectangle of size WidthMeters × HeightMeters (converted to cm), centered on
-	 * WorldPositionCm, flat against the fixed InitialCameraRightAxis/InitialCameraUpAxis
-	 * orientation — not billboarded to the camera's current transform, so it doesn't rotate.
-	 */
-	void DrawObjectBBoxDebug(const FVector& WorldPositionCm, float WidthMeters, float HeightMeters) const;
-
-	/**
-	 * Projects WidthMeters × HeightMeters's four corners (ComputeBBoxCorners) onto the camera
-	 * frame via ProjectWorldToScreenUnclamped, then returns the pixel-space width/height of their
+	 * Projects each of CornersMeters (metres) onto the camera frame via
+	 * ProjectWorldToScreenUnclamped, then returns the pixel-space width/height of their
 	 * axis-aligned bounds — the same projection used for pixel_x/pixel_y, unclamped to the sensor
 	 * so a partially off-frame bbox still reports its true size. A corner behind the camera is
-	 * skipped; if all four are, returns (0, 0).
+	 * skipped; if all are, returns (0, 0).
 	 */
-	FVector2D ComputeBBoxScreenSize(const FVector& WorldPositionCm, float WidthMeters, float HeightMeters) const;
+	FVector2D ComputeBBoxScreenSize(const TArray<FVector>& CornersMeters) const;
 
 	/** Draws Label as text at WorldPositionCm (see bDrawObjectLabel). */
 	void DrawObjectLabelDebug(const FVector& WorldPositionCm, const FString& Label) const;
@@ -185,8 +188,11 @@ private:
 	/**
 	 * Builds and caches this tick's IUAVSensorInterface JSON payload from ObjectStorage — one
 	 * object per currently-visible entry, with id/type/latitude/longitude/altitude plus
-	 * pixel_x/pixel_y/visible from ProjectWorldToScreen, and bboxw/bboxh as the pixel-space size of
-	 * the projected bbox (ComputeBBoxScreenSize) — not the raw BBoxWidthMeters/BBoxHeightMeters.
+	 * pixel_x/pixel_y/visible from ProjectWorldToScreen, bboxw/bboxh as the pixel-space size of the
+	 * projected footprint quad (ComputeBBoxScreenSize over BBoxCornersWorldMeters), and corners_px
+	 * as the four footprint corners projected individually (flat [x0,y0,x1,y1,...], winding order
+	 * x_min -> x_max -> y_min -> y_max, unclamped, a behind-camera corner as [-1,-1]) so a consumer
+	 * can fit an oriented box, not just an axis-aligned one.
 	 * Called at the end of TickComponent, after Scan(); does nothing (and drops the cached frame)
 	 * while bSensorEnabled is false.
 	 */
@@ -222,15 +228,6 @@ private:
 	/** Owner's scene capture — supplies the transform the visibility test is projected from. */
 	UPROPERTY()
 	USceneCaptureComponent2D* SceneCaptureComponent = nullptr;
-
-	/**
-	 * SceneCaptureComponent's Right/Up axes, captured once in BeginPlay (its first frame) and
-	 * never updated again. DrawObjectBBoxDebug() draws every object's bbox flat against this fixed
-	 * reference orientation instead of billboarding to the camera's current transform each tick,
-	 * so a box doesn't rotate/twist as the airplane moves — it only translates with its object.
-	 */
-	FVector InitialCameraRightAxis = FVector::RightVector;
-	FVector InitialCameraUpAxis    = FVector::UpVector;
 
 	/**
 	 * Resolved in BeginPlay via ACesiumGeoreference::GetDefaultGeoreference. Used once by

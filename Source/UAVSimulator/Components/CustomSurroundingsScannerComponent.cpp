@@ -15,28 +15,33 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonWriter.h"
 
-// Placeholder for a future file/network-backed source — hardcoded here for now, per the sample
-// schema: [{"elementId": "...", "type": "...", "latitude": ..., "longitude": ..., "altitude": ...,
-// "bboxw": ..., "bboxh": ...}]. bboxw/bboxh are optional — missing entries keep
-// FCustomSurroundingObject's struct defaults.
+// Placeholder for a future file/network-backed source — hardcoded here for now, per the schema in
+// Tools/TestingPlatform/attitude_control/map_objects.json: each entry is
+// {"elementId": "...", "type": "...", "altitude": ..., "bbox": {x_min, x_max, y_min, y_max}} where
+// every corner is a {"latitude": ..., "longitude": ...} pair. An entry with no usable "bbox" is
+// skipped.
 static const TCHAR* DefaultCustomObjectsJson = TEXT(R"([
 	{
-		"elementId": "obj1",
+		"elementId": "obj3",
 		"type": "building",
-		"latitude": 50.5656742,
-		"longitude": 31.1472513,
-		"altitude": 350,
-		"bboxw": 20,
-		"bboxh": 15
+		"bbox": {
+			"x_min": { "latitude": 50.40947022784372, "longitude": 30.61229469147912 },
+			"x_max": { "latitude": 50.409468518480935, "longitude": 30.612734573757564 },
+			"y_min": { "latitude": 50.40974970782978, "longitude": 30.612750667011653 },
+			"y_max": { "latitude": 50.40975483588752, "longitude": 30.612314808046733 }
+		},
+		"altitude": 350
 	},
 	{
-		"elementId": "obj2",
-		"type": "tree",
-		"latitude": 50.5656221,
-		"longitude": 31.1472122,
-		"altitude": 350,
-		"bboxw": 6,
-		"bboxh": 8
+		"elementId": "obj4",
+		"type": "building",
+		"bbox": {
+			"x_min": { "latitude": 50.4087514353538, "longitude": 30.61182999876729 },
+			"x_max": { "latitude": 50.4087428884096, "longitude": 30.612311455285464 },
+			"y_min": { "latitude": 50.409078782156165, "longitude": 30.61183336467758 },
+			"y_max": { "latitude": 50.409075363402295, "longitude": 30.612311455285464 }
+		},
+		"altitude": 350
 	}
 ])");
 
@@ -55,15 +60,6 @@ void UCustomSurroundingsScannerComponent::BeginPlay()
 		SceneCaptureComponent = Owner->FindComponentByClass<USceneCaptureComponent2D>();
 	}
 
-	// Fixed bbox reference orientation — captured once here, on the camera's first frame, and
-	// never updated again (see InitialCameraRightAxis/InitialCameraUpAxis).
-	if (SceneCaptureComponent)
-	{
-		const FTransform CaptureTransform = SceneCaptureComponent->GetComponentTransform();
-		InitialCameraRightAxis = CaptureTransform.GetUnitAxis(EAxis::Y);
-		InitialCameraUpAxis    = CaptureTransform.GetUnitAxis(EAxis::Z);
-	}
-
 	Georeference = ACesiumGeoreference::GetDefaultGeoreference(this);
 
 	LoadObjects();
@@ -78,7 +74,7 @@ void UCustomSurroundingsScannerComponent::TickComponent(float DeltaTime, ELevelT
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	// Live-reload: pick up edits to ObjectsJson (positions, type, bboxw/bboxh, ...) without
+	// Live-reload: pick up edits to ObjectsJson (bbox corners, type, altitude, ...) without
 	// requiring a restart. Scan() below re-syncs already-visible ObjectStorage entries from the
 	// freshly reloaded AllObjects.
 	if (ObjectsJson != LastLoadedObjectsJson)
@@ -93,10 +89,11 @@ void UCustomSurroundingsScannerComponent::TickComponent(float DeltaTime, ELevelT
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Load — (re)parses ObjectsJson, converting each entry's geographic position to a world-space
-// position via Georeference. Called from BeginPlay and again from TickComponent whenever
-// ObjectsJson changes (see LastLoadedObjectsJson); DistanceMeters is additionally refreshed every
-// Scan().
+// Load — (re)parses ObjectsJson, converting every entry's four "bbox" corners to world space via
+// Georeference (BBoxCornersWorldMeters) and taking their mean as the footprint centre
+// (Latitude/Longitude/WorldLocationMeters). Called from BeginPlay and again from TickComponent
+// whenever ObjectsJson changes (see LastLoadedObjectsJson); DistanceMeters is additionally
+// refreshed every Scan().
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UCustomSurroundingsScannerComponent::LoadObjects()
@@ -111,6 +108,20 @@ void UCustomSurroundingsScannerComponent::LoadObjects()
 		return;
 	}
 
+	// Geographic (lat, long, alt) -> world-space position in metres, via Georeference. Matches the
+	// lat/long/height -> Unreal conversion used elsewhere in the project.
+	auto GeoToWorldMeters = [this](double Latitude, double Longitude, double AltitudeMeters) -> FVector
+	{
+		if (!Georeference) return FVector::ZeroVector;
+		const FVector LongitudeLatitudeHeight(Longitude, Latitude, AltitudeMeters);
+		const FVector UnrealPositionCm = Georeference->GetActorTransform().TransformPosition(
+			Georeference->TransformLongitudeLatitudeHeightPositionToUnreal(LongitudeLatitudeHeight));
+		return UnrealPositionCm * 0.01;
+	};
+
+	// The four "bbox" corner names, in winding order — the quad is drawn / projected in this order.
+	static const TCHAR* CornerNames[] = { TEXT("x_min"), TEXT("x_max"), TEXT("y_min"), TEXT("y_max") };
+
 	for (const TSharedPtr<FJsonValue>& Value : ParsedArray)
 	{
 		const TSharedPtr<FJsonObject>* JsonObject;
@@ -119,21 +130,55 @@ void UCustomSurroundingsScannerComponent::LoadObjects()
 		FCustomSurroundingObject Entry;
 		(*JsonObject)->TryGetStringField(TEXT("elementId"), Entry.ObjectID);
 		(*JsonObject)->TryGetStringField(TEXT("type"), Entry.ObjectType);
-		(*JsonObject)->TryGetNumberField(TEXT("latitude"), Entry.Latitude);
-		(*JsonObject)->TryGetNumberField(TEXT("longitude"), Entry.Longitude);
 		(*JsonObject)->TryGetNumberField(TEXT("altitude"), Entry.AltitudeMeters);
-		(*JsonObject)->TryGetNumberField(TEXT("bboxw"), Entry.BBoxWidthMeters);
-		(*JsonObject)->TryGetNumberField(TEXT("bboxh"), Entry.BBoxHeightMeters);
 
 		if (Entry.ObjectID.IsEmpty()) continue;
 
-		if (Georeference)
+		const TSharedPtr<FJsonObject>* BBoxObject = nullptr;
+		if (!(*JsonObject)->TryGetObjectField(TEXT("bbox"), BBoxObject) || !BBoxObject->IsValid())
 		{
-			const FVector LongitudeLatitudeHeight(Entry.Longitude, Entry.Latitude, Entry.AltitudeMeters);
-			const FVector UnrealPositionCm = Georeference->GetActorTransform().TransformPosition(
-				Georeference->TransformLongitudeLatitudeHeightPositionToUnreal(LongitudeLatitudeHeight));
-			Entry.WorldLocationMeters = UnrealPositionCm * 0.01;
+			UE_LOG(LogUAV, Warning, TEXT("CustomSurroundingsScanner: у об'єкта %s немає поля \"bbox\" — пропущено"), *Entry.ObjectID);
+			continue;
 		}
+
+		double SumLat = 0.0;
+		double SumLong = 0.0;
+		int32  CornerCount = 0;
+		Entry.BBoxCornersWorldMeters.Reset((int32)UE_ARRAY_COUNT(CornerNames));
+
+		for (const TCHAR* CornerName : CornerNames)
+		{
+			const TSharedPtr<FJsonObject>* CornerObject = nullptr;
+			if (!(*BBoxObject)->TryGetObjectField(CornerName, CornerObject) || !CornerObject->IsValid())
+				continue;
+
+			double CornerLat = 0.0;
+			double CornerLong = 0.0;
+			(*CornerObject)->TryGetNumberField(TEXT("latitude"), CornerLat);
+			(*CornerObject)->TryGetNumberField(TEXT("longitude"), CornerLong);
+
+			// "altitude" is a single value shared by every corner of the footprint.
+			Entry.BBoxCornersWorldMeters.Add(GeoToWorldMeters(CornerLat, CornerLong, Entry.AltitudeMeters));
+
+			SumLat  += CornerLat;
+			SumLong += CornerLong;
+			++CornerCount;
+		}
+
+		if (CornerCount == 0)
+		{
+			UE_LOG(LogUAV, Warning, TEXT("CustomSurroundingsScanner: у об'єкта %s порожній \"bbox\" — пропущено"), *Entry.ObjectID);
+			continue;
+		}
+
+		// Footprint centre — mean of the parsed corners, in both geographic and world space.
+		Entry.Latitude  = SumLat / CornerCount;
+		Entry.Longitude = SumLong / CornerCount;
+
+		FVector CentreWorldMeters = FVector::ZeroVector;
+		for (const FVector& Corner : Entry.BBoxCornersWorldMeters)
+			CentreWorldMeters += Corner;
+		Entry.WorldLocationMeters = CentreWorldMeters / CornerCount;
 
 		AllObjects.Add(MoveTemp(Entry));
 	}
@@ -186,8 +231,8 @@ const TArray<FCustomSurroundingObject>& UCustomSurroundingsScannerComponent::Sca
 		if (!bVisible) continue;
 
 		CurrentlyVisibleKeys.Add(Object.ObjectID);
-		// Full overwrite (not just DistanceMeters) so a live ObjectsJson edit — position, type,
-		// bboxw/bboxh — reaches an already-visible object immediately, not only newly-added ones.
+		// Full overwrite (not just DistanceMeters) so a live ObjectsJson edit — bbox corners, type,
+		// altitude — reaches an already-visible object immediately, not only newly-added ones.
 		if (FCustomSurroundingObject* Stored = ObjectStorage.Find(Object.ObjectID))
 			*Stored = Object;
 		else
@@ -224,7 +269,7 @@ const TArray<FCustomSurroundingObject>& UCustomSurroundingsScannerComponent::Sca
 			DrawDebugLine(World, Owner->GetActorLocation(), Pair.Value.WorldLocationMeters * 100.0, RayDebugColor, false, -1.0f);
 
 			if (bDrawObjectBBox)
-				DrawObjectBBoxDebug(Pair.Value.WorldLocationMeters * 100.0, Pair.Value.BBoxWidthMeters, Pair.Value.BBoxHeightMeters);
+				DrawObjectBBoxDebug(Pair.Value.BBoxCornersWorldMeters);
 
 			if (bDrawObjectLabel)
 				DrawObjectLabelDebug(Pair.Value.WorldLocationMeters * 100.0, Pair.Value.ObjectID);
@@ -270,60 +315,40 @@ void UCustomSurroundingsScannerComponent::DrawScanAreaDebug(const FTransform& Or
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Object bbox — a rectangle around the object's point, sized from its BBoxWidthMeters/
-// BBoxHeightMeters (see FCustomSurroundingObject, populated from "bboxw"/"bboxh"). Held flat
-// against InitialCameraRightAxis/InitialCameraUpAxis (fixed at BeginPlay) rather than billboarded
-// to the camera's current transform, so it translates with its object but never rotates.
+// Object bbox — the object's footprint quad, its four "bbox" corners (BBoxCornersWorldMeters,
+// winding order x_min -> x_max -> y_min -> y_max) joined edge to edge. These are real world-space
+// points, so the quad sits on the actual footprint — no billboarding, no fixed reference axes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-void UCustomSurroundingsScannerComponent::ComputeBBoxCorners(const FVector& WorldPositionCm, float WidthMeters, float HeightMeters, FVector (&OutCorners)[4]) const
-{
-	const float HalfWidthCm  = WidthMeters * 100.0f * 0.5f;
-	const float HalfHeightCm = HeightMeters * 100.0f * 0.5f;
-
-	// TopLeft, TopRight, BottomLeft, BottomRight.
-	OutCorners[0] = WorldPositionCm + InitialCameraUpAxis * HalfHeightCm - InitialCameraRightAxis * HalfWidthCm;
-	OutCorners[1] = WorldPositionCm + InitialCameraUpAxis * HalfHeightCm + InitialCameraRightAxis * HalfWidthCm;
-	OutCorners[2] = WorldPositionCm - InitialCameraUpAxis * HalfHeightCm - InitialCameraRightAxis * HalfWidthCm;
-	OutCorners[3] = WorldPositionCm - InitialCameraUpAxis * HalfHeightCm + InitialCameraRightAxis * HalfWidthCm;
-}
-
-void UCustomSurroundingsScannerComponent::DrawObjectBBoxDebug(const FVector& WorldPositionCm, float WidthMeters, float HeightMeters) const
+void UCustomSurroundingsScannerComponent::DrawObjectBBoxDebug(const TArray<FVector>& CornersMeters) const
 {
 	UWorld* World = GetWorld();
-	if (!World) return;
+	if (!World || CornersMeters.Num() < 2) return;
 
-	FVector Corners[4];
-	ComputeBBoxCorners(WorldPositionCm, WidthMeters, HeightMeters, Corners);
-	const FVector& TopLeft     = Corners[0];
-	const FVector& TopRight    = Corners[1];
-	const FVector& BottomLeft  = Corners[2];
-	const FVector& BottomRight = Corners[3];
-
-	DrawDebugLine(World, TopLeft,     TopRight,    BBoxDebugColor, false, -1.0f, SDPG_Foreground);
-	DrawDebugLine(World, TopRight,    BottomRight, BBoxDebugColor, false, -1.0f, SDPG_Foreground);
-	DrawDebugLine(World, BottomRight, BottomLeft,  BBoxDebugColor, false, -1.0f, SDPG_Foreground);
-	DrawDebugLine(World, BottomLeft,  TopLeft,     BBoxDebugColor, false, -1.0f, SDPG_Foreground);
+	const int32 Num = CornersMeters.Num();
+	for (int32 Index = 0; Index < Num; ++Index)
+	{
+		const FVector From = CornersMeters[Index] * 100.0;
+		const FVector To   = CornersMeters[(Index + 1) % Num] * 100.0;
+		DrawDebugLine(World, From, To, BBoxDebugColor, false, -1.0f, SDPG_Foreground);
+	}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Object bbox — projected screen size. Reuses ComputeBBoxCorners so the reported pixel size
-// matches exactly what DrawObjectBBoxDebug draws in the world.
+// Object bbox — projected screen size. Projects the same four corners DrawObjectBBoxDebug draws,
+// so the reported pixel size matches the world quad exactly.
 // ─────────────────────────────────────────────────────────────────────────────
 
-FVector2D UCustomSurroundingsScannerComponent::ComputeBBoxScreenSize(const FVector& WorldPositionCm, float WidthMeters, float HeightMeters) const
+FVector2D UCustomSurroundingsScannerComponent::ComputeBBoxScreenSize(const TArray<FVector>& CornersMeters) const
 {
-	FVector Corners[4];
-	ComputeBBoxCorners(WorldPositionCm, WidthMeters, HeightMeters, Corners);
-
 	FVector2D Min(TNumericLimits<float>::Max(), TNumericLimits<float>::Max());
 	FVector2D Max(-TNumericLimits<float>::Max(), -TNumericLimits<float>::Max());
 	bool bAnyCornerInFront = false;
 
-	for (const FVector& Corner : Corners)
+	for (const FVector& CornerMeters : CornersMeters)
 	{
 		FVector2D ScreenPos;
-		if (!ProjectWorldToScreenUnclamped(Corner, ScreenPos)) continue; // behind camera — skip
+		if (!ProjectWorldToScreenUnclamped(CornerMeters * 100.0, ScreenPos)) continue; // behind camera — skip
 
 		bAnyCornerInFront = true;
 		Min.X = FMath::Min(Min.X, ScreenPos.X);
@@ -396,9 +421,23 @@ void UCustomSurroundingsScannerComponent::BuildSensorFrame()
 		FVector2D ScreenPos;
 		const bool bVisible = ProjectWorldToScreen(Entry.WorldLocationMeters * 100.0, ScreenPos);
 
-		// Pixel-space bbox size — the projected width/height of the world-space bbox
-		// (BBoxWidthMeters/BBoxHeightMeters), same projection as pixel_x/pixel_y below.
-		const FVector2D BBoxScreenSize = ComputeBBoxScreenSize(Entry.WorldLocationMeters * 100.0, Entry.BBoxWidthMeters, Entry.BBoxHeightMeters);
+		// Pixel-space bbox size — the projected axis-aligned bounds of the footprint quad's four
+		// corners (BBoxCornersWorldMeters), same projection as pixel_x/pixel_y below.
+		const FVector2D BBoxScreenSize = ComputeBBoxScreenSize(Entry.BBoxCornersWorldMeters);
+
+		// Each footprint corner projected onto the frame, unclamped, as a flat [x0,y0,x1,y1,...]
+		// array in winding order x_min -> x_max -> y_min -> y_max — lets the consumer build a tight
+		// axis-aligned OR an oriented (rotated) box, which is the natural fit for a footprint quad
+		// seen from an oblique heading. A corner behind the camera is written as [-1, -1].
+		TArray<TSharedPtr<FJsonValue>> CornersJson;
+		CornersJson.Reserve(Entry.BBoxCornersWorldMeters.Num() * 2);
+		for (const FVector& CornerMeters : Entry.BBoxCornersWorldMeters)
+		{
+			FVector2D CornerScreen;
+			const bool bCornerInFront = ProjectWorldToScreenUnclamped(CornerMeters * 100.0, CornerScreen);
+			CornersJson.Add(MakeShared<FJsonValueNumber>(bCornerInFront ? CornerScreen.X : -1.0));
+			CornersJson.Add(MakeShared<FJsonValueNumber>(bCornerInFront ? CornerScreen.Y : -1.0));
+		}
 
 		TSharedRef<FJsonObject> ObjectJson = MakeShared<FJsonObject>();
 		ObjectJson->SetStringField(TEXT("id"),        Entry.ObjectID);
@@ -410,6 +449,7 @@ void UCustomSurroundingsScannerComponent::BuildSensorFrame()
 		ObjectJson->SetNumberField(TEXT("bboxh"),     BBoxScreenSize.Y);
 		ObjectJson->SetNumberField(TEXT("pixel_x"),   bVisible ? ScreenPos.X : -1.0);
 		ObjectJson->SetNumberField(TEXT("pixel_y"),   bVisible ? ScreenPos.Y : -1.0);
+		ObjectJson->SetArrayField (TEXT("corners_px"), CornersJson);
 		ObjectJson->SetBoolField  (TEXT("visible"),   bVisible);
 		ObjectsArrayJson.Add(MakeShared<FJsonValueObject>(ObjectJson));
 	}
