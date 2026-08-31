@@ -10,6 +10,7 @@ class UEditableTextBox;
 class ADroneDatasetGeneratorActor;
 class ADroneKeyPointDatasetActor;
 class ASceneObjectDatasetActor;
+class AYoloMarkerDatasetActor;
 class AUAVSimulatorGameModeBase;
 
 UCLASS()
@@ -44,6 +45,14 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UEditableTextBox> SceneObjectExportPathTextBox;
 
+	// Optional — add these widgets to the menu Blueprint to expose the YOLO marker
+	// dataset generator. Absent bindings are tolerated so the existing UMG still loads.
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> RunMarkerDatasetBtn;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UEditableTextBox> MarkerDatasetPathTextBox;
+
 	virtual void OnSectionActivated_Implementation() override;
 
 private:
@@ -54,14 +63,17 @@ private:
 	ADroneDatasetGeneratorActor*  GetDatasetActor()  const;
 	ADroneKeyPointDatasetActor*   GetKeyPointActor() const;
 	ASceneObjectDatasetActor*     GetSceneObjectActor() const;
+	AYoloMarkerDatasetActor*      GetMarkerDatasetActor() const;
 	AUAVSimulatorGameModeBase* GetGameMode() const;
 
 	UFUNCTION() void OnRunSphericalContourClicked();
 	UFUNCTION() void OnRunKPointDetectionClicked();
 	UFUNCTION() void OnRunSceneObjectExportClicked();
+	UFUNCTION() void OnRunMarkerDatasetClicked();
 	UFUNCTION() void OnSphericalContourPathCommitted(const FText& Text, ETextCommit::Type CommitType);
 	UFUNCTION() void OnKPointDetectionPathCommitted(const FText& Text, ETextCommit::Type CommitType);
 	UFUNCTION() void OnSceneObjectExportPathCommitted(const FText& Text, ETextCommit::Type CommitType);
+	UFUNCTION() void OnMarkerDatasetPathCommitted(const FText& Text, ETextCommit::Type CommitType);
 	UFUNCTION() void OnSegmentationMaskChanged(bool bIsChecked);
 	UFUNCTION() void OnBBoxDetectionChanged(bool bIsChecked);
 

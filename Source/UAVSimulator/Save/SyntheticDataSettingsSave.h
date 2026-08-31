@@ -23,6 +23,9 @@ public:
 	FString SceneObjectOutputJsonPath;
 
 	UPROPERTY(BlueprintReadWrite)
+	FString MarkerDatasetBasePath;
+
+	UPROPERTY(BlueprintReadWrite)
 	bool bEnableSensorSegmentationMask = false;
 
 	UPROPERTY(BlueprintReadWrite)

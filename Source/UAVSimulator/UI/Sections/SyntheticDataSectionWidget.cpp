@@ -2,6 +2,7 @@
 #include "UAVSimulator/DatasetGen/DroneDatasetGeneratorActor.h"
 #include "UAVSimulator/DatasetGen/DroneKeyPointDatasetActor.h"
 #include "UAVSimulator/DatasetGen/SceneObjectDatasetActor.h"
+#include "UAVSimulator/DatasetGen/YoloMarkerDatasetActor.h"
 #include "UAVSimulator/UAVSimulatorGameModeBase.h"
 #include "Components/Button.h"
 #include "Components/CheckBox.h"
@@ -27,6 +28,11 @@ void USyntheticDataSectionWidget::NativeConstruct()
 	SphericalContourFilePathTextBox->OnTextCommitted.AddDynamic(this, &USyntheticDataSectionWidget::OnSphericalContourPathCommitted);
 	KPointDetectionBtnTextBox->OnTextCommitted.AddDynamic(this, &USyntheticDataSectionWidget::OnKPointDetectionPathCommitted);
 	SceneObjectExportPathTextBox->OnTextCommitted.AddDynamic(this, &USyntheticDataSectionWidget::OnSceneObjectExportPathCommitted);
+
+	if (RunMarkerDatasetBtn)
+		RunMarkerDatasetBtn->OnClicked.AddDynamic(this, &USyntheticDataSectionWidget::OnRunMarkerDatasetClicked);
+	if (MarkerDatasetPathTextBox)
+		MarkerDatasetPathTextBox->OnTextCommitted.AddDynamic(this, &USyntheticDataSectionWidget::OnMarkerDatasetPathCommitted);
 }
 
 void USyntheticDataSectionWidget::OnSectionActivated_Implementation()
@@ -52,6 +58,12 @@ void USyntheticDataSectionWidget::SyncFromActors()
 	{
 		SceneObjectExportPathTextBox->SetText(FText::FromString(Actor->OutputJsonPath));
 	}
+
+	if (MarkerDatasetPathTextBox)
+	{
+		if (AYoloMarkerDatasetActor* Actor = GetMarkerDatasetActor())
+			MarkerDatasetPathTextBox->SetText(FText::FromString(Actor->OutputRootDir));
+	}
 }
 
 void USyntheticDataSectionWidget::OnRunSphericalContourClicked()
@@ -76,6 +88,23 @@ void USyntheticDataSectionWidget::OnRunSceneObjectExportClicked()
 	{
 		Actor->ExportSceneObjects();
 	}
+}
+
+void USyntheticDataSectionWidget::OnRunMarkerDatasetClicked()
+{
+	if (AYoloMarkerDatasetActor* Actor = GetMarkerDatasetActor())
+	{
+		Actor->GenerateDataset();
+	}
+}
+
+void USyntheticDataSectionWidget::OnMarkerDatasetPathCommitted(const FText& Text, ETextCommit::Type /*CommitType*/)
+{
+	if (AYoloMarkerDatasetActor* Actor = GetMarkerDatasetActor())
+	{
+		Actor->OutputRootDir = Text.ToString();
+	}
+	SaveCurrentSettings();
 }
 
 void USyntheticDataSectionWidget::OnSphericalContourPathCommitted(const FText& Text, ETextCommit::Type /*CommitType*/)
@@ -136,6 +165,16 @@ ASceneObjectDatasetActor* USyntheticDataSectionWidget::GetSceneObjectActor() con
 	return nullptr;
 }
 
+AYoloMarkerDatasetActor* USyntheticDataSectionWidget::GetMarkerDatasetActor() const
+{
+	if (UWorld* World = GetWorld())
+	{
+		return Cast<AYoloMarkerDatasetActor>(
+			UGameplayStatics::GetActorOfClass(World, AYoloMarkerDatasetActor::StaticClass()));
+	}
+	return nullptr;
+}
+
 AUAVSimulatorGameModeBase* USyntheticDataSectionWidget::GetGameMode() const
 {
 	if (UWorld* World = GetWorld())
@@ -189,6 +228,12 @@ void USyntheticDataSectionWidget::LoadAndApplySavedSettings()
 			Actor->OutputJsonPath = Save->SceneObjectOutputJsonPath;
 	}
 
+	if (AYoloMarkerDatasetActor* Actor = GetMarkerDatasetActor())
+	{
+		if (!Save->MarkerDatasetBasePath.IsEmpty())
+			Actor->OutputRootDir = Save->MarkerDatasetBasePath;
+	}
+
 	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
 	{
 		GM->bEnableSensorSegmentationMask = Save->bEnableSensorSegmentationMask;
@@ -214,6 +259,11 @@ void USyntheticDataSectionWidget::SaveCurrentSettings()
 	if (ASceneObjectDatasetActor* Actor = GetSceneObjectActor())
 	{
 		Save->SceneObjectOutputJsonPath = Actor->OutputJsonPath;
+	}
+
+	if (AYoloMarkerDatasetActor* Actor = GetMarkerDatasetActor())
+	{
+		Save->MarkerDatasetBasePath = Actor->OutputRootDir;
 	}
 
 	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
