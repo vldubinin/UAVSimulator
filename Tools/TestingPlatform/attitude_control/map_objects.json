@@ -1150,29 +1150,6 @@
         "altitude": 0
     },
     {
-        "elementId": "obj50",
-        "type": "building",
-        "bbox": {
-            "x_min": {
-                "latitude": 50.04037823604162,
-                "longitude": 36.28859599450362
-            },
-            "y_min": {
-                "latitude": 50.040067375717,
-                "longitude": 36.288810571224815
-            },
-            "x_max": {
-                "latitude": 50.04054877732485,
-                "longitude": 36.28886957982314
-            },
-            "y_max": {
-                "latitude": 50.04057633949557,
-                "longitude": 36.28865680162818
-            }
-        },
-        "altitude": 0
-    },
-    {
         "elementId": "obj51",
         "type": "building",
         "bbox": {

@@ -9,6 +9,7 @@
 
 class USceneCaptureComponent2D;
 class ACesiumGeoreference;
+class ACesium3DTileset;
 
 /**
  * Same role and shape as UCesiumSurroundingsScannerComponent, but the surrounding objects come
@@ -33,6 +34,12 @@ class ACesiumGeoreference;
  * footprint centre (mean of the four corners) becomes Latitude/Longitude/WorldLocationMeters.
  * TickComponent re-parses ObjectsJson whenever the string changes (see LastLoadedObjectsJson), so
  * editing an entry's corners, type or altitude takes effect live, without restarting.
+ *
+ * The JSON "altitude" is deliberately NOT used to place the markers. Instead, every Scan() runs a
+ * vertical line trace (ResolveGroundHeights/TryTraceTileSurfaceMeters) against the Cesium tiles
+ * below/above each corner and snaps the corner — and, from the mean, the footprint centre — onto
+ * the tile surface, so the markers always sit exactly on the terrain height. The trace is retried
+ * each tick until it lands, because Cesium streams tiles in by camera distance.
  *
  * Every Scan() re-tests each loaded object against the camera's current view: within range
  * (ScanRadiusMeters) and projecting inside the camera's frame (ProjectWorldToScreen — identical
@@ -99,6 +106,43 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Custom Surroundings", meta = (ClampMin = 1.0f))
 	float ScanRadiusMeters = 10000.0f;
 
+	// ── Ground snapping ───────────────────────────────────────────────────────
+	// Markers are placed on the Cesium tile surface, not at the JSON "altitude" (which is
+	// ignored for placement). The height is found by a vertical trace against the tiles,
+	// retried every Scan() until it lands — tiles stream in by camera distance.
+
+	/** Master switch for the tile-surface snap. Off ⇒ markers stay at the raw georeferenced height. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Custom Surroundings|Ground")
+	bool bSnapMarkersToTileSurface = true;
+
+	/** Collision channel the ground trace runs on — must be one the Cesium tileset blocks. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Custom Surroundings|Ground")
+	TEnumAsByte<ECollisionChannel> GroundTraceChannel = ECC_Visibility;
+
+	/** Half-length of the vertical ground trace, in metres, each side of the georeferenced point. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Custom Surroundings|Ground", meta = (ClampMin = 1.0f))
+	float GroundTraceSpanMeters = 20000.0f;
+
+	/** Markers are lifted this far above the tile surface along the local up axis, in metres. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Custom Surroundings|Ground")
+	float GroundHeightOffsetMeters = 0.0f;
+
+	/**
+	 * Restricts an accepted ground hit to actors of class ACesium3DTileset. Leave on for normal
+	 * use; turn off to diagnose (e.g. the tileset's collision is set up under a different actor,
+	 * or you want to snap to any blocking geometry on GroundTraceChannel).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Custom Surroundings|Ground")
+	bool bRequireCesiumTilesetHit = true;
+
+	/**
+	 * Draws every ground trace: the trace segment (green if it landed a hit, red if it missed)
+	 * plus a sphere at the impact point. Also logs each object's resolve progress to LogUAV.
+	 * On while first bringing the snap up; turn off once heights resolve correctly.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Custom Surroundings|Ground")
+	bool bDebugGroundTrace = true;
+
 	// ── Debug markers ──────────────────────────────────────────────────────────
 	// Drawn only while bSensorEnabled is true, so they switch off together with the component
 	// (same as the sensor JSON payload in BuildSensorFrame) instead of always rendering.
@@ -151,6 +195,39 @@ private:
 	 * while playing take effect on the next tick.
 	 */
 	void LoadObjects();
+
+	/**
+	 * Geographic (latitude, longitude in degrees; height above the ellipsoid in metres) to a
+	 * world-space position in metres, via Georeference. Extracted from LoadObjects() so the
+	 * ground-snap trace can reuse it. Returns ZeroVector if Georeference hasn't resolved yet.
+	 */
+	FVector GeoToWorldMeters(double LatitudeDeg, double LongitudeDeg, double HeightMeters) const;
+
+	/**
+	 * World-space "up" (unit vector) at the given geographic position — the ellipsoid normal,
+	 * found by converting the point at two heights and normalising the difference. Falls back to
+	 * FVector::UpVector if Georeference hasn't resolved. Used as the trace axis in
+	 * TryTraceTileSurfaceMeters so the vertical is geographically correct, not just world +Z.
+	 */
+	FVector GeographicUpMeters(double LatitudeDeg, double LongitudeDeg) const;
+
+	/**
+	 * Vertical line trace (along UpMeters, ±GroundTraceSpanMeters) from FromPointMeters against
+	 * the Cesium tiles on GroundTraceChannel. On the first blocking hit that landed on Tileset
+	 * (or any blocking hit when no Tileset was found), writes the impact point — lifted by
+	 * GroundHeightOffsetMeters along the up axis — to OutSurfacePointMeters and returns true.
+	 * The JSON "altitude" is never consulted: the tile surface height is authoritative.
+	 */
+	bool TryTraceTileSurfaceMeters(const FVector& FromPointMeters, const FVector& UpMeters, FVector& OutSurfacePointMeters) const;
+
+	/**
+	 * Snaps every marker of Object onto the Cesium tile surface: each of the four
+	 * BBoxCornersWorldMeters via TryTraceTileSurfaceMeters, then WorldLocationMeters as their
+	 * mean. Sets Object.bGroundHeightResolved once every corner has landed a hit; until then it
+	 * is retried on the next Scan() (a distant object's tiles may not be streamed in yet).
+	 * Called from Scan() while bSnapMarkersToTileSurface is true.
+	 */
+	void ResolveGroundHeights(FCustomSurroundingObject& Object) const;
 
 	/**
 	 * Draws the bDrawScanArea wireframe (see its comment): four edges from Origin to the far
@@ -230,11 +307,20 @@ private:
 	USceneCaptureComponent2D* SceneCaptureComponent = nullptr;
 
 	/**
-	 * Resolved in BeginPlay via ACesiumGeoreference::GetDefaultGeoreference. Used once by
-	 * LoadObjects() to convert each entry's lat/long/altitude to a world-space position.
+	 * Resolved in BeginPlay via ACesiumGeoreference::GetDefaultGeoreference. Used by LoadObjects()
+	 * to convert each entry's lat/long to a world-space position, and by the ground-snap trace to
+	 * work out the local "up" axis.
 	 */
 	UPROPERTY()
 	ACesiumGeoreference* Georeference = nullptr;
+
+	/**
+	 * First ACesium3DTileset in the world, resolved in BeginPlay. The ground-snap trace only
+	 * accepts a hit that landed on this actor; if none was found, any blocking hit on
+	 * GroundTraceChannel is accepted instead.
+	 */
+	UPROPERTY()
+	ACesium3DTileset* Tileset = nullptr;
 
 	/**
 	 * Every object parsed from ObjectsJson, with WorldLocationMeters precomputed. Rebuilt by
@@ -245,6 +331,9 @@ private:
 
 	/** ObjectsJson as of the last LoadObjects() call — lets TickComponent detect live edits. */
 	FString LastLoadedObjectsJson;
+
+	/** World-time of the last throttled "ground trace missed" log (see TryTraceTileSurfaceMeters). */
+	mutable double LastGroundTraceLogTime = -100.0;
 
 	/**
 	 * Persistent storage of currently-visible objects, keyed by ObjectID. Only ever mutated via

@@ -12,6 +12,11 @@
  * and BBoxCornersWorldMeters holds the four corners converted the same way, in winding order
  * x_min -> x_max -> y_min -> y_max. Re-parsed from ObjectsJson whenever that string changes
  * (see LoadObjects()), so every field here tracks live edits to the source JSON without a restart.
+ *
+ * The JSON "altitude" is NOT used to place the markers: their height comes from a vertical
+ * trace against the Cesium tiles (see UCustomSurroundingsScannerComponent::ResolveGroundHeights),
+ * so every corner and the centre sit exactly on the tile surface. bGroundHeightResolved tracks
+ * whether that snap has completed.
  */
 USTRUCT(BlueprintType)
 struct UAVSIMULATOR_API FCustomSurroundingObject
@@ -34,7 +39,11 @@ struct UAVSIMULATOR_API FCustomSurroundingObject
 	UPROPERTY(BlueprintReadOnly, Category = "Custom Surroundings")
 	double Longitude = 0.0;
 
-	/** "altitude" from the source JSON, in metres above the ellipsoid — shared by every corner. */
+	/**
+	 * "altitude" from the source JSON, in metres above the ellipsoid. Informational only — it is
+	 * still reported in the sensor payload, but it is NOT used to position the markers (their
+	 * height is snapped onto the Cesium tile surface instead, see bGroundHeightResolved).
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "Custom Surroundings")
 	double AltitudeMeters = 0.0;
 
@@ -50,7 +59,9 @@ struct UAVSIMULATOR_API FCustomSurroundingObject
 	 * The four "bbox" corners in world space, in metres, in winding order
 	 * x_min -> x_max -> y_min -> y_max — each converted via
 	 * ACesiumGeoreference::TransformLongitudeLatitudeHeightPositionToUnreal when the JSON was
-	 * (re)loaded, at AltitudeMeters. Drives the debug bbox outline and its projected pixel size.
+	 * (re)loaded, then snapped in Z onto the Cesium tile surface directly below/above it
+	 * (ResolveGroundHeights) — the JSON "altitude" is not used. Drives the debug bbox outline
+	 * and its projected pixel size.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "Custom Surroundings")
 	TArray<FVector> BBoxCornersWorldMeters;
@@ -58,4 +69,14 @@ struct UAVSIMULATOR_API FCustomSurroundingObject
 	/** Distance from the scanning actor to WorldLocationMeters, in metres — refreshed every Scan(). */
 	UPROPERTY(BlueprintReadOnly, Category = "Custom Surroundings")
 	float DistanceMeters = 0.0f;
+
+	/**
+	 * True once every BBoxCornersWorldMeters corner (and, from their mean, WorldLocationMeters)
+	 * has been snapped onto the Cesium tile surface by
+	 * UCustomSurroundingsScannerComponent::ResolveGroundHeights. Until then the snap is retried
+	 * on each Scan() — Cesium streams tiles in by camera distance, so a far object's tiles may
+	 * not exist yet at load time. Reset to false whenever the source JSON is reloaded.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Custom Surroundings")
+	bool bGroundHeightResolved = false;
 };

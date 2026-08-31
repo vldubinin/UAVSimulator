@@ -2,11 +2,15 @@
 #include "UAVSimulator/UAVSimulator.h"
 
 #include "CesiumGeoreference.h"
+#include "Cesium3DTileset.h"
 
 #include "GameFramework/Actor.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Engine/World.h"
+#include "Engine/HitResult.h"
+#include "CollisionQueryParams.h"
+#include "Kismet/GameplayStatics.h"
 #include "DrawDebugHelpers.h"
 #include "UAVSimulator/Structure/SensorFrame.h"
 #include "Dom/JsonObject.h"
@@ -62,6 +66,12 @@ void UCustomSurroundingsScannerComponent::BeginPlay()
 
 	Georeference = ACesiumGeoreference::GetDefaultGeoreference(this);
 
+	TArray<AActor*> Tilesets;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACesium3DTileset::StaticClass(), Tilesets);
+	Tileset = Tilesets.Num() > 0 ? Cast<ACesium3DTileset>(Tilesets[0]) : nullptr;
+	UE_LOG(LogUAV, Log, TEXT("CustomSurroundingsScanner: знайдено %d Cesium3DTileset, Georeference=%s, канал трейсу=%d"),
+		Tilesets.Num(), Georeference ? TEXT("OK") : TEXT("null"), (int32)GroundTraceChannel.GetValue());
+
 	LoadObjects();
 	LastLoadedObjectsJson = ObjectsJson;
 }
@@ -91,9 +101,10 @@ void UCustomSurroundingsScannerComponent::TickComponent(float DeltaTime, ELevelT
 // ─────────────────────────────────────────────────────────────────────────────
 // Load — (re)parses ObjectsJson, converting every entry's four "bbox" corners to world space via
 // Georeference (BBoxCornersWorldMeters) and taking their mean as the footprint centre
-// (Latitude/Longitude/WorldLocationMeters). Called from BeginPlay and again from TickComponent
-// whenever ObjectsJson changes (see LastLoadedObjectsJson); DistanceMeters is additionally
-// refreshed every Scan().
+// (Latitude/Longitude/WorldLocationMeters). The corners are converted at ellipsoid height 0 — the
+// JSON "altitude" is ignored; Scan() then snaps each corner's height onto the Cesium tile surface
+// (ResolveGroundHeights). Called from BeginPlay and again from TickComponent whenever ObjectsJson
+// changes (see LastLoadedObjectsJson); DistanceMeters is additionally refreshed every Scan().
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UCustomSurroundingsScannerComponent::LoadObjects()
@@ -108,17 +119,6 @@ void UCustomSurroundingsScannerComponent::LoadObjects()
 		return;
 	}
 
-	// Geographic (lat, long, alt) -> world-space position in metres, via Georeference. Matches the
-	// lat/long/height -> Unreal conversion used elsewhere in the project.
-	auto GeoToWorldMeters = [this](double Latitude, double Longitude, double AltitudeMeters) -> FVector
-	{
-		if (!Georeference) return FVector::ZeroVector;
-		const FVector LongitudeLatitudeHeight(Longitude, Latitude, AltitudeMeters);
-		const FVector UnrealPositionCm = Georeference->GetActorTransform().TransformPosition(
-			Georeference->TransformLongitudeLatitudeHeightPositionToUnreal(LongitudeLatitudeHeight));
-		return UnrealPositionCm * 0.01;
-	};
-
 	// The four "bbox" corner names, in winding order — the quad is drawn / projected in this order.
 	static const TCHAR* CornerNames[] = { TEXT("x_min"), TEXT("x_max"), TEXT("y_min"), TEXT("y_max") };
 
@@ -130,6 +130,8 @@ void UCustomSurroundingsScannerComponent::LoadObjects()
 		FCustomSurroundingObject Entry;
 		(*JsonObject)->TryGetStringField(TEXT("elementId"), Entry.ObjectID);
 		(*JsonObject)->TryGetStringField(TEXT("type"), Entry.ObjectType);
+		// "altitude" is still read (it is echoed back in the sensor payload) but NOT used to place
+		// the markers — Scan() snaps their height onto the Cesium tile surface instead.
 		(*JsonObject)->TryGetNumberField(TEXT("altitude"), Entry.AltitudeMeters);
 
 		if (Entry.ObjectID.IsEmpty()) continue;
@@ -157,8 +159,9 @@ void UCustomSurroundingsScannerComponent::LoadObjects()
 			(*CornerObject)->TryGetNumberField(TEXT("latitude"), CornerLat);
 			(*CornerObject)->TryGetNumberField(TEXT("longitude"), CornerLong);
 
-			// "altitude" is a single value shared by every corner of the footprint.
-			Entry.BBoxCornersWorldMeters.Add(GeoToWorldMeters(CornerLat, CornerLong, Entry.AltitudeMeters));
+			// Convert at ellipsoid height 0 — the JSON "altitude" is ignored. Scan() replaces the
+			// height with a trace onto the Cesium tile surface (see ResolveGroundHeights).
+			Entry.BBoxCornersWorldMeters.Add(GeoToWorldMeters(CornerLat, CornerLong, 0.0));
 
 			SumLat  += CornerLat;
 			SumLong += CornerLong;
@@ -182,6 +185,135 @@ void UCustomSurroundingsScannerComponent::LoadObjects()
 
 		AllObjects.Add(MoveTemp(Entry));
 	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Geo → world helpers + ground snapping. The JSON "altitude" is never used to place a marker;
+// every corner is traced straight down/up onto the Cesium tile surface instead, so the markers
+// always sit exactly on the terrain height. ResolveGroundHeights is retried each Scan() until it
+// lands, because Cesium streams tiles in by camera distance.
+// ─────────────────────────────────────────────────────────────────────────────
+
+FVector UCustomSurroundingsScannerComponent::GeoToWorldMeters(double LatitudeDeg, double LongitudeDeg, double HeightMeters) const
+{
+	if (!Georeference) return FVector::ZeroVector;
+
+	const FVector LongitudeLatitudeHeight(LongitudeDeg, LatitudeDeg, HeightMeters);
+	const FVector UnrealPositionCm = Georeference->GetActorTransform().TransformPosition(
+		Georeference->TransformLongitudeLatitudeHeightPositionToUnreal(LongitudeLatitudeHeight));
+	return UnrealPositionCm * 0.01;
+}
+
+FVector UCustomSurroundingsScannerComponent::GeographicUpMeters(double LatitudeDeg, double LongitudeDeg) const
+{
+	if (!Georeference) return FVector::UpVector;
+
+	const FVector Low  = GeoToWorldMeters(LatitudeDeg, LongitudeDeg, 0.0);
+	const FVector High = GeoToWorldMeters(LatitudeDeg, LongitudeDeg, 1000.0);
+	const FVector Up   = (High - Low).GetSafeNormal();
+	return Up.IsNearlyZero() ? FVector::UpVector : Up;
+}
+
+bool UCustomSurroundingsScannerComponent::TryTraceTileSurfaceMeters(const FVector& FromPointMeters, const FVector& UpMeters, FVector& OutSurfacePointMeters) const
+{
+	UWorld* World = GetWorld();
+	if (!World) return false;
+
+	const FVector UpDir  = UpMeters.GetSafeNormal();
+	if (UpDir.IsNearlyZero()) return false;
+
+	const FVector FromCm = FromPointMeters * 100.0;
+	const double  SpanCm = FMath::Max(GroundTraceSpanMeters, 1.0f) * 100.0;
+	const FVector Start  = FromCm + UpDir * SpanCm;
+	const FVector End    = FromCm - UpDir * SpanCm;
+
+	FCollisionQueryParams Params(TEXT("CustomSurroundingsGroundTrace"), /*bTraceComplex=*/true, GetOwner());
+
+	TArray<FHitResult> Hits;
+	World->LineTraceMultiByChannel(Hits, Start, End, GroundTraceChannel, Params);
+
+	const FHitResult* Accepted = nullptr;
+	for (const FHitResult& Hit : Hits)
+	{
+		// Accept a hit on any Cesium3DTileset (a scene can have several — terrain, buildings, ...),
+		// not only the first one found in BeginPlay. bRequireCesiumTilesetHit can be turned off to
+		// snap to any blocking geometry on the channel instead.
+		const AActor* HitActor = Hit.GetActor();
+		if (bRequireCesiumTilesetHit && (!HitActor || !HitActor->IsA<ACesium3DTileset>()))
+			continue;
+
+		Accepted = &Hit;
+		break;
+	}
+
+	if (bDebugGroundTrace)
+	{
+		// LifeTime -1.f → redrawn fresh each tick, same convention as this file's other debug markers.
+		const FColor LineColor = Accepted ? FColor::Green : FColor::Red;
+		DrawDebugLine(World, Start, End, LineColor, false, -1.0f, 0, 20.0f);
+		if (Accepted)
+			DrawDebugSphere(World, Accepted->ImpactPoint, 300.0f, 12, FColor::Green, false, -1.0f);
+
+		// Throttled so a persistently-missing trace doesn't flood the log every tick.
+		const double Now = World->GetTimeSeconds();
+		if (!Accepted && Now - LastGroundTraceLogTime > 2.0)
+		{
+			LastGroundTraceLogTime = Now;
+			if (Hits.Num() > 0)
+			{
+				const AActor* FirstActor = Hits[0].GetActor();
+				UE_LOG(LogUAV, Warning, TEXT("CustomSurroundingsScanner: трейс влучив у %s (%s), але bRequireCesiumTilesetHit його відкинув"),
+					FirstActor ? *FirstActor->GetName() : TEXT("null"),
+					FirstActor ? *FirstActor->GetClass()->GetName() : TEXT("null"));
+			}
+			else
+			{
+				UE_LOG(LogUAV, Warning, TEXT("CustomSurroundingsScanner: вертикальний трейс не влучив ні в що (канал=%d, довжина=%.0f м) — перевір колізію на Cesium3DTileset"),
+					(int32)GroundTraceChannel.GetValue(), GroundTraceSpanMeters * 2.0f);
+			}
+		}
+	}
+
+	if (!Accepted)
+		return false;
+
+	OutSurfacePointMeters = Accepted->ImpactPoint * 0.01 + UpDir * GroundHeightOffsetMeters;
+	return true;
+}
+
+void UCustomSurroundingsScannerComponent::ResolveGroundHeights(FCustomSurroundingObject& Object) const
+{
+	const int32 CornerCount = Object.BBoxCornersWorldMeters.Num();
+	if (CornerCount == 0) return;
+
+	// "up" barely varies across a single footprint — one axis, taken at the centre, is enough.
+	const FVector UpMeters = GeographicUpMeters(Object.Latitude, Object.Longitude);
+
+	int32 HitCount = 0;
+	for (FVector& Corner : Object.BBoxCornersWorldMeters)
+	{
+		FVector SurfacePoint;
+		if (TryTraceTileSurfaceMeters(Corner, UpMeters, SurfacePoint))
+		{
+			Corner = SurfacePoint;   // stable to re-run: next trace starts from the snapped point
+			++HitCount;
+		}
+	}
+
+	// Footprint centre — mean of the (now snapped) corners, same convention as LoadObjects().
+	FVector CentreSum = FVector::ZeroVector;
+	for (const FVector& Corner : Object.BBoxCornersWorldMeters)
+		CentreSum += Corner;
+	Object.WorldLocationMeters = CentreSum / CornerCount;
+
+	const bool bAllResolved = (HitCount == CornerCount);
+	Object.bGroundHeightResolved = bAllResolved;
+
+	// Fires once per object (once resolved, Scan() stops calling this). The miss case is reported
+	// — throttled — from TryTraceTileSurfaceMeters instead, so it doesn't flood every tick.
+	if (bDebugGroundTrace && bAllResolved)
+		UE_LOG(LogUAV, Log, TEXT("CustomSurroundingsScanner: %s приземлено на тайли (усі %d кути), центр Z=%.1f м"),
+			*Object.ObjectID, CornerCount, Object.WorldLocationMeters.Z);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -223,6 +355,12 @@ const TArray<FCustomSurroundingObject>& UCustomSurroundingsScannerComponent::Sca
 	TSet<FString> CurrentlyVisibleKeys;
 	for (FCustomSurroundingObject& Object : AllObjects)
 	{
+		// The JSON "altitude" is ignored for placement — snap every marker onto the Cesium tile
+		// surface. Retried until each corner lands a hit, since tiles stream in by camera distance
+		// and a distant object's tiles may not exist yet.
+		if (bSnapMarkersToTileSurface && !Object.bGroundHeightResolved)
+			ResolveGroundHeights(Object);
+
 		Object.DistanceMeters = FVector::Dist(OwnerLocationMeters, Object.WorldLocationMeters);
 
 		FVector2D ScreenPos;
