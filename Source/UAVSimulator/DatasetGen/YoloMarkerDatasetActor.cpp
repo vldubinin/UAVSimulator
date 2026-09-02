@@ -6,6 +6,10 @@
 #include "CesiumCameraManager.h"
 #include "CesiumCamera.h"
 
+#include "IImageWrapper.h"
+#include "IImageWrapperModule.h"
+#include "Modules/ModuleManager.h"
+
 #include "Components/SceneCaptureComponent2D.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Engine/World.h"
@@ -53,7 +57,7 @@ AYoloMarkerDatasetActor::AYoloMarkerDatasetActor()
 
 	OrbitRadiiMeters      = { 200.0f, 400.0f };
 	OutputRootDir         = FPaths::ProjectSavedDir() / TEXT("YoloMarkerDataset");
-	ObjectsSourceFilePath = FPaths::ProjectDir() / TEXT("Tools/TestingPlatform/attitude_control/map_objects.json");
+	ObjectsSourceFilePath = FPaths::ProjectDir() / TEXT("Tools/TestingPlatform/attitude_control/marker/map_objects.json");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -122,6 +126,8 @@ void AYoloMarkerDatasetActor::GenerateDataset()
 	FM.MakeDirectory(*LabelsValDir,   /*Tree=*/true);
 	if (bSaveDebugImages)
 		FM.MakeDirectory(*DebugDir, /*Tree=*/true);
+
+	GeoPositionLines.Reset();
 
 	RenderTarget = NewObject<UTextureRenderTarget2D>(this, TEXT("YoloMarkerRT"));
 	RenderTarget->InitCustomFormat(RenderWidth, RenderHeight, PF_B8G8R8A8, false);
@@ -273,22 +279,69 @@ bool AYoloMarkerDatasetActor::LoadObjects()
 {
 	Objects.Reset();
 
+	// Resolve the marker source file: the configured path first, then the known
+	// fallback locations. The file was moved into the marker/ subfolder, so a level
+	// that still carries the old serialized ObjectsSourceFilePath keeps working.
+	TArray<FString> Candidates;
+	if (!ObjectsSourceFilePath.IsEmpty())
+		Candidates.Add(ObjectsSourceFilePath);
+	Candidates.Add(FPaths::ProjectDir() / TEXT("Tools/TestingPlatform/attitude_control/marker/map_objects.json"));
+	Candidates.Add(FPaths::ProjectDir() / TEXT("Tools/TestingPlatform/attitude_control/map_objects.json"));
+
 	FString Json;
-	if (!ObjectsSourceFilePath.IsEmpty() && FFileHelper::LoadFileToString(Json, *ObjectsSourceFilePath))
+	FString ResolvedPath;
+	for (const FString& Candidate : Candidates)
 	{
-		UE_LOG(LogUAV, Log, TEXT("YoloMarkerDataset: маркери з файлу %s"), *ObjectsSourceFilePath);
+		if (FPaths::FileExists(Candidate) &&
+			FFileHelper::LoadFileToString(Json, *Candidate) && !Json.IsEmpty())
+		{
+			ResolvedPath = Candidate;
+			break;
+		}
+	}
+
+	if (!ResolvedPath.IsEmpty())
+	{
+		UE_LOG(LogUAV, Log, TEXT("YoloMarkerDataset: маркери з файлу %s"), *ResolvedPath);
 	}
 	else
 	{
 		Json = ObjectsJsonInline;
+		if (Json.IsEmpty())
+		{
+			UE_LOG(LogUAV, Warning,
+				TEXT("YoloMarkerDataset: файл маркерів не знайдено (перевірено %d шлях(и), перший — %s), і ObjectsJsonInline порожній"),
+				Candidates.Num(), Candidates.Num() > 0 ? *Candidates[0] : TEXT("<немає>"));
+			return false;
+		}
 		UE_LOG(LogUAV, Log, TEXT("YoloMarkerDataset: маркери з ObjectsJsonInline (%d символів)"), Json.Len());
 	}
 
+	// Accept either a bare top-level array or a { "objects": [...] } / { "markers": [...] } wrapper.
 	TArray<TSharedPtr<FJsonValue>> ParsedArray;
-	TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Json);
-	if (!FJsonSerializer::Deserialize(Reader, ParsedArray))
 	{
-		UE_LOG(LogUAV, Warning, TEXT("YoloMarkerDataset: не вдалося розпарсити JSON маркерів"));
+		TSharedRef<TJsonReader<>> ArrayReader = TJsonReaderFactory<>::Create(Json);
+		if (!FJsonSerializer::Deserialize(ArrayReader, ParsedArray) || ParsedArray.Num() == 0)
+		{
+			TSharedRef<TJsonReader<>> ObjectReader = TJsonReaderFactory<>::Create(Json);
+			TSharedPtr<FJsonObject> RootObject;
+			if (FJsonSerializer::Deserialize(ObjectReader, RootObject) && RootObject.IsValid())
+			{
+				const TArray<TSharedPtr<FJsonValue>>* Inner = nullptr;
+				if (RootObject->TryGetArrayField(TEXT("objects"), Inner) ||
+					RootObject->TryGetArrayField(TEXT("markers"), Inner))
+				{
+					ParsedArray = *Inner;
+				}
+			}
+		}
+	}
+
+	if (ParsedArray.Num() == 0)
+	{
+		UE_LOG(LogUAV, Warning,
+			TEXT("YoloMarkerDataset: не вдалося розпарсити JSON маркерів (%d символів, початок: %s)"),
+			Json.Len(), *Json.Left(120));
 		return false;
 	}
 
@@ -413,6 +466,17 @@ FVector AYoloMarkerDatasetActor::GeoToWorldMeters(double LatitudeDeg, double Lon
 	const FVector UnrealPositionCm = Georeference->GetActorTransform().TransformPosition(
 		Georeference->TransformLongitudeLatitudeHeightPositionToUnreal(LongitudeLatitudeHeight));
 	return UnrealPositionCm * 0.01;
+}
+
+FVector AYoloMarkerDatasetActor::WorldMetersToGeographic(const FVector& WorldMeters) const
+{
+	if (!Georeference)
+		return FVector::ZeroVector;
+
+	const FVector LocalUnrealCm =
+		Georeference->GetActorTransform().InverseTransformPosition(WorldMeters * 100.0);
+	// Returns (longitude°, latitude°, height above ellipsoid in m).
+	return Georeference->TransformUnrealPositionToLongitudeLatitudeHeight(LocalUnrealCm);
 }
 
 FVector AYoloMarkerDatasetActor::GeographicUpMeters(double LatitudeDeg, double LongitudeDeg) const
@@ -692,6 +756,23 @@ bool AYoloMarkerDatasetActor::ComputeMarkerLabel(const FCustomSurroundingObject&
 	OutLabel.W               = ClipW;
 	OutLabel.H               = ClipH;
 	OutLabel.VisibleFraction = VisibleFraction;
+
+	// Spatial coordinates of the marker centre (ground-snapped), so a detection can be
+	// tied back to a real place: Unreal world, geographic, and camera-relative.
+	const FVector CentreWorldM = Object.WorldLocationMeters;
+	OutLabel.CentreWorldM  = CentreWorldM;
+	OutLabel.CentreGeo     = WorldMetersToGeographic(CentreWorldM);
+	if (CaptureComp)
+	{
+		OutLabel.CentreCameraM =
+			CaptureComp->GetComponentTransform().InverseTransformPosition(CentreWorldM * 100.0) * 0.01;
+		OutLabel.RangeM = FVector::Distance(CaptureComp->GetComponentLocation() * 0.01, CentreWorldM);
+	}
+	else
+	{
+		OutLabel.CentreCameraM = FVector::ZeroVector;
+		OutLabel.RangeM = 0.0;
+	}
 	return true;
 }
 
@@ -755,19 +836,46 @@ bool AYoloMarkerDatasetActor::SaveFrame(const TArray<FColor>& Pixels, const TArr
 	const FString Split    = bVal ? TEXT("val") : TEXT("train");
 	const FString BaseName = FString::Printf(TEXT("frame_%06d"), SavedFrameCount);
 
-	const FString ImagePath = (bVal ? ImagesValDir : ImagesTrainDir) / (BaseName + TEXT(".png"));
-	const FString LabelPath = (bVal ? LabelsValDir : LabelsTrainDir) / (BaseName + TEXT(".txt"));
+	const FString ImageExt  = bSaveAsJpeg ? TEXT(".jpg") : TEXT(".png");
+	const FString ImageName = BaseName + ImageExt;
+	const FString LabelDir  = bVal ? LabelsValDir : LabelsTrainDir;
+	const FString ImagePath = (bVal ? ImagesValDir : ImagesTrainDir) / ImageName;
+	const FString LabelPath = LabelDir / (BaseName + TEXT(".txt"));
+	const FString MetaPath  = LabelDir / (BaseName + TEXT(".meta.json"));
 
-	// FColor is B,G,R,A in memory — CV_8UC4 + BGRA2BGR is correct.
-	cv::Mat BGRA(RenderHeight, RenderWidth, CV_8UC4,
-		const_cast<void*>(static_cast<const void*>(Pixels.GetData())));
-	cv::Mat BGR;
-	cv::cvtColor(BGRA, BGR, cv::COLOR_BGRA2BGR);
-
-	if (!cv::imwrite(TCHAR_TO_UTF8(*ImagePath), BGR))
+	// Encode via ImageWrapper, not cv::imwrite — the engine's bundled OpenCV has no JPEG
+	// codec (that is why UUAVCameraComponent also uses ImageWrapper). Pixels is BGRA8.
 	{
-		UE_LOG(LogUAV, Warning, TEXT("YoloMarkerDataset: не вдалося записати %s"), *ImagePath);
-		return false;
+		IImageWrapperModule& IWM =
+			FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
+		const TSharedPtr<IImageWrapper> Wrapper =
+			IWM.CreateImageWrapper(bSaveAsJpeg ? EImageFormat::JPEG : EImageFormat::PNG);
+
+		if (!Wrapper.IsValid() ||
+			!Wrapper->SetRaw(Pixels.GetData(), (int64)Pixels.Num() * sizeof(FColor),
+				RenderWidth, RenderHeight, ERGBFormat::BGRA, 8))
+		{
+			UE_LOG(LogUAV, Warning, TEXT("YoloMarkerDataset: не вдалося закодувати %s"), *ImagePath);
+			return false;
+		}
+
+		const TArray64<uint8>& Encoded = Wrapper->GetCompressed(bSaveAsJpeg ? 92 : 0);
+		TArray<uint8> Payload;
+		Payload.Append(Encoded.GetData(), (int32)Encoded.Num());
+		if (!FFileHelper::SaveArrayToFile(Payload, *ImagePath))
+		{
+			UE_LOG(LogUAV, Warning, TEXT("YoloMarkerDataset: не вдалося записати %s"), *ImagePath);
+			return false;
+		}
+	}
+
+	// Kept only for the optional annotated debug image below (drawn + written with OpenCV).
+	cv::Mat BGR;
+	if (bSaveDebugImages)
+	{
+		cv::Mat BGRA(RenderHeight, RenderWidth, CV_8UC4,
+			const_cast<void*>(static_cast<const void*>(Pixels.GetData())));
+		cv::cvtColor(BGRA, BGR, cv::COLOR_BGRA2BGR);
 	}
 
 	// ── YOLO label file: "<class> <cx> <cy> <w> <h>" normalised to [0,1] ──────
@@ -781,6 +889,49 @@ bool AYoloMarkerDatasetActor::SaveFrame(const TArray<FColor>& Pixels, const TArr
 		LabelText += FString::Printf(TEXT("%d %.6f %.6f %.6f %.6f\n"), Label.ClassId, Cx, Cy, W, H);
 	}
 	FFileHelper::SaveStringToFile(LabelText, *LabelPath);
+
+	// ── Per-frame .meta.json (same object order as the .txt above) — matches the
+	//    custom_objects_dataset schema so the positioning pipeline reads it as-is ──
+	{
+		TSharedRef<FJsonObject> Meta = MakeShared<FJsonObject>();
+		Meta->SetStringField(TEXT("image"), ImageName);
+
+		TArray<TSharedPtr<FJsonValue>> MetaObjs;
+		for (const FLabel& Label : Labels)
+		{
+			TSharedRef<FJsonObject> O = MakeShared<FJsonObject>();
+			O->SetStringField(TEXT("id"),    Label.Id);
+			O->SetStringField(TEXT("type"),  Label.Type);
+			O->SetNumberField(TEXT("class"), Label.ClassId);
+
+			TArray<TSharedPtr<FJsonValue>> Px;  // [x1, y1, x2, y2] pixels (clipped box, == the .txt line)
+			Px.Add(MakeShared<FJsonValueNumber>(Label.X));
+			Px.Add(MakeShared<FJsonValueNumber>(Label.Y));
+			Px.Add(MakeShared<FJsonValueNumber>(Label.X + Label.W));
+			Px.Add(MakeShared<FJsonValueNumber>(Label.Y + Label.H));
+			O->SetArrayField(TEXT("bbox_px"), Px);
+
+			O->SetNumberField(TEXT("latitude"),  Label.CentreGeo.Y);
+			O->SetNumberField(TEXT("longitude"), Label.CentreGeo.X);
+			O->SetNumberField(TEXT("altitude"),  Label.CentreGeo.Z);
+			MetaObjs.Add(MakeShared<FJsonValueObject>(O));
+		}
+		Meta->SetArrayField(TEXT("objects"), MetaObjs);
+
+		FString MetaOut;
+		TSharedRef<TJsonWriter<>> MetaWriter = TJsonWriterFactory<>::Create(&MetaOut);
+		FJsonSerializer::Serialize(Meta, MetaWriter);
+		FFileHelper::SaveStringToFile(MetaOut, *MetaPath);
+	}
+
+	// ── Camera geo-position for this frame → exp_geo_position.txt at flush time ──
+	if (CaptureComp)
+	{
+		const FVector CamWorldM = CaptureComp->GetComponentLocation() * 0.01;
+		const FVector CamGeo    = WorldMetersToGeographic(CamWorldM);  // (lon, lat, height)
+		GeoPositionLines.Add(FString::Printf(TEXT("%s %.10f %.10f %.4f"),
+			*BaseName, CamGeo.Y, CamGeo.X, CamGeo.Z));
+	}
 
 	// ── Optional annotated debug image ──────────────────────────────────────
 	if (bSaveDebugImages)
@@ -809,13 +960,41 @@ bool AYoloMarkerDatasetActor::SaveFrame(const TArray<FColor>& Pixels, const TArr
 	}
 
 	// ── Manifest row ────────────────────────────────────────────────────────
+	auto Vec3 = [](const FVector& V) -> TSharedPtr<FJsonValue>
+	{
+		TArray<TSharedPtr<FJsonValue>> A;
+		A.Add(MakeShared<FJsonValueNumber>(V.X));
+		A.Add(MakeShared<FJsonValueNumber>(V.Y));
+		A.Add(MakeShared<FJsonValueNumber>(V.Z));
+		return MakeShared<FJsonValueArray>(A);
+	};
+
 	TSharedRef<FJsonObject> FrameObj = MakeShared<FJsonObject>();
-	FrameObj->SetStringField(TEXT("image"),         Split / (BaseName + TEXT(".png")));
+	FrameObj->SetStringField(TEXT("image"),         Split / ImageName);
 	FrameObj->SetStringField(TEXT("split"),         Split);
 	FrameObj->SetStringField(TEXT("target_id"),     TargetId);
 	FrameObj->SetNumberField(TEXT("radius_m"),      Shot.RadiusMeters);
 	FrameObj->SetNumberField(TEXT("azimuth_deg"),   Shot.AzimuthDeg);
 	FrameObj->SetNumberField(TEXT("elevation_deg"), Shot.ElevationDeg);
+
+	// Camera pose this frame was rendered from — enough to turn any pixel back into a
+	// world ray and, with the per-object coords below, recover a marker's position.
+	if (CaptureComp)
+	{
+		const FTransform CamXf = CaptureComp->GetComponentTransform();
+		const FVector    CamWorldM = CamXf.GetLocation() * 0.01;
+		const FRotator   CamRot    = CamXf.Rotator();
+		TSharedRef<FJsonObject> CamJson = MakeShared<FJsonObject>();
+		CamJson->SetField(TEXT("world_m"), Vec3(CamWorldM));
+		CamJson->SetField(TEXT("geographic_lon_lat_h"), Vec3(WorldMetersToGeographic(CamWorldM)));
+		TArray<TSharedPtr<FJsonValue>> Pyr;
+		Pyr.Add(MakeShared<FJsonValueNumber>(CamRot.Pitch));
+		Pyr.Add(MakeShared<FJsonValueNumber>(CamRot.Yaw));
+		Pyr.Add(MakeShared<FJsonValueNumber>(CamRot.Roll));
+		CamJson->SetArrayField(TEXT("rotation_pyr_deg"), Pyr);
+		CamJson->SetNumberField(TEXT("h_fov_deg"), CaptureComp->FOVAngle);
+		FrameObj->SetObjectField(TEXT("camera"), CamJson);
+	}
 
 	TArray<TSharedPtr<FJsonValue>> ObjectsJson;
 	for (const FLabel& Label : Labels)
@@ -840,6 +1019,17 @@ bool AYoloMarkerDatasetActor::SaveFrame(const TArray<FColor>& Pixels, const TArr
 		ObjJson->SetArrayField(TEXT("bbox_yolo"), BoxYolo);
 
 		ObjJson->SetNumberField(TEXT("visible_fraction"), Label.VisibleFraction);
+
+		// Spatial coordinates of the marker centre (ground-snapped).
+		ObjJson->SetField(TEXT("centre_world_m"), Vec3(Label.CentreWorldM));
+		TSharedRef<FJsonObject> GeoJson = MakeShared<FJsonObject>();
+		GeoJson->SetNumberField(TEXT("latitude"),  Label.CentreGeo.Y);
+		GeoJson->SetNumberField(TEXT("longitude"), Label.CentreGeo.X);
+		GeoJson->SetNumberField(TEXT("height_m"),  Label.CentreGeo.Z);
+		ObjJson->SetObjectField(TEXT("centre_geographic"), GeoJson);
+		ObjJson->SetField(TEXT("centre_camera_m"), Vec3(Label.CentreCameraM)); // X fwd, Y right, Z up
+		ObjJson->SetNumberField(TEXT("range_m"), Label.RangeM);
+
 		ObjectsJson.Add(MakeShared<FJsonValueObject>(ObjJson));
 	}
 	FrameObj->SetArrayField(TEXT("objects"), ObjectsJson);
@@ -859,6 +1049,16 @@ void AYoloMarkerDatasetActor::WriteDatasetYaml() const
 	Yaml += TEXT("names:\n");
 	for (int32 i = 0; i < ClassNames.Num(); ++i)
 		Yaml += FString::Printf(TEXT("  %d: %s\n"), i, *ClassNames[i]);
+
+	Yaml += TEXT("\n");
+	Yaml += TEXT("# YOLO detector trains on images/ + labels/*.txt only.\n");
+	Yaml += TEXT("# labels/<split>/<stem>.meta.json — per-object id/type/class + pixel bbox + lat/long/alt,\n");
+	Yaml += TEXT("#   same order as the .txt lines:\n");
+	Yaml += TEXT("#   {\"image\": \"<stem>.jpg\", \"objects\": [{\"id\":..,\"type\":..,\"class\":..,\n");
+	Yaml += TEXT("#     \"bbox_px\":[x1,y1,x2,y2],\"latitude\":..,\"longitude\":..,\"altitude\":..}, ...]}\n");
+	Yaml += TEXT("# virtual_map.json      — markerId -> {latitude, longitude} for every marker.\n");
+	Yaml += TEXT("# exp_geo_position.txt  — '<stem> <lat> <lon> <alt_m>' camera position per frame.\n");
+	Yaml += TEXT("# dataset.json          — richer per-frame camera pose + per-object world/camera coords.\n");
 
 	FFileHelper::SaveStringToFile(Yaml, *(OutputRootDir / TEXT("data.yaml")));
 }
@@ -883,6 +1083,17 @@ void AYoloMarkerDatasetActor::WriteManifest() const
 		ClassesJson.Add(MakeShared<FJsonValueObject>(C));
 	}
 	Root->SetArrayField(TEXT("classes"), ClassesJson);
+
+	// How to read the spatial coordinates that accompany every label.
+	TSharedRef<FJsonObject> CoordsDoc = MakeShared<FJsonObject>();
+	CoordsDoc->SetStringField(TEXT("meta_json"),   TEXT("labels/<split>/<stem>.meta.json: per object id/type/class, bbox_px [x1,y1,x2,y2], latitude, longitude, altitude — object order matches the YOLO .txt"));
+	CoordsDoc->SetStringField(TEXT("virtual_map"), TEXT("virtual_map.json: markerId -> {latitude, longitude} for every marker"));
+	CoordsDoc->SetStringField(TEXT("geo_position"),TEXT("exp_geo_position.txt: '<stem> <lat> <lon> <alt_m>' — camera position per saved frame"));
+	CoordsDoc->SetStringField(TEXT("world_m"),     TEXT("centre_world_m: Unreal world space, metres (X fwd, Y right, Z up)"));
+	CoordsDoc->SetStringField(TEXT("camera_m"),    TEXT("centre_camera_m: marker centre in the frame's camera frame, metres (X fwd, Y right, Z up)"));
+	CoordsDoc->SetStringField(TEXT("range_m"),     TEXT("straight-line camera -> marker centre distance, metres"));
+	Root->SetObjectField(TEXT("coordinate_reference"), CoordsDoc);
+
 	Root->SetArrayField(TEXT("frames"), ManifestFrames);
 
 	FString Output;
@@ -891,10 +1102,57 @@ void AYoloMarkerDatasetActor::WriteManifest() const
 	FFileHelper::SaveStringToFile(Output, *(OutputRootDir / TEXT("dataset.json")));
 }
 
+void AYoloMarkerDatasetActor::WriteReferenceFiles() const
+{
+	// classes.json : name -> class id
+	{
+		TSharedRef<FJsonObject> C = MakeShared<FJsonObject>();
+		for (int32 i = 0; i < ClassNames.Num(); ++i)
+			C->SetNumberField(ClassNames[i], i);
+		FString Out;
+		TSharedRef<TJsonWriter<>> W = TJsonWriterFactory<>::Create(&Out);
+		FJsonSerializer::Serialize(C, W);
+		FFileHelper::SaveStringToFile(Out, *(OutputRootDir / TEXT("classes.json")));
+	}
+
+	// virtual_map.json : markerId -> { latitude, longitude }  (every marker, ground-snapped
+	// centre where resolved, otherwise the marker's map lat/lon)
+	{
+		TSharedRef<FJsonObject> Map = MakeShared<FJsonObject>();
+		for (const FCustomSurroundingObject& Obj : Objects)
+		{
+			if (Obj.ObjectID.IsEmpty())
+				continue;
+			double Lat = Obj.Latitude;
+			double Lon = Obj.Longitude;
+			if (Obj.bGroundHeightResolved)
+			{
+				const FVector Geo = WorldMetersToGeographic(Obj.WorldLocationMeters); // (lon, lat, h)
+				Lat = Geo.Y;
+				Lon = Geo.X;
+			}
+			TSharedRef<FJsonObject> Entry = MakeShared<FJsonObject>();
+			Entry->SetNumberField(TEXT("latitude"),  Lat);
+			Entry->SetNumberField(TEXT("longitude"), Lon);
+			Map->SetObjectField(Obj.ObjectID, Entry);
+		}
+		FString Out;
+		TSharedRef<TJsonWriter<>> W = TJsonWriterFactory<>::Create(&Out);
+		FJsonSerializer::Serialize(Map, W);
+		FFileHelper::SaveStringToFile(Out, *(OutputRootDir / TEXT("virtual_map.json")));
+	}
+
+	// exp_geo_position.txt : "<frame_stem> <lat> <lon> <alt_m>" per saved frame
+	FFileHelper::SaveStringToFile(
+		FString::Join(GeoPositionLines, TEXT("\n")),
+		*(OutputRootDir / TEXT("exp_geo_position.txt")));
+}
+
 void AYoloMarkerDatasetActor::FinishGeneration(bool bCancelled)
 {
 	WriteDatasetYaml();
 	WriteManifest();
+	WriteReferenceFiles();
 
 	bRunning = false;
 	SetActorTickEnabled(false);

@@ -25,7 +25,8 @@ class FJsonValue;
  * Marker source: the same JSON schema as UCustomSurroundingsScannerComponent — an
  * array of {elementId, type, altitude, bbox:{x_min,x_max,y_min,y_max}} where every
  * corner is a {latitude, longitude} pair (see Tools/TestingPlatform/attitude_control/
- * map_objects.json). Each corner is converted to world space via ACesiumGeoreference
+ * marker/map_objects.json; "altitude" is optional). Each corner is converted to world
+ * space via ACesiumGeoreference
  * and snapped straight down/up onto the Cesium tile surface (ResolveGroundHeights),
  * exactly as the scanner does — the JSON "altitude" is not used for placement.
  *
@@ -52,9 +53,11 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 
 	// ── Marker source ─────────────────────────────────────────────────────────
-	/** Absolute path to a JSON file with the UCustomSurroundingsScannerComponent schema.
+	/** Absolute path to a JSON file with the UCustomSurroundingsScannerComponent schema
+	 *  (bare array, or a { "objects": [...] } / { "markers": [...] } wrapper).
 	 *  If set and readable it wins over ObjectsJsonInline. Defaults to the project's
-	 *  Tools/TestingPlatform/attitude_control/map_objects.json. */
+	 *  Tools/TestingPlatform/attitude_control/marker/map_objects.json; if that path is
+	 *  missing, LoadObjects() also tries the legacy .../attitude_control/map_objects.json. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Source")
 	FString ObjectsSourceFilePath;
 
@@ -204,6 +207,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Output")
 	bool bSaveDebugImages = false;
 
+	/** Save frames as JPEG (matches the custom_objects_dataset pipeline); PNG when false. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Output")
+	bool bSaveAsJpeg = true;
+
 	/** Start the sweep. Requires a running (Play) world — see the class comment. */
 	UFUNCTION(CallInEditor, Category = "Dataset")
 	void GenerateDataset();
@@ -222,7 +229,8 @@ private:
 		float ElevationDeg;
 	};
 
-	/** One accepted marker box in a frame — pixel-space top-left + size, plus bookkeeping. */
+	/** One accepted marker box in a frame — pixel-space top-left + size, plus the
+	 *  marker centre's spatial coordinates so a detection can be tied back to a place. */
 	struct FLabel
 	{
 		int32   ClassId;
@@ -233,6 +241,11 @@ private:
 		float   W;
 		float   H;
 		float   VisibleFraction;
+
+		FVector CentreWorldM;   // marker centre, Unreal world space, metres
+		FVector CentreGeo;      // (longitude°, latitude°, height above ellipsoid in m)
+		FVector CentreCameraM;  // marker centre in camera-local axes (X fwd, Y right, Z up), metres
+		double  RangeM;         // straight-line camera → marker centre distance, metres
 	};
 
 	UPROPERTY() USceneCaptureComponent2D* CaptureComp   = nullptr;
@@ -276,12 +289,17 @@ private:
 	FString LabelsValDir;
 	FString DebugDir;
 
+	/** "<frame_stem> <lat> <lon> <alt_m>" per saved frame → <root>/exp_geo_position.txt. */
+	TArray<FString> GeoPositionLines;
+
 	// ── Pipeline steps ────────────────────────────────────────────────────────
 	bool LoadObjects();
 	void BuildClassMap();
 	void BuildShots();
 
 	FVector GeoToWorldMeters(double LatitudeDeg, double LongitudeDeg, double HeightMeters) const;
+	/** Inverse of GeoToWorldMeters: Unreal world metres → (longitude°, latitude°, height m). */
+	FVector WorldMetersToGeographic(const FVector& WorldMeters) const;
 	FVector GeographicUpMeters(double LatitudeDeg, double LongitudeDeg) const;
 	void    ResolveGroundHeights(FCustomSurroundingObject& Object) const;
 
@@ -309,5 +327,7 @@ private:
 	               const FShot& Shot, const FString& TargetId);
 	void WriteDatasetYaml() const;
 	void WriteManifest() const;
+	/** classes.json + virtual_map.json (id → lat/lon of every marker) + exp_geo_position.txt. */
+	void WriteReferenceFiles() const;
 	void FinishGeneration(bool bCancelled);
 };
