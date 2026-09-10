@@ -10,6 +10,7 @@
 #include "UAVSimulator/Components/PilotInputComponent.h"
 #include "UAVSimulator/Components/KeyboardPilotInputComponent.h"
 #include "UAVSimulator/Components/GamepadPilotInputComponent.h"
+#include "UAVSimulator/Structure/AircraftCalibrationSettings.h"
 
 #include "Airplane.generated.h"
 
@@ -59,6 +60,10 @@ public:
 	/** Widget class to instantiate on the locally controlled pawn's HUD (e.g. WBP_AirplaneTelemetry). Set in Blueprint. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Telemetry")
 	TSubclassOf<UUserWidget> TelemetryWidgetClass;
+
+	/** Калібрування розміру/маси відносно реального прототипу. Застосовується один раз в BeginPlay. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Калібрування літака")
+	FAircraftCalibrationSettings CalibrationSettings;
 
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Computer Vision", meta = (AllowPrivateAccess = "true"))

@@ -20,6 +20,9 @@ public:
 	bool bEnableSensorAltimeter = false;
 
 	UPROPERTY(BlueprintReadWrite)
+	bool bEnableSensorAttitudeIndicator = false;
+
+	UPROPERTY(BlueprintReadWrite)
 	bool bEnableSensorCameraInclination = false;
 
 	UPROPERTY(BlueprintReadWrite)

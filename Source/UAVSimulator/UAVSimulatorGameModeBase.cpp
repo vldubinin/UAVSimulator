@@ -30,7 +30,7 @@ void AUAVSimulatorGameModeBase::UpdateSensorSettings()
 {
 	if (UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>())
 	{
-		Subsystem->SetSensorSettings(SensorsMode, bEnableSensorAltimeter, bEnableSensorCameraInclination, bEnableSensorLidar, bEnableSensorCameraFrame, bEnableSensorCameraAltitude, bEnableSensorSegmentationMask, bEnableSensorBBoxDetection, bEnableSensorPosition, bEnableSensorGeoPosition, bEnableSensorCesiumSurroundings, bEnableSensorCustomSurroundings);
+		Subsystem->SetSensorSettings(SensorsMode, bEnableSensorAltimeter, bEnableSensorAttitudeIndicator, bEnableSensorCameraInclination, bEnableSensorLidar, bEnableSensorCameraFrame, bEnableSensorCameraAltitude, bEnableSensorSegmentationMask, bEnableSensorBBoxDetection, bEnableSensorPosition, bEnableSensorGeoPosition, bEnableSensorCesiumSurroundings, bEnableSensorCustomSurroundings);
 	}
 }
 
@@ -64,6 +64,7 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 		Subsystem->OnboardCameraMode                = OnboardCameraMode;
 		Subsystem->SensorsMode                      = SensorsMode;
 		Subsystem->bEnableSensorAltimeter          = bEnableSensorAltimeter;
+		Subsystem->bEnableSensorAttitudeIndicator  = bEnableSensorAttitudeIndicator;
 		Subsystem->bEnableSensorCameraInclination  = bEnableSensorCameraInclination;
 		Subsystem->bEnableSensorLidar              = bEnableSensorLidar;
 		Subsystem->bEnableSensorCameraFrame = bEnableSensorCameraFrame;
@@ -91,6 +92,7 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 		Subsystem->OnboardCameraMode                = OnboardCameraMode;
 		Subsystem->SensorsMode                      = SensorsMode;
 		Subsystem->bEnableSensorAltimeter          = bEnableSensorAltimeter;
+		Subsystem->bEnableSensorAttitudeIndicator  = bEnableSensorAttitudeIndicator;
 		Subsystem->bEnableSensorCameraInclination  = bEnableSensorCameraInclination;
 		Subsystem->bEnableSensorLidar              = bEnableSensorLidar;
 		Subsystem->bEnableSensorCameraFrame = bEnableSensorCameraFrame;

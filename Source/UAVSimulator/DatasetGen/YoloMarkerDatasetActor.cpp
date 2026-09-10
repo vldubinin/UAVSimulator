@@ -145,6 +145,9 @@ void AYoloMarkerDatasetActor::GenerateDataset()
 	ValEveryN = FMath::Max(2, FMath::RoundToInt(1.0f / FMath::Clamp(ValSplit, 0.02f, 0.9f)));
 	Rng.Initialize(1337);
 
+	GroundResolveAttempts.Init(0, Objects.Num());
+	GroundResolveCursor = 0;
+
 	BeginTilesetCaptureMode();
 
 	bRunning = true;
@@ -186,13 +189,40 @@ void AYoloMarkerDatasetActor::ProcessCurrentShot()
 	const FShot& Shot = Shots[ShotCursor];
 	FCustomSurroundingObject& Target = Objects[Shot.MarkerIdx];
 
-	// Snap EVERY marker onto the tile surface, not just the shot's target — otherwise
-	// non-target markers keep their ellipsoid-level (underground) footprints and project
-	// to bogus screen boxes. Retried each tick until a marker's corners all hit a tile.
+	// Snap markers onto the tile surface so their footprints aren't left at ellipsoid
+	// (underground) level, which would project to bogus screen boxes. The shot's own
+	// target is always attempted — a shot whose target never resolves saves nothing.
+	// Every other marker is snapped only a few per tick, round-robin, and dropped after
+	// MaxGroundResolveAttempts misses; the old code re-traced *every* unresolved marker
+	// (4 complex traces each) on *every* tick, which is what made a pose cost ~40 s.
 	if (bSnapMarkersToTileSurface)
-		for (FCustomSurroundingObject& Obj : Objects)
-			if (!Obj.bGroundHeightResolved)
-				ResolveGroundHeights(Obj);
+	{
+		if (GroundResolveAttempts.Num() != Objects.Num())
+			GroundResolveAttempts.Init(0, Objects.Num());
+
+		if (Objects.IsValidIndex(Shot.MarkerIdx) && !Objects[Shot.MarkerIdx].bGroundHeightResolved)
+		{
+			ResolveGroundHeights(Objects[Shot.MarkerIdx]);
+			++GroundResolveAttempts[Shot.MarkerIdx];
+		}
+
+		const int32 Budget  = FMath::Max(MaxGroundResolvesPerTick, 1);
+		const int32 AttemptCap = FMath::Max(MaxGroundResolveAttempts, 1);
+		int32 Resolved = 0;
+		for (int32 Step = 0; Step < Objects.Num() && Resolved < Budget; ++Step)
+		{
+			const int32 Idx = (GroundResolveCursor + Step) % Objects.Num();
+			if (Idx == Shot.MarkerIdx ||
+				Objects[Idx].bGroundHeightResolved ||
+				GroundResolveAttempts[Idx] >= AttemptCap)
+				continue;
+
+			ResolveGroundHeights(Objects[Idx]);
+			++GroundResolveAttempts[Idx];
+			++Resolved;
+		}
+		GroundResolveCursor = Objects.Num() > 0 ? (GroundResolveCursor + 1) % Objects.Num() : 0;
+	}
 
 	PlaceCameraForShot(Target, Shot);
 
@@ -1186,10 +1216,10 @@ void AYoloMarkerDatasetActor::SyncCesiumCaptureCamera()
 	if (!Mgr)
 		return;
 
-	// FOVAngle is horizontal degrees. Register a slightly WIDER frustum than we render
-	// (×1.2, capped at 170°) so Cesium also loads/refines the tiles just past the frame
-	// edge — otherwise those edge tiles lag a frame or two behind and show up as gaps.
-	const float RegisterFov = FMath::Min(CaptureComp->FOVAngle * 1.2f, 170.0f);
+	// FOVAngle is horizontal degrees. Register a WIDER frustum than we render
+	// (× CesiumFrustumMargin, capped at 170°) so Cesium also loads/refines the tiles just
+	// past the frame edge — otherwise those edge tiles lag a frame or two and show as gaps.
+	const float RegisterFov = FMath::Min(CaptureComp->FOVAngle * FMath::Max(CesiumFrustumMargin, 1.0f), 170.0f);
 	const FCesiumCamera Cam(
 		FVector2D(RenderTarget->SizeX, RenderTarget->SizeY),
 		CaptureComp->GetComponentLocation(),
@@ -1220,12 +1250,27 @@ void AYoloMarkerDatasetActor::BeginTilesetCaptureMode()
 	{
 		if (!T)
 		{
-			SavedTilesetCulling.Add({ false, false });
+			SavedTilesetCulling.Add({ false, false, true, false, 64.0 });
 			continue;
 		}
-		SavedTilesetCulling.Add({ T->ForbidHoles, T->EnableFogCulling });
-		T->ForbidHoles      = true;   // never render a black gap — show the parent tile instead
-		T->EnableFogCulling = false;  // keep horizon / frame-edge tiles in the working set
+
+		SavedTilesetCulling.Add({
+			T->ForbidHoles,
+			T->EnableFogCulling,
+			T->EnableFrustumCulling,
+			T->EnforceCulledScreenSpaceError,
+			T->CulledScreenSpaceError });
+
+		T->ForbidHoles                   = true;   // unrefine to a loaded parent, never a black gap
+		T->EnableFogCulling              = false;  // keep horizon / frame-edge tiles in the working set
+		T->EnableFrustumCulling          = false;  // out-of-frustum tiles stay selected — no culling holes
+		T->EnforceCulledScreenSpaceError = true;   // ...but only as a coarse shell, so the cost stays bounded
+		T->CulledScreenSpaceError        = FMath::Max(CulledTileScreenSpaceError, 1.0);
+
+		// Deterministic offline tile selection: GetLoadProgress() actually converges to
+		// 100 for a static pose instead of hovering at 96-99 while async streaming churns,
+		// so each shot hits the "ready" gate quickly instead of running to MaxSettleFrames.
+		T->PlayMovieSequencer();
 	}
 }
 
@@ -1236,8 +1281,12 @@ void AYoloMarkerDatasetActor::EndTilesetCaptureMode()
 		ACesium3DTileset* T = SweepTilesets[i].Get();
 		if (!T || !SavedTilesetCulling.IsValidIndex(i))
 			continue;
-		T->ForbidHoles      = SavedTilesetCulling[i].ForbidHoles;
-		T->EnableFogCulling = SavedTilesetCulling[i].FogCulling;
+		T->StopMovieSequencer();
+		T->ForbidHoles                   = SavedTilesetCulling[i].ForbidHoles;
+		T->EnableFogCulling              = SavedTilesetCulling[i].FogCulling;
+		T->EnableFrustumCulling          = SavedTilesetCulling[i].FrustumCulling;
+		T->EnforceCulledScreenSpaceError = SavedTilesetCulling[i].EnforceCulledSSE;
+		T->CulledScreenSpaceError        = SavedTilesetCulling[i].CulledSSE;
 	}
 	SavedTilesetCulling.Reset();
 	SweepTilesets.Reset();

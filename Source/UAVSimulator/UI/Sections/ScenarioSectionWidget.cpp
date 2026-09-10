@@ -57,6 +57,7 @@ void UScenarioSectionWidget::SyncFromGameMode()
 	EditableTextTrajectoryName->SetText(FText::FromString(GM->ScenarioSlotName));
 	SpinBoxOffsetDistance->SetValue(GM->TargetSpawnOffsetDistance);
 	RefreshOffsetVisibility(GM->CurrentSimulatorMode);
+	RefreshTrajectoryNameVisibility(GM->CurrentSimulatorMode);
 	ComboBoxOnboardCameraMode->SetSelectedOption(OnboardTargetModeToString(GM->OnboardCameraMode));
 	ComboBoxSensorsMode->SetSelectedOption(OnboardTargetModeToString(GM->SensorsMode));
 }
@@ -68,6 +69,14 @@ void UScenarioSectionWidget::RefreshOffsetVisibility(ESimulatorMode Mode)
 	TargetOffsetDistanceText->SetVisibility(bVisible ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 }
 
+void UScenarioSectionWidget::RefreshTrajectoryNameVisibility(ESimulatorMode Mode)
+{
+	// Назва траєкторії не потрібна у режимах Free та Auto Track.
+	const bool bVisible = Mode != ESimulatorMode::Free && Mode != ESimulatorMode::AutoTrack;
+	EditableTextTrajectoryName->SetVisibility(bVisible ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	TrajectoryName->SetVisibility(bVisible ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+}
+
 void UScenarioSectionWidget::OnModeSelectionChanged(FString SelectedItem, ESelectInfo::Type /*SelectionType*/)
 {
 	AUAVSimulatorGameModeBase* GM = GetGameMode();
@@ -76,6 +85,7 @@ void UScenarioSectionWidget::OnModeSelectionChanged(FString SelectedItem, ESelec
 	const ESimulatorMode NewMode = StringToMode(SelectedItem);
 	GM->CurrentSimulatorMode = NewMode;
 	RefreshOffsetVisibility(NewMode);
+	RefreshTrajectoryNameVisibility(NewMode);
 	SaveCurrentSettings();
 }
 

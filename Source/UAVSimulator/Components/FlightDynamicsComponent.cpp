@@ -93,8 +93,9 @@ void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 		FVector TotalInducedForceUU = FVector::ZeroVector;
 
 		FAerodynamicForce TotalForce;
-		for (UAerodynamicSurfaceSC* Surface : Surfaces)
+		for (int32 SurfaceIdx = 0; SurfaceIdx < Surfaces.Num(); SurfaceIdx++)
 		{
+			UAerodynamicSurfaceSC* Surface = Surfaces[SurfaceIdx];
 			FAerodynamicForce SurfaceForce = Surface->CalculateForcesOnSurface(
 				PhysicsState->GetCenterOfMass(),
 				PhysicsState->GetLinearVelocity(),
@@ -106,10 +107,15 @@ void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 			TotalForce.PositionalForce += SurfaceForce.PositionalForce;
 			TotalForce.RotationalForce += SurfaceForce.RotationalForce;
 
+			// Offset.Y — сире число в см (не проходить через TransformPosition), тому масштаб треба
+			// застосувати вручну. Масштаб задається на StaticMeshComponent (не на акторі/поверхнях),
+			// тому беремо його звідти, а не з Surface->GetComponentTransform() (лишається 1.0).
+			const float SurfaceSpanScale = Mesh->GetComponentScale().Y;
+
 			float SpanCm = 0.0f;
 			for (const auto& Form : Surface->SurfaceForm)
 			{
-				SpanCm += FMath::Abs(Form.Offset.Y);
+				SpanCm += FMath::Abs(Form.Offset.Y) * SurfaceSpanScale;
 			}
 			if (Surface->Mirror) SpanCm *= 2.0f;
 			const float SpanM = SpanCm / 100.0f;
@@ -125,6 +131,12 @@ void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 
 			const FVector SurfaceCenter = Surface->GetComponentLocation();
 			const FVector RightDir      = Surface->GetRightVector();
+
+			if (SurfaceIdx == 0)
+			{
+				// Правий кінець крила — дзеркальна точка до лівого (CurrentBoundVortices[0].StartPoint = SurfaceCenter - RightDir * SpanCm/2).
+				CurrentRightWingtipWorldPos = SurfaceCenter + RightDir * (SpanCm / 2.0f);
+			}
 
 			// Еліптичний розподіл циркуляції по розмаху (дискретна несуча лінія)
 			const float GammaMax    = Gamma * (4.0f / UE_PI);
@@ -219,6 +231,22 @@ void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 					*Owner->GetName(), SpeedKmh, VelCmS.Size() / 100.0f, HorizKmh, VertMs, GetAngleOfAttack(),
 					TargetThrottle, CurrentThrottle, LoggedThrustMultiplier, LoggedActualThrustN,
 					DragN, InducedDragN, DragN + InducedDragN, LiftUpN, WeightN, MassKg);
+
+				// ── Діагностика центру мас: чи адекватна позиція CoM для розрахунку моменту (r × F) ──
+				{
+					const FVector CoMWorld = PhysicsState->GetCenterOfMass();
+					const FVector CoMLocal = Owner->GetActorTransform().InverseTransformPosition(CoMWorld);
+
+					FString SurfaceDistances;
+					for (const UAerodynamicSurfaceSC* Surface : Surfaces)
+					{
+						const float DistCm = FVector::Dist(Surface->GetComponentLocation(), CoMWorld);
+						SurfaceDistances += FString::Printf(TEXT(" %s=%.0fсм"), *Surface->GetName(), DistCm);
+					}
+
+					UE_LOG(LogUAV, Warning, TEXT("[CoMDebug] CoM світ=%s локально(відносно актора)=%s |Відстані до поверхонь:%s"),
+						*CoMWorld.ToString(), *CoMLocal.ToString(), *SurfaceDistances);
+				}
 
 				if (GEngine)
 				{
@@ -316,6 +344,20 @@ FVector UFlightDynamicsComponent::GetLeftWingtipWorldPosition() const
 	if (CurrentBoundVortices.Num() > 0)
 		return CurrentBoundVortices[0].StartPoint;
 	return FVector::ZeroVector;
+}
+
+float UFlightDynamicsComponent::GetDesignWingSpanCm() const
+{
+	if (Surfaces.Num() == 0) return 0.0f;
+
+	const UAerodynamicSurfaceSC* Surface = Surfaces[0];
+	float SpanCm = 0.0f;
+	for (const auto& Form : Surface->SurfaceForm)
+	{
+		SpanCm += FMath::Abs(Form.Offset.Y);
+	}
+	if (Surface->Mirror) SpanCm *= 2.0f;
+	return SpanCm;
 }
 
 FVector UFlightDynamicsComponent::GetInducedVelocity(const FVector& TargetPosCm) const

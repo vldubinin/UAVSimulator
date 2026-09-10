@@ -170,29 +170,56 @@ public:
 	TEnumAsByte<ECollisionChannel> GroundTraceChannel = ECC_Visibility;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Ground", meta = (ClampMin = 1.0))
-	float GroundTraceSpanMeters = 20000.0f;
+	float GroundTraceSpanMeters = 2000.0f;
+
+	/** Per tick, attempt the ground snap for at most this many not-yet-resolved markers
+	 *  (besides the current shot's target, which is always attempted). Stops a large
+	 *  marker file from firing hundreds of complex line traces every single frame. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Ground", meta = (ClampMin = 1))
+	int32 MaxGroundResolvesPerTick = 6;
+
+	/** Give up snapping a non-target marker after this many failed attempts (its corners
+	 *  never all hit a tile). It stays unlabelled rather than re-tracing it forever. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Ground", meta = (ClampMin = 1))
+	int32 MaxGroundResolveAttempts = 16;
 
 	// ── Timing ────────────────────────────────────────────────────────────────
 	/** Minimum ticks to hold each pose before capturing (lets the camera move and the
 	 *  Cesium view registration propagate). The real wait is gated on tile load
 	 *  progress below — this is just the floor. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Timing", meta = (ClampMin = 1))
-	int32 SettleFrames = 8;
+	int32 SettleFrames = 4;
 
 	/** Hard cap on ticks spent waiting for one pose. If the tileset never reports
-	 *  ready within this many ticks the frame is captured anyway (and logged). */
+	 *  ready within this many ticks the frame is captured anyway (and logged). With the
+	 *  offline tile mode below GetLoadProgress() converges, so this is rarely reached. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Timing", meta = (ClampMin = 1))
-	int32 MaxSettleFrames = 180;
+	int32 MaxSettleFrames = 90;
 
 	/** Capture once ACesium3DTileset::GetLoadProgress() for the shot's view reaches
-	 *  this percentage. Lower it (e.g. 98) if 100 is rarely hit on your connection. */
+	 *  this percentage. Left a hair below 100: ForbidHoles renders the last stragglers
+	 *  as parent tiles (no gap), so waiting for a perfect 100 only burns ticks. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Timing", meta = (ClampMin = 1.0, ClampMax = 100.0))
-	float TileLoadProgressTarget = 100.0f;
+	float TileLoadProgressTarget = 97.0f;
 
 	/** Require the "tiles ready" state for this many consecutive ticks before
-	 *  capturing — absorbs the brief drop from 100 as Cesium discovers new tiles. */
+	 *  capturing — absorbs the brief drop as Cesium discovers new tiles. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Timing", meta = (ClampMin = 1))
-	int32 TileReadyHoldFrames = 3;
+	int32 TileReadyHoldFrames = 2;
+
+	// ── Tile streaming quality (no-holes guarantee) ──────────────────────────
+	/** For the whole sweep every ACesium3DTileset is forced into a seamless-capture
+	 *  state: ForbidHoles on, fog culling off, frustum culling off, and out-of-frustum
+	 *  tiles pinned to this (coarse) screen-space error. Nothing in — or just past —
+	 *  the frame can render as a gap, while the out-of-view shell stays cheap. All
+	 *  original flags are restored in FinishGeneration. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Tiles", meta = (ClampMin = 1.0))
+	double CulledTileScreenSpaceError = 128.0;
+
+	/** The Cesium streaming frustum is registered this much wider than the captured
+	 *  FOV so edge tiles are already refined when the shutter fires. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset|Tiles", meta = (ClampMin = 1.0, ClampMax = 2.0))
+	float CesiumFrustumMargin = 1.25f;
 
 	// ── Output ────────────────────────────────────────────────────────────────
 	/** Dataset root. Gets images/{train,val}/, labels/{train,val}/, data.yaml, dataset.json. */
@@ -273,13 +300,23 @@ private:
 
 	TArray<FCustomSurroundingObject> Objects;
 	TArray<FShot>                    Shots;
+	/** Parallel to Objects: failed ResolveGroundHeights attempts per marker (throttling). */
+	TArray<int32>                    GroundResolveAttempts;
+	int32                            GroundResolveCursor = 0;  // round-robin start for per-tick snapping
 	TMap<FString, int32>             ClassMap;    // ObjectType → class id
 	TArray<FString>                  ClassNames;  // class id → name
 	TArray<TSharedPtr<FJsonValue>>   ManifestFrames;
 
 	/** Every ACesium3DTileset in the level, plus the culling flags they had before the
 	 *  sweep forced ForbidHoles / disabled fog culling. Restored in FinishGeneration. */
-	struct FTilesetCulling { bool ForbidHoles; bool FogCulling; };
+	struct FTilesetCulling
+	{
+		bool   ForbidHoles;
+		bool   FogCulling;
+		bool   FrustumCulling;
+		bool   EnforceCulledSSE;
+		double CulledSSE;
+	};
 	UPROPERTY() TArray<TObjectPtr<ACesium3DTileset>> SweepTilesets;
 	TArray<FTilesetCulling>                          SavedTilesetCulling;
 

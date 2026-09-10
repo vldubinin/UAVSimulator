@@ -39,6 +39,9 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UTextBlock> TargetOffsetDistanceText;
 
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UTextBlock> TrajectoryName;
+
 	/** Selects which airplane role (Drone / Target / None) the onboard camera runs on. */
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UComboBoxString> ComboBoxOnboardCameraMode;
@@ -55,6 +58,7 @@ private:
 	void PopulateOnboardModeComboBoxes();
 	void SyncFromGameMode();
 	void RefreshOffsetVisibility(ESimulatorMode Mode);
+	void RefreshTrajectoryNameVisibility(ESimulatorMode Mode);
 	void LoadAndApplySavedSettings();
 	void SaveCurrentSettings();
 

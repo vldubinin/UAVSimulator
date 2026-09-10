@@ -20,6 +20,9 @@ void USensorsSectionWidget::NativeConstruct()
 	CameraAltitudeCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnCameraAltitude);
 	PositionCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnPositionChanged);
 
+	if (AttitudeIndicatorCB)
+		AttitudeIndicatorCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnAttitudeIndicatorChanged);
+
 	if (GeoPositionCB)
 		GeoPositionCB->OnCheckStateChanged.AddDynamic(this, &USensorsSectionWidget::OnGeoPositionChanged);
 
@@ -44,6 +47,9 @@ void USensorsSectionWidget::SyncFromGameMode()
 	CameraFrameCB->SetIsChecked(GM->bEnableSensorCameraFrame);
 	AltimeterCB->SetIsChecked(GM->bEnableSensorAltimeter);
 	CameraInclinationCB->SetIsChecked(GM->bEnableSensorCameraInclination);
+
+	if (AttitudeIndicatorCB)
+		AttitudeIndicatorCB->SetIsChecked(GM->bEnableSensorAttitudeIndicator);
 	LidarCB->SetIsChecked(GM->bEnableSensorLidar);
 	CameraAltitudeCB->SetIsChecked(GM->bEnableSensorCameraAltitude);
 	PositionCB->SetIsChecked(GM->bEnableSensorPosition);
@@ -69,6 +75,13 @@ void USensorsSectionWidget::OnAltimeterChanged(bool bIsChecked)
 {
 	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
 		GM->bEnableSensorAltimeter = bIsChecked;
+	SaveCurrentSettings();
+}
+
+void USensorsSectionWidget::OnAttitudeIndicatorChanged(bool bIsChecked)
+{
+	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
+		GM->bEnableSensorAttitudeIndicator = bIsChecked;
 	SaveCurrentSettings();
 }
 
@@ -134,6 +147,7 @@ void USensorsSectionWidget::LoadAndApplySavedSettings()
 
 	GM->bEnableSensorCameraFrame       = Save->bEnableSensorCameraFrame;
 	GM->bEnableSensorAltimeter         = Save->bEnableSensorAltimeter;
+	GM->bEnableSensorAttitudeIndicator = Save->bEnableSensorAttitudeIndicator;
 	GM->bEnableSensorCameraInclination = Save->bEnableSensorCameraInclination;
 	GM->bEnableSensorLidar             = Save->bEnableSensorLidar;
 	GM->bEnableSensorCameraAltitude    = Save->bEnableSensorCameraAltitude;
@@ -154,6 +168,7 @@ void USensorsSectionWidget::SaveCurrentSettings()
 
 	Save->bEnableSensorCameraFrame       = GM->bEnableSensorCameraFrame;
 	Save->bEnableSensorAltimeter         = GM->bEnableSensorAltimeter;
+	Save->bEnableSensorAttitudeIndicator = GM->bEnableSensorAttitudeIndicator;
 	Save->bEnableSensorCameraInclination = GM->bEnableSensorCameraInclination;
 	Save->bEnableSensorLidar             = GM->bEnableSensorLidar;
 	Save->bEnableSensorCameraAltitude    = GM->bEnableSensorCameraAltitude;

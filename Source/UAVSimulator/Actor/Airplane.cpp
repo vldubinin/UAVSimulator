@@ -17,6 +17,7 @@
 #include "UAVSimulator/Components/SegmentationMaskCameraComponent.h"
 #include "UAVSimulator/Components/BBoxDetectionComponent.h"
 #include "UAVSimulator/Components/AltimeterComponent.h"
+#include "UAVSimulator/Components/AttitudeIndicatorComponent.h"
 #include "UAVSimulator/Components/CameraInclinationComponent.h"
 #include "UAVSimulator/Components/LidarComponent.h"
 #include "UAVSimulator/Components/DronePositionComponent.h"
@@ -64,6 +65,18 @@ void AAirplane::OnConstruction(const FTransform& Transform)
 void AAirplane::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Авто-калібрування масштабу актора за очікуваним розмахом крил реального прототипу.
+	// Surfaces вже заповнені на цей момент (OnConstruction відпрацював до BeginPlay).
+	if (FlightDynamics && CalibrationSettings.ExpectedWingSpanMeters > 0.0f)
+	{
+		const float DesignSpanCm = FlightDynamics->GetDesignWingSpanCm();
+		if (DesignSpanCm > KINDA_SMALL_NUMBER)
+		{
+			const float TargetSpanCm = CalibrationSettings.ExpectedWingSpanMeters * 100.0f;
+			SetActorScale3D(FVector(TargetSpanCm / DesignSpanCm));
+		}
+	}
 
 	// Порядок за кадр для керування:
 	//   AAirplane::Tick -> UAttitudeControlComponent (ZMQ+PID, лише обчислення)
@@ -233,6 +246,15 @@ void AAirplane::RefreshConfigurations()
 void AAirplane::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	if (FlightDynamics)
+	{
+		UE_LOG(LogUAV, Log, TEXT("[SpeedDebug] Airspeed=%.3f m/s (GetAirspeedMs()=%.3f, GetAirspeedKmh()=%.3f) Position=%s"),
+			FlightDynamics->GetAirspeed(),
+			GetAirspeedMs(),
+			GetAirspeedKmh(),
+			*GetActorLocation().ToString());
+	}
 }
 
 void AAirplane::RefreshSensorSettings()
@@ -247,6 +269,9 @@ void AAirplane::RefreshSensorSettings()
 
 	if (UAltimeterComponent* C = FindComponentByClass<UAltimeterComponent>())
 		C->bSensorEnabled = bSensorsActive && Subsystem->bEnableSensorAltimeter;
+
+	if (UAttitudeIndicatorComponent* C = FindComponentByClass<UAttitudeIndicatorComponent>())
+		C->bSensorEnabled = bSensorsActive && Subsystem->bEnableSensorAttitudeIndicator;
 
 	if (UCameraInclinationComponent* C = FindComponentByClass<UCameraInclinationComponent>())
 		C->bSensorEnabled = bSensorsActive && Subsystem->bEnableSensorCameraInclination;
@@ -286,7 +311,7 @@ UTexture2D* AAirplane::GetCameraOutputTexture() const
 
 float AAirplane::GetAirspeedMs() const
 {
-	return FlightDynamics ? FlightDynamics->GetAirspeed() * 3.6f: 0.0f;
+	return FlightDynamics ? FlightDynamics->GetAirspeed() : 0.0f;
 }
 
 float AAirplane::GetAirspeedKmh() const

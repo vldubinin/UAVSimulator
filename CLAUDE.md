@@ -8,6 +8,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Unreal Engine 5.7 UAV (Unmanned Aerial Vehicle) flight dynamics simulator. Written in C++ with a custom aerodynamics engine, computer vision pipeline (OpenCV), geospatial mapping (Cesium), a ZeroMQ sensor telemetry bus, ML training-data generators, and integration with external aerodynamic analysis tools (XFoil, SU2, OpenVSP).
 
+**Розширена документація — у `Docs/`** (індекс: `Docs/README.md`). Вона детально
+описує кожен модуль, компонент, формат ZMQ-повідомлення та взаємодію підсистем;
+цей файл — стислий вступ. Тримати їх узгодженими.
+
 ## Build System
 
 **Build via Visual Studio:**
@@ -37,6 +41,12 @@ Unreal Engine 5.7 UAV (Unmanned Aerial Vehicle) flight dynamics simulator. Writt
 - **`UKeyboardPilotInputComponent`** / **`UGamepadPilotInputComponent`** — `IPilotInputSource` implementations (tier 0)
 
 `UUAVCameraComponent` (onboard OpenCV camera) is *not* a CDO — it is created lazily in `RefreshConfigurations()` when the camera is enabled; it is a `UActorComponent`, not a `USceneComponent`, so it has no transform and cannot be attached to a scene hierarchy. `AAirplane::GetCameraOutputTexture()` exposes `UUAVCameraComponent::OutputTexture` for UI/sensor consumers.
+
+Sensor components, `USensorBusComponent`, `UAeroVisualizerComponent`, the aerodynamic-surface hierarchy and `UKeyPointComponent` are *not* CDOs — they are added on the Blueprint subclass (e.g. `Content/Airplanes/Cessna_172`).
+
+`AAirplane::CalibrationSettings` (`FAircraftCalibrationSettings`) — if `ExpectedWingSpanMeters > 0`, `BeginPlay` uniformly rescales the actor so the raw "design" wingspan (`UFlightDynamicsComponent::GetDesignWingSpanCm`) matches it. `TelemetryWidgetClass` (a `UAirplaneTelemetryWidget`) is instantiated only on the locally-controlled pawn; `CameraWidgetClass` when the camera is active for this role.
+
+Runtime reconfiguration is split in two: `RefreshConfigurations()` (Niagara + camera + widgets, driven by `UUAVSimulationSubsystem::OnVisualSettingsChanged` / `OnCameraSettingsChanged`) and `RefreshSensorSettings()` (per-sensor `bSensorEnabled`, driven by `OnSensorSettingsChanged`). Role is resolved from actor tags `Player` / `Target` / `AutoTracker` against `EOnboardTargetMode` — `Drone` covers `Player` **and** `AutoTracker`.
 
 ### Pilot Input
 
@@ -69,65 +79,74 @@ AAirplane (APawn)
 
 Each `USubAerodynamicSurfaceSC` reads its airfoil polar from a DataTable, computes AoA from the local airflow vector, looks up CL/CD, and applies force+torque via `FAerodynamicForce`. Control surfaces (`EFlapType`: Aileron, Elevator, Rudder) can be deflected by pilot input.
 
-After each `CalculateForcesOnSubSurface` call, the sub-surface caches two public fields for downstream use:
-- `CurrentWorldCoP` — world-space center of pressure
-- `CurrentGamma` — bound vortex circulation (m²/s) via Kutta-Joukowski: `Γ = L / (ρ · V · b)`
+**Actuator dynamics** — `UControlSurfaceSC` owns an `FActuatorDynamics` (`Entity/ActuatorDynamics.h`): `RateLimitedOnly` (default) / `FirstOrderLag` / `CriticallyDampedSecondOrder`. `USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface` passes the *commanded* flap angle through `UControlSurfaceSC::Move(angle, DeltaTime)` and uses the returned **actual (lagged)** angle to look up the polar — so actuator lag affects the flight physics, not just the visual deflection.
 
-`UAerodynamicSurfaceSC` aggregates these via `GetSubSurfacePositions()` / `GetSubSurfaceGammas()`. `UFlightDynamicsComponent` further aggregates across all surfaces via `GetAllVortexPositions()` / `GetAllVortexGammas()`.
+**Vortex wake** is owned entirely by `UFlightDynamicsComponent`, not by the sub-surfaces (the old `CurrentWorldCoP` / `CurrentGamma` / `GetSubSurfacePositions()` / `GetAllVortexPositions()` API is gone). Each tick, per surface, it computes `Γ = F / (ρ · V · b)` (inverse Kutta-Joukowski), builds an elliptic span-wise circulation distribution, applies **induced-drag force** at each segment (`F = ρ · Γ · (dl × V_induced)`, where `V_induced` is a Biot-Savart sum over all wake lines — `GetInducedVelocity()`), and appends `FBoundVortex` / `FTrailingVortexNode` entries. Downstream consumers read `GetVortexWakeLines()` (flat `TArray<TArray<FTrailingVortexNode>>`), `GetLeftWingtipWorldPosition()`, `GetRightWingtipWorldPosition()`. See `Docs/02-FlightDynamics.md`.
 
 ### Actor Initialization
 
 `AAirplane` initializes in two stages:
 - **`OnConstruction`** (runs in-editor on placement or transform change): calls `FlightDynamics->UpdateEditorVisualization(Mesh)` to refresh in-editor surface overlays.
-- **`BeginPlay`** (runtime, physics active): subscribes to `UUAVSimulationSubsystem::OnVisualSettingsChanged` and calls `RefreshVisualEffects()` to set initial VFX state.
+- **`BeginPlay`** (runtime, physics active): applies `CalibrationSettings` rescale, wires the per-frame tick order via prerequisites, subscribes to `UUAVSimulationSubsystem::OnVisualSettingsChanged` + `OnCameraSettingsChanged` (→ `RefreshConfigurations()`) and `OnSensorSettingsChanged` (→ `RefreshSensorSettings()`), then calls both once.
 
-`AAirplane::RefreshVisualEffects()` determines each airplane's role (player = `IsLocallyControlled()`, target = has `UFlightPlaybackComponent`), then enables/disables Niagara on each `UAerodynamicSurfaceSC` via `SetNiagaraActive()` and enables/disables camera processing via `UUAVCameraComponent::SetCameraProcessingEnabled()`. It is also called from `PossessedBy()` to handle deferred possession.
+`AAirplane::RefreshConfigurations()` resolves the airplane's role from actor tags, then: toggles Niagara on each `UAerodynamicSurfaceSC` (`SetNiagaraActive()`); lazily creates + toggles `UUAVCameraComponent` (`SetCameraProcessingEnabled()`) against `Subsystem->OnboardCameraMode`; creates/destroys `CameraWidget` and `TelemetryWidget`. `RefreshSensorSettings()` sets `bSensorEnabled` on every sensor component against `Subsystem->SensorsMode` + the per-type flag. `RefreshConfigurations()` is also called from `PossessedBy()` (deferred possession).
 
 Code that reads velocity or angular velocity must run in `BeginPlay` or later.
 
 ### FlightDynamicsComponent Public API
 
 Getters backed by `UUAVPhysicsStateComponent` (updated at the top of each tick):
-- `GetAirspeed()` — speed in m/s
+- `GetAirspeed()` / `GetAirspeedKmh()` — speed in m/s / km/h
 - `GetAngleOfAttack()` — body-level AoA in degrees (velocity vs. actor forward)
-- `GetRelativeWindVector()` — normalized airflow direction (opposite to velocity)
-- `GetLeftWingtipWorldPosition()` — world-space position of the left wingtip
-- `GetAllVortexPositions()` — flat array of `CurrentWorldCoP` from all sub-surfaces
-- `GetAllVortexGammas()` — flat array of `CurrentGamma` from all sub-surfaces
+- `GetLeftWingtipWorldPosition()` / `GetRightWingtipWorldPosition()` — world-space wingtip positions
+- `GetVortexWakeLines()` — `const TArray<TArray<FTrailingVortexNode>>&`, the shed trailing-vortex wake (consumed by `UAeroVisualizerComponent`)
+- `GetControlState()` — current `FControlInputState`
+- `GetDesignWingSpanCm()` — raw `|Offset.Y|` sum over `Surfaces[0].SurfaceForm`, **before** actor scale (used for `CalibrationSettings` auto-rescale)
+
+(`UUAVPhysicsStateComponent` itself exposes `GetLinearVelocity` / `GetAngularVelocity` / `GetCenterOfMass` / `GetAirflowDirection`.)
 
 These are only valid after `UFlightDynamicsComponent` has ticked in the current frame. Any component that reads them must call `AddTickPrerequisiteComponent(DynamicsComp)` in `BeginPlay`. `UpdateAileronControl/UpdateElevatorControl/UpdateRudderControl/UpdateThrottleControl` are written by exactly one component — `UPilotInputComponent` (see *Pilot Input*), which aggregates keyboard, gamepad, and the ZMQ autopilot and is a tick prerequisite of `UFlightDynamicsComponent`.
 
 ### VFX Architecture
 
-**Activation control** is driven by `UUAVSimulationSubsystem` (a `UWorldSubsystem`):
-- `bEnableVisualsForPlayer` and `bEnableVisualsForTarget` flags live on the subsystem.
-- `AUAVSimulatorGameModeBase::UpdateVisualSettings()` pushes the GameMode's flag values to the subsystem and broadcasts `OnVisualSettingsChanged`.
-- Every `AAirplane` subscribes to this delegate in `BeginPlay` and calls `RefreshVisualEffects()`, which calls `UAerodynamicSurfaceSC::SetNiagaraActive(bool)` on each surface component.
-- `UpdateVisualSettings()` is called *after* all actors are spawned and possessed so every airplane has already subscribed.
+**Activation control** is driven by `UUAVSimulationSubsystem` (a `UWorldSubsystem`) via three multicast delegates, each with a matching GameMode push method and a matching `AAirplane` refresh:
+| Delegate | GameMode push | Subsystem fields | `AAirplane` handler |
+|----------|---------------|------------------|---------------------|
+| `OnVisualSettingsChanged` | `UpdateVisualSettings()` | `bEnableVisualsForPlayer/Target` | `RefreshConfigurations()` → `UAerodynamicSurfaceSC::SetNiagaraActive` |
+| `OnCameraSettingsChanged` | `UpdateCameraSettings()` | `OnboardCameraMode` | `RefreshConfigurations()` → `UUAVCameraComponent::SetCameraProcessingEnabled` |
+| `OnSensorSettingsChanged` | `UpdateSensorSettings()` | `SensorsMode` + 12 `bEnableSensor*` | `RefreshSensorSettings()` → per-sensor `bSensorEnabled` |
+All three are pushed *after* all actors are spawned and possessed (`StartSimulation()`), so every airplane's `BeginPlay` has already subscribed.
 
-**`UAeroVisualizerComponent`** (`SceneComponent/AeroVisualizer/AeroVisualizerComponent.h/cpp`) is a `USceneComponent` that drives a single Niagara wake-vortex effect per surface:
-1. **Eager spawn** — Niagara spawns unconditionally in `BeginPlay` (activation is gated by `SetNiagaraActive` at the surface level, not by this component).
-2. **Coordinate conversion** — `GetLeftWingtipWorldPosition()` returns a world-space point, which is converted to actor-local space via `GetActorTransform().InverseTransformPosition(...)` before being pushed to Niagara.
-3. **Per-tick push** — `VortexLocalPosition` (FVector) and `Intensity` (AoA float) via `SetVariableVec3` / `SetVariableFloat`.
+**`UAeroVisualizerComponent`** (`SceneComponent/AeroVisualizer/AeroVisualizerComponent.h/cpp`) — `USceneComponent`, ticks in `TG_PostPhysics` with a prerequisite on `UFlightDynamicsComponent`:
+1. **`BeginPlay`** — for each `UAerodynamicSurfaceSC` whose name contains `Wing` or `TailHorizontal`, spawns a `UNiagaraComponent` (`FlowVisualizerSystem`, `bAutoActivate = false`), sets `SurfaceSpan` / `ProbeHeight` float params from the surface's span.
+2. **`TickComponent`** → `UpdateNiagaraWakeData()`: flattens `GetVortexWakeLines()` into `TArray<FVector> WakePositions` + `TArray<float> WakeGammas` (with an end-of-line sentinel node per line), pushed via `UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector/Float`.
+
+Manual Niagara-system setup (GPU sim, Biot-Savart Custom HLSL) — `Docs/Niagara_VLM_Setup.md`.
 
 ### Simulator Modes (AUAVSimulatorGameModeBase)
 
-`ESimulatorMode` controls `BeginPlay` behavior:
+`GameMode::BeginPlay` only pushes config to the subsystem — **it spawns nothing**. Actors are spawned by `StartSimulation()` (BlueprintCallable, called from the menu's Start button); `StopSimulation()` destroys every `AAirplane` (each `CleanupWidgets()` first) and is called by `AUAVSimulatorPlayerController::OnQPressed` (Q / gamepad Start).
 
-- **`RecordTarget`** — spawns `TargetAirplaneClass` at `PlayerStart`, dynamically attaches `UFlightRecorderComponent`, calls `StartRecording()`.
-- **`PlaybackAndTrack`** — loads `FlightScenarioSave` from `ScenarioSlotName`, spawns both target and tracker airplanes. The target gets a dynamic `UFlightPlaybackComponent`; the player controller possesses the tracker.
+`ESimulatorMode` (`Entity/SimulatorMode.h`) controls `StartSimulation()` spawn behavior. `PlayerStart` gives the spawn transform; actors are `SpawnActorDeferred` + role tag + `FinishSpawning`:
 
-The GameMode calls `UpdateVisualSettings()` after all actors are spawned and possessed so every airplane's `BeginPlay` has already subscribed to the delegate before the first broadcast.
+| Mode | Spawns | Tags | Notes |
+|------|--------|------|-------|
+| `RecordTarget` | 1× `TargetAirplaneClass` | `Player` | dynamic `UFlightRecorderComponent` + `StartRecording()`; sensor bus stays silent (`IsEnabledSensors` → false) |
+| `PlaybackAndTrack` | target + tracker | target `Target`, tracker `Player` | target gets `UFlightPlaybackComponent` (offset `InitialRotation.Vector() * TargetSpawnOffsetDistance`); PC possesses tracker |
+| `PlaybackAndAutoTrack` | target + tracker | target `Target`, tracker `AutoTracker` | as above + `tracker.AttitudeControl->CommandEndpoint = AttitudeCommandEndpoint; ActivateAutopilot()` |
+| `AutoTrack` | tracker only at `PlayerStart` | `AutoTracker` | no target, no playback; autopilot activated (ZMQ attitude targets from outside); PC possesses |
+| `Playback` | target only | `Target` | `UFlightPlaybackComponent`, no offset; PC possesses nobody |
+| `Free` | 1× `TargetAirplaneClass` | `Player` | free manual flight; PC possesses |
+
+After spawning, `StartSimulation()` calls `UpdateCameraSettings()` + `UpdateVisualSettings()` + `UpdateSensorSettings()` so every airplane's `BeginPlay` has already subscribed before the first broadcast.
 
 ### Playback Subsystem
 
-`UFlightPlaybackComponent::StartPlayback()` disables competing systems on the target airplane in this order:
+`UFlightPlaybackComponent::StartPlayback()` loads the scenario, enables its own tick, and disables competing systems on the target airplane in this order:
 1. `UStaticMeshComponent::SetSimulatePhysics(false)` — stops the physics solver from fighting playback transforms
-2. `UUAVPhysicsStateComponent::SetComponentTickEnabled(false)` — stops the custom physics cache from overwriting state
-3. `UFlightDynamicsComponent::SetComponentTickEnabled(false)` + `SetActive(false)` — silences force application
-4. `UUAVCameraComponent::SetComponentTickEnabled(false)` + `SetActive(false)` — camera is unused during playback
+2. `UFlightDynamicsComponent::SetComponentTickEnabled(false)` + `SetActive(false)` — silences force application (this also stops the `UUAVPhysicsStateComponent` subobject, which ticks from within it)
 
-`TickComponent` interpolates between recorded `FFlightFrame` samples using `FQuat::Slerp` for rotation and `FMath::Lerp` for position, applying `PlaybackOffset` to shift the trajectory.
+`TickComponent` finds the bracketing recorded `FFlightFrame` pair for `CurrentPlaybackTime` and interpolates: `FMath::Lerp` for position, `FQuat::Slerp` for rotation, `+ PlaybackOffset`. Past `TotalFlightDuration` it snaps to the last frame and disables its tick.
 
 ### Physics State Cache
 
@@ -144,22 +163,38 @@ A parallel, opt-in sensor system publishes UAV telemetry over ZeroMQ for externa
 - **`IUAVSensorInterface`** (`Interfaces/UAVSensorInterface.h`) — the contract any sensor component implements: `GetSensorTopic()`, `GetLatestFrame(FSensorFrame&)`, plus a `bSensorEnabled` gate.
 - **`FSensorFrame`** (`Structure/SensorFrame.h`) — wire struct: `Topic` (FString), `Payload` (`TArray<uint8>`, pre-serialized JSON/bytes), `Timestamp` (double).
 - **`USensorBusComponent`** (`Components/SensorBusComponent.h`) — auto-discovers all `IUAVSensorInterface` components on its owning actor (or an explicit list), polls each at `BusRate` Hz, and publishes one ZMQ PUB multipart message (JSON envelope + N raw payload parts) on `Endpoint` (default `tcp://*:5555`).
-- **Concrete sensors**: `AltimeterComponent` (actor Z altitude), `CameraAltitudeComponent`/`CameraInclinationComponent` (read the camera's `USceneCaptureComponent2D` transform), `LidarComponent` (spherical raycast sweep via `SensorUtilityLibrary::FindActors`), `BBoxDetectionComponent`/`KeyPointDetectionComponent` (same ray-sweep pattern, project bounding boxes/`UKeyPointComponent` positions to screen space), `DronePositionComponent` (world position in metres), `CameraFrameComponent`/`SegmentationMaskCameraComponent` (thin adapters forwarding `UUAVCameraComponent`'s RGB output / segmentation mask onto `"camera"`/`"segmentation_mask"` topics).
-- **`AttitudeControlComponent`** is the inverse direction: a ZMQ PULL command receiver that parses `SET_ATTITUDE_TARGET` JSON and runs P-controllers on roll/pitch/yaw-rate. It requires a sibling `UFlightDynamicsComponent` (found via `FindComponentByClass` in `BeginPlay`) and disables its own tick if absent. It no longer writes the control API directly — its PID output is cached in `ComputeCommands()` and handed to `UPilotInputComponent` via `IPilotInputSource::GetPilotCommand()` (tier 100, exclusive whenever `ActivateAutopilot()` has run). See *Pilot Input*.
+- **Concrete sensors** (topic in parentheses): `AltimeterComponent` (`altimeter`, actor Z), `AttitudeIndicatorComponent` (`attitude_indicator`, roll/pitch/yaw + body rates), `CameraAltitudeComponent` (`camera_altitude`) / `CameraInclinationComponent` (`camera_inclination`) — read the camera `USceneCaptureComponent2D` transform, `LidarComponent` (`lidar`, spherical raycast sweep via `SensorUtilityLibrary::FindActors`), `BBoxDetectionComponent` (`bbox`) / `KeyPointDetectionComponent` (`keypoints`) — same ray-sweep, project OBB / `UKeyPointComponent` positions to screen space, `DronePositionComponent` (`drone_position`, world metres) / `GeoPositionDroneComponent` (`drone_geo_position`, lat/long/alt via `ACesiumGeoreference`), `CesiumSurroundingsScannerComponent` (`cesium_objects`) / `CustomSurroundingsScannerComponent` (`custom_objects`) — camera-FOV sweeps that project world objects onto the camera frame (see `Docs/05-SurroundingsScanners.md`), `CameraFrameComponent` (`camera`) / `SegmentationMaskCameraComponent` (`segmentation_mask`) — thin adapters over `UUAVCameraComponent`'s JPEG streams. Payload formats: `Docs/04-SensorBus.md`.
+- **`AttitudeControlComponent`** is the inverse direction: a ZMQ PULL receiver on `CommandEndpoint` (default `tcp://*:5556`) that parses `SET_ATTITUDE_TARGET` JSON (`roll`/`pitch` in **radians**, `yaw_rate` rad/s, `thrust` [0,1]) and runs `FPidController` on roll-angle / pitch-angle / yaw-rate (with optional airspeed gain-scheduling). It requires a sibling `UFlightDynamicsComponent`. It does **not** write the control API — its PID output is cached in `ComputeCommands()` and handed to `UPilotInputComponent` via `IPilotInputSource::GetPilotCommand()` (tier 100, exclusive whenever `ActivateAutopilot()` has run, which also does the ZMQ `bind` and enables the tick). See *Pilot Input* and `Docs/03-PilotInput-and-Autopilot.md`.
 - **`UKeyPointComponent`** (`SceneComponent/KeyPoint/KeyPointComponent.h`) is a plain `USceneComponent` with a `PointID` FString, hand-placed in Blueprint on the airframe to mark physical landmarks (nose, wingtip, etc.). It is *not* part of the aerodynamic surface hierarchy — it's consumed by `KeyPointDetectionComponent` (runtime) and `DroneKeyPointDatasetActor` (offline export).
 
 `r.CustomDepth=3` (`Config/DefaultEngine.ini`) is enabled to support the segmentation-mask render pipeline.
 
-### ML Dataset Generation (editor-only)
+### ML Dataset Generation
 
-Two `CallInEditor` tool actors under `DatasetGen/` generate offline training data by spawning a drone Blueprint and driving a `USceneCaptureComponent2D` — they are not part of the runtime simulation:
+Tool actors under `DatasetGen/`, driven from the menu's *Synthetic Data* section (`USyntheticDataSectionWidget`, paths persisted in `USyntheticDataSettingsSave`). Not part of the runtime simulation. See `Docs/09-Dataset-Generation.md`.
 
-- **`ADroneDatasetGeneratorActor`** — orbits the capture component over an azimuth/elevation sphere, renders with a show-only list (no post-process dependency), and uses OpenCV (Otsu threshold, morphological close/open, `approxPolyDP`) to extract a silhouette polygon per frame; writes JSON + optional debug PNGs.
-- **`ADroneKeyPointDatasetActor`** — spawns the drone Blueprint, reads all `UKeyPointComponent` local positions, normalizes to [-1,1], and exports JSON with a `scale_cm` factor for recovery.
+- **`ADroneDatasetGeneratorActor`** — orbits a `USceneCaptureComponent2D` over an azimuth/elevation sphere, renders with a show-only list (no post-process dependency), OpenCV (Otsu threshold, morph close/open, `approxPolyDP`) to extract a silhouette polygon per frame; writes JSON + optional debug PNGs. **Blocks the editor.**
+- **`ADroneKeyPointDatasetActor`** — spawns the drone Blueprint, reads all `UKeyPointComponent` local positions, normalizes to [-1,1], exports JSON with a `scale_cm` factor.
+- **`ASceneObjectDatasetActor`** — scans every actor in the world, exports world position + AABB size; skips `AAirplane`, classes in `ExcludedActorClassNames`, and actors with no `UStaticMeshComponent`.
+- **`AYoloMarkerDatasetActor`** — map-marker analogue of the silhouette tool: orbits a capture around each marker from a `UCustomSurroundingsScannerComponent`-schema JSON source and writes a YOLO detection dataset (RGB frame + pixel bbox of every visible marker). **Not** a blocking loop — a `Tick` state machine; needs a running (Play) world for Cesium tile streaming. Forces every `ACesium3DTileset` into a seamless (`ForbidHoles`) capture state for the sweep.
 
 ### Simulator Menu UI
 
-`USimulatorMenuWidget` (`UI/SimulatorMenuWidget.h/cpp`) is the top-level UMG menu: nav buttons (bound via `BindWidget`) drive a `UWidgetSwitcher` between section panels. `EMenuSection` (`Entity/MenuSection.h`) enumerates `Scenario`, `Sensors`, `Environment`, `SyntheticData`. Each panel derives from the abstract `USimulatorSectionWidget` (`OnSectionActivated`/`OnSectionDeactivated` `BlueprintNativeEvent`s), e.g. `UScenarioSectionWidget`, `UEnvironmentSectionWidget` (binds to Cesium `Georeference`/`SunSky`/`Tileset`), `USyntheticDataSectionWidget` (binds to the `DatasetGen` actors), `UDronesSectionWidget` (Blueprint-only content). `UCameraViewWidget` just holds an `AAirplane*` reference via `SetAirplane()` — the actual texture binding to `GetCameraOutputTexture()` happens in the UMG Blueprint, not in native code.
+`AUAVSimulatorPlayerController` (`UAVSimulatorPlayerController.h/cpp`) creates a `USimulatorMenuWidget` from `MenuWidgetClass` in `BeginPlay` (`GameAndUI` input mode); `Q` / `Gamepad_Special_Right` → `OnQPressed()`: remove camera widgets, `GameMode->StopSimulation()`, show menu on the `Scenario` section.
+
+`USimulatorMenuWidget` (`UI/SimulatorMenuWidget.h/cpp`) is the top-level UMG menu: nav buttons (`BindWidget`) drive a `ContentSwitcher : UWidgetSwitcher`. `EMenuSection` (`Entity/MenuSection.h`): `Scenario`, `Sensors`, `Environment`, `SyntheticData`, `Global` (switcher child order matches). `OpenSection()` fires `OnSectionDeactivated`/`OnSectionActivated` on the panels; `ButtonStartSimulation` → `GameMode->StartSimulation()`. Each panel derives from abstract `USimulatorSectionWidget` (`OnSectionActivated`/`OnSectionDeactivated` `BlueprintNativeEvent`s):
+
+| Section | `USaveGame` slot | Binds to |
+|---------|------------------|----------|
+| `UScenarioSectionWidget` | `ScenarioSettings` → `UScenarioSettingsSave` | GameMode mode / slot name / offset / camera & sensors `EOnboardTargetMode` |
+| `USensorsSectionWidget` | `SensorSettings` → `USensorSettingsSave` | one `UCheckBox` per sensor (four are `OptionalWidget`) |
+| `UEnvironmentSectionWidget` | `EnvironmentSettings` → `UEnvironmentSettingsSave` | Cesium `Georeference` / `SunSky` / `Tileset` + fallback sky/sun |
+| `USyntheticDataSectionWidget` | `SyntheticDataSettings` → `USyntheticDataSettingsSave` | the four `DatasetGen` actors |
+| `UGlobalSectionWidget` | `GlobalSettings` → `UGlobalSettingsSave` | `SensorWarmupFrameCount` (warm-up logic not implemented yet) |
+
+`UDronesSectionWidget` — Blueprint-only content, not in the switcher.
+
+HUD widgets (on the flown pawn only): `UAirplaneTelemetryWidget` (`SetAirplane()` + `BlueprintPure` altitude/speed/pitch/roll getters), `UCameraViewWidget` (`SetAirplane()`; texture bound to `GetCameraOutputTexture()` in the UMG Blueprint).
 
 ### Aerodynamic Data Pipeline
 
@@ -198,7 +233,7 @@ Two `CallInEditor` tool actors under `DatasetGen/` generate offline training dat
 
 | File | Role |
 |------|------|
-| `Actor/Airplane.h/cpp` | Main aircraft pawn; owns `FlightDynamicsComponent`, `AttitudeControlComponent`, `PilotInputComponent` + keyboard/gamepad sources; `SetupPlayerInputComponent` fans out `BindInput` to every `IPilotInputSource`; `RefreshVisualEffects()` toggles VFX per role |
+| `Actor/Airplane.h/cpp` | Main aircraft pawn; owns `FlightDynamicsComponent`, `AttitudeControlComponent`, `PilotInputComponent` + keyboard/gamepad sources; `SetupPlayerInputComponent` fans out `BindInput` to every `IPilotInputSource`; `RefreshConfigurations()` / `RefreshSensorSettings()` toggle VFX / camera / sensors per role |
 | `Components/FlightDynamicsComponent.h/cpp` | All aerodynamics, physics forces, vortex wake |
 | `SceneComponent/AeroVisualizer/AeroVisualizerComponent.h/cpp` | Niagara wake-vortex VFX: spawns in BeginPlay, pushes wingtip position + AoA each tick |
 | `Subsystem/UAVSimulationSubsystem.h/cpp` | World subsystem; holds VFX enable flags, broadcasts `OnVisualSettingsChanged` |
@@ -207,17 +242,30 @@ Two `CallInEditor` tool actors under `DatasetGen/` generate offline training dat
 | `Components/FlightRecorderComponent.h/cpp` | Records flight frames to `UFlightScenarioSave` save game |
 | `Components/UAVCameraComponent.h/cpp` | Onboard camera + OpenCV processing (`UActorComponent`, no scene transform) |
 | `Components/SensorBusComponent.h` | Discovers `IUAVSensorInterface` components on the owner and publishes `FSensorFrame`s over ZMQ PUB |
-| `Components/AttitudeControlComponent.h/cpp` | ZMQ PULL command receiver; P-controllers; `IPilotInputSource` tier 100 (feeds `UPilotInputComponent`, no longer writes the API directly) |
+| `Components/AttitudeControlComponent.h/cpp` | ZMQ PULL command receiver (`tcp://*:5556`); `FPidController` per axis; `IPilotInputSource` tier 100 (feeds `UPilotInputComponent`, no longer writes the API directly) |
+| `Entity/PidController.h/cpp` | `FPidController` USTRUCT — anti-windup, derivative filter, angular-error unwrap, gain-scheduling curve; used by `UAttitudeControlComponent` |
+| `Entity/ActuatorDynamics.h/cpp` | `FActuatorDynamics` USTRUCT — control-surface transient (rate limit / first-order lag / 2nd-order); owned by `UControlSurfaceSC` |
+| `Structure/AircraftCalibrationSettings.h` | `FAircraftCalibrationSettings` — `ExpectedWingSpanMeters` auto-rescale, applied in `AAirplane::BeginPlay` |
+| `Components/GeoPositionDroneComponent.h/cpp` | Sensor: aircraft lat/long/alt via `ACesiumGeoreference` (`drone_geo_position`) |
+| `Components/AttitudeIndicatorComponent.h/cpp` | Sensor: roll/pitch/yaw + body angular rates (`attitude_indicator`) |
+| `Components/CesiumSurroundingsScannerComponent.h/cpp` | Sensor: camera-FOV sphere sweep over Cesium 3D Tiles, reads feature metadata, persistent `ObjectStorage`, projects onto camera frame (`cesium_objects`) |
+| `Components/CustomSurroundingsScannerComponent.h/cpp` | Sensor: objects from a JSON list, snapped to the Cesium tile surface, projected onto the camera frame (`custom_objects`) |
 | `Interfaces/UAVSensorInterface.h` | Contract implemented by all sensor components (Altimeter, Lidar, BBox/KeyPoint detection, camera adapters, etc.) |
 | `Interfaces/PilotInputSource.h` + `Structure/PilotCommand.h` | `IPilotInputSource` contract + `FPilotCommand` frame — control-input analogue of `IUAVSensorInterface`/`FSensorFrame` |
 | `Components/PilotInputComponent.h/cpp` | Coordinator: discovers `IPilotInputSource` components, combines by priority tier (sum+clamp), sole writer of `FlightDynamicsComponent`'s control API; owns throttle accumulator |
 | `Components/KeyboardPilotInputComponent.h/cpp` · `Components/GamepadPilotInputComponent.h/cpp` | `IPilotInputSource` tier 0: keyboard (`Kbd*` axes, passthrough) / gamepad (`Pad*` axes, deadzone+expo+sensitivity; RC Mode 2; SN30 Pro+ XInput) |
 | `DatasetGen/DroneDatasetGeneratorActor.h/cpp` | Editor tool: orbit-capture + OpenCV silhouette extraction for ML bounding-shape datasets |
 | `DatasetGen/DroneKeyPointDatasetActor.h/cpp` | Editor tool: exports normalized `UKeyPointComponent` positions for ML keypoint datasets |
-| `UI/SimulatorMenuWidget.h/cpp` | Top-level UMG menu; switches between `Scenario`/`Sensors`/`Environment`/`SyntheticData` section widgets |
+| `DatasetGen/SceneObjectDatasetActor.h/cpp` | Tool: exports world position + AABB of every scene actor (excludes `AAirplane`, mesh-less actors) |
+| `DatasetGen/YoloMarkerDatasetActor.h/cpp` | Tool: `Tick` state machine, orbits a capture around each map marker, writes a YOLO detection dataset; forces `ForbidHoles` on Cesium tilesets for the sweep |
+| `UAVSimulatorPlayerController.h/cpp` | Owns `USimulatorMenuWidget`; `Q` / gamepad Start → `StopSimulation()` + open menu |
+| `UI/AirplaneTelemetryWidget.h/cpp` | HUD readout: `SetAirplane()` + `BlueprintPure` altitude/speed/pitch/roll |
+| `UI/Sections/*SectionWidget.h/cpp` | Menu panels (`Scenario`/`Sensors`/`Environment`/`SyntheticData`/`Global`), each persisting to its own `USaveGame` slot; base class `USimulatorSectionWidget` |
+| `Save/*SettingsSave.h` · `Save/GlobalSettingsSave.h` | `USaveGame` classes for menu-section persistence |
+| `UI/SimulatorMenuWidget.h/cpp` | Top-level UMG menu; switches between `Scenario`/`Sensors`/`Environment`/`SyntheticData`/`Global` section widgets |
 | `SceneComponent/AerodynamicSurface/AerodynamicSurfaceSC.h/cpp` | Per-surface force aggregation; builds and owns `USubAerodynamicSurfaceSC` children |
-| `SceneComponent/SubAerodynamicSurface/SubAerodynamicSurfaceSC.h/cpp` | Per-segment forces, DataTable lookup; exposes `CurrentWorldCoP` and `CurrentGamma` |
-| `SceneComponent/ControlSurface/ControlSurfaceSC.h/cpp` | Deflectable control surfaces |
+| `SceneComponent/SubAerodynamicSurface/SubAerodynamicSurfaceSC.h/cpp` | Per-segment forces + DataTable lookup; routes the commanded flap angle through `UControlSurfaceSC::Move` (actuator lag) before the polar lookup |
+| `SceneComponent/ControlSurface/ControlSurfaceSC.h/cpp` | Deflectable control surface; `Move()` advances an `FActuatorDynamics` and rotates the component about `EAxisType`, over its captured rest rotation |
 | `SceneComponent/KeyPoint/KeyPointComponent.h/cpp` | Hand-placed landmark marker (`PointID`) on the airframe, used by detection sensor + dataset export |
 | `UAVSimulatorGameModeBase.h/cpp` | Simulator mode dispatch: `RecordTarget` vs `PlaybackAndTrack` |
 | `Structure/AerodynamicSurfaceStructure.h` | `FAerodynamicSurfaceStructure` USTRUCT: chord size, offsets, flap range, DataTable ref, `EFlapType` |

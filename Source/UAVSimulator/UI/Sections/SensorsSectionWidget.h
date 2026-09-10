@@ -24,6 +24,10 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UCheckBox> AltimeterCB;
 
+	/** Optional — same convention as CesiumSurroundingsCB; add an "AttitudeIndicatorCB" checkbox to the UMG Blueprint to bind it. */
+	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
+	TObjectPtr<UCheckBox> AttitudeIndicatorCB;
+
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UCheckBox> CameraInclinationCB;
 
@@ -61,6 +65,7 @@ private:
 
 	UFUNCTION() void OnCameraFrameChanged(bool bIsChecked);
 	UFUNCTION() void OnAltimeterChanged(bool bIsChecked);
+	UFUNCTION() void OnAttitudeIndicatorChanged(bool bIsChecked);
 	UFUNCTION() void OnCameraInclinationChanged(bool bIsChecked);
 	UFUNCTION() void OnLidarChanged(bool bIsChecked);
 	UFUNCTION() void OnCameraAltitude(bool bIsChecked);

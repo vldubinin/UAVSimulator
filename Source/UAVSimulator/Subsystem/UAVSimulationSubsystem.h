@@ -30,6 +30,7 @@ public:
 	EOnboardTargetMode SensorsMode = EOnboardTargetMode::Drone;
 
 	bool bEnableSensorAltimeter          = true;
+	bool bEnableSensorAttitudeIndicator  = true;
 	bool bEnableSensorCameraInclination  = true;
 	bool bEnableSensorLidar              = true;
 	bool bEnableSensorCameraFrame        = true;
@@ -47,5 +48,5 @@ public:
 
 	void SetVisualSettings(bool bInPlayer, bool bInTarget);
 	void SetOnboardCameraMode(EOnboardTargetMode Mode);
-	void SetSensorSettings(EOnboardTargetMode InSensorsMode, bool bAltimeter, bool bCameraInclination, bool bLidar, bool bCameraFrame, bool bCameraAltitude, bool bSegmentationMask, bool bBBoxDetection, bool bPosition, bool bGeoPosition, bool bCesiumSurroundings, bool bCustomSurroundings);
+	void SetSensorSettings(EOnboardTargetMode InSensorsMode, bool bAltimeter, bool bAttitudeIndicator, bool bCameraInclination, bool bLidar, bool bCameraFrame, bool bCameraAltitude, bool bSegmentationMask, bool bBBoxDetection, bool bPosition, bool bGeoPosition, bool bCesiumSurroundings, bool bCustomSurroundings);
 };

@@ -64,6 +64,9 @@ public:
 	bool bEnableSensorAltimeter = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
+	bool bEnableSensorAttitudeIndicator = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
 	bool bEnableSensorCameraInclination = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")

@@ -49,6 +49,15 @@ public:
 
 	float GetAngleOfAttack() const;
 	FVector GetLeftWingtipWorldPosition() const;
+	/** @return Світова позиція правого кінця крила (протилежна GetLeftWingtipWorldPosition, той самий елемент Surfaces[0]). */
+	FVector GetRightWingtipWorldPosition() const { return CurrentRightWingtipWorldPos; }
+
+	/**
+	 * @return Розмах першої поверхні (Surfaces[0]) за сирими даними SurfaceForm (Offset.Y), в см,
+	 * БЕЗ урахування поточного масштабу актора — "дизайнерський" розмір із конфігурації.
+	 * Використовується для авто-калібрування масштабу актора при спавні, див. AAirplane::BeginPlay.
+	 */
+	float GetDesignWingSpanCm() const;
 
 	/** @return Повітряна швидкість (модуль лінійної швидкості mesh), м/с. */
 	float GetAirspeed() const { return PhysicsState->GetLinearVelocity().Size() / 100.0f; }
@@ -116,6 +125,9 @@ private:
 
 	/** Bound vortex filaments rebuilt each tick from active surfaces. */
 	TArray<FBoundVortex> CurrentBoundVortices;
+
+	/** Світова позиція правого кінця крила (Surfaces[0]), оновлюється кожен тік поруч із CurrentBoundVortices. */
+	FVector CurrentRightWingtipWorldPos = FVector::ZeroVector;
 
 	/**
 	 * Trailing vortex wake lines shed from each surface.

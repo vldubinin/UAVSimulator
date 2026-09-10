@@ -1,5 +1,6 @@
 #include "AeroVisualizerComponent.h"
 #include "NiagaraDataInterfaceArrayFunctionLibrary.h"
+#include "Components/StaticMeshComponent.h"
 #include "UAVSimulator/Components/FlightDynamicsComponent.h"
 #include "UAVSimulator/SceneComponent/AerodynamicSurface/AerodynamicSurfaceSC.h"
 
@@ -27,6 +28,12 @@ void UAeroVisualizerComponent::BeginPlay()
 	TArray<UAerodynamicSurfaceSC*> Surfaces;
 	Owner->GetComponents<UAerodynamicSurfaceSC>(Surfaces);
 
+	// Offset.Y — сире число в см (не проходить через TransformPosition), тому масштаб треба застосувати
+	// вручну. Масштаб задається на StaticMeshComponent (не на акторі/поверхнях), тому беремо його звідти —
+	// так само, як у FlightDynamicsComponent::TickComponent.
+	const UStaticMeshComponent* Mesh = Owner->FindComponentByClass<UStaticMeshComponent>();
+	const float SurfaceSpanScale = Mesh ? Mesh->GetComponentScale().Y : 1.0f;
+
 	for (UAerodynamicSurfaceSC* Surface : Surfaces)
 	{
 		const FString Name = Surface->GetName();
@@ -39,7 +46,7 @@ void UAeroVisualizerComponent::BeginPlay()
 		float SpanCm = 0.0f;
 		for (const FAerodynamicSurfaceStructure& Form : Surface->SurfaceForm)
 		{
-			SpanCm += FMath::Abs(Form.Offset.Y);
+			SpanCm += FMath::Abs(Form.Offset.Y) * SurfaceSpanScale;
 		}
 		if (Surface->Mirror) SpanCm *= 2.0f;
 

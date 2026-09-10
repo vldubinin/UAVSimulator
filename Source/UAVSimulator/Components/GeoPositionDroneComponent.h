@@ -6,6 +6,7 @@
 #include "GeoPositionDroneComponent.generated.h"
 
 class ACesiumGeoreference;
+class UFlightDynamicsComponent;
 
 /**
  * Same role as UDronePositionComponent, but publishes the aircraft's position as
@@ -47,6 +48,10 @@ private:
 	/** Resolved in BeginPlay via ACesiumGeoreference::GetDefaultGeoreference. */
 	UPROPERTY()
 	ACesiumGeoreference* Georeference = nullptr;
+
+	/** Resolved in BeginPlay via FindComponentByClass — used only for the wingspan debug log below. */
+	UPROPERTY()
+	UFlightDynamicsComponent* FlightDynamics = nullptr;
 
 	double LatestTimestamp = 0.0;
 	bool   bHasData        = false;
