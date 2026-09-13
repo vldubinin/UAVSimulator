@@ -25,5 +25,5 @@ struct UAVSIMULATOR_API FAerodynamicForce
 	{}
 };
 
-// Compatibility alias — remove once all call sites use FAerodynamicForce
+// Псевдонім для сумісності — прибрати, коли всі виклики перейдуть на FAerodynamicForce
 using AerodynamicForce = FAerodynamicForce;

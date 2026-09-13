@@ -4,8 +4,9 @@
 #include "UAVSimulator/Entity/PolarRow.h"
 
 /**
- * Low-level I/O and external-process helpers for the aerodynamic analysis toolchain.
- * Handles file system operations, polar file parsing, and Python/XFoil/OpenVSP execution.
+ * Низькорівневі допоміжні функції вводу-виводу та запуску зовнішніх процесів для інструментарію
+ * аеродинамічного аналізу. Відповідає за файлові операції, парсинг файлів полярних характеристик
+ * та запуск Python/XFoil/OpenVSP.
  */
 class UAVSIMULATOR_API AerodynamicToolRunner
 {

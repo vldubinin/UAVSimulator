@@ -10,7 +10,7 @@
 #include "Misc/FileHelper.h"
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Construction
+// Конструювання
 // ─────────────────────────────────────────────────────────────────────────────
 
 ASceneObjectDatasetActor::ASceneObjectDatasetActor()
@@ -21,23 +21,22 @@ ASceneObjectDatasetActor::ASceneObjectDatasetActor()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Public entry point
+// Публічна точка входу
 // ─────────────────────────────────────────────────────────────────────────────
 
 void ASceneObjectDatasetActor::ExportSceneObjects()
 {
 	if (OutputJsonPath.IsEmpty())
 	{
-		/* UE_LOG(LogUAV, Warning, TEXT("SceneObjectDataset: OutputJsonPath is empty.")); */
 		return;
 	}
 
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	// ── Collect scene objects ─────────────────────────────────────────────────
-	// Player and target drones are both AAirplane instances, so a single class
-	// check excludes them without needing any tag/marker on the actors.
+	// ── Збір об'єктів сцени ───────────────────────────────────────────────────
+	// Дрони гравця і цілі — обидва екземпляри AAirplane, тож одна перевірка
+	// класу виключає їх без потреби в тегах/маркерах на actor'ах.
 	TArray<AActor*> Objects;
 	for (TActorIterator<AActor> It(World); It; ++It)
 	{
@@ -53,19 +52,11 @@ void ASceneObjectDatasetActor::ExportSceneObjects()
 
 	const FString JsonStr = BuildJson(Objects);
 
-	if (FFileHelper::SaveStringToFile(JsonStr, *OutputJsonPath))
-	{
-		/* UE_LOG(LogUAV, Log, TEXT("SceneObjectDataset: Saved %d objects → %s"),
-			Objects.Num(), *OutputJsonPath); */
-	}
-	else
-	{
-		/* UE_LOG(LogUAV, Error, TEXT("SceneObjectDataset: Failed to write %s"), *OutputJsonPath); */
-	}
+	FFileHelper::SaveStringToFile(JsonStr, *OutputJsonPath);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Exclusion filtering
+// Фільтрація виключень
 // ─────────────────────────────────────────────────────────────────────────────
 
 bool ASceneObjectDatasetActor::IsExcludedClass(const AActor* Actor) const
@@ -82,7 +73,7 @@ bool ASceneObjectDatasetActor::IsExcludedClass(const AActor* Actor) const
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// JSON serialisation
+// Серіалізація в JSON
 // ─────────────────────────────────────────────────────────────────────────────
 
 FString ASceneObjectDatasetActor::BuildJson(const TArray<AActor*>& Objects) const

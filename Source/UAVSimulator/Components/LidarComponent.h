@@ -7,15 +7,15 @@
 #include "LidarComponent.generated.h"
 
 /**
- * LiDAR sensor mounted at a configurable position on the aircraft.
- * Each scan fires rays in a spherical pattern and populates LatestScanResults:
- *   actor name → closest hit distance (in Unreal cm).
+ * Датчик LiDAR, встановлений у настроюваній позиції на літаку.
+ * Кожне сканування випускає промені за сферичним патерном і заповнює LatestScanResults:
+ *   ім'я актора -> відстань до найближчого влучання (в см Unreal).
  *
- * Implements IUAVSensorInterface — SensorBusComponent calls GetLatestFrame()
- * each bus tick to retrieve the scan results as a JSON-encoded payload.
+ * Реалізує IUAVSensorInterface — SensorBusComponent викликає GetLatestFrame()
+ * на кожному такті шини, щоб отримати результати сканування як JSON-payload.
  *
- * As a USceneComponent the sensor can be placed anywhere in the actor's
- * component hierarchy and its transform is used as the scan origin.
+ * Як USceneComponent, датчик можна розмістити будь-де в ієрархії компонентів актора,
+ * і саме його трансформація використовується як точка початку сканування.
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API ULidarComponent : public USceneComponent, public IUAVSensorInterface
@@ -32,40 +32,40 @@ public:
 	virtual bool GetLatestFrame(FSensorFrame& OutFrame) override;
 
 	/**
-	 * Runs a full scan immediately on the game thread, updates LatestScanResults,
-	 * and returns a reference to it. Called automatically by TickComponent at
-	 * ScanRate Hz; can also be triggered directly from Blueprint.
+	 * Виконує повне сканування негайно в ігровому потоці, оновлює LatestScanResults
+	 * і повертає посилання на нього. Автоматично викликається з TickComponent із частотою
+	 * ScanRate Гц; також може бути викликаний напряму з Blueprint.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Lidar")
 	const TMap<FString, float>& Scan();
 
-	/** Most recent scan results: actor name → closest hit distance in Unreal cm. */
+	/** Останні результати сканування: ім'я актора -> відстань до найближчого влучання в см Unreal. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Lidar")
 	TMap<FString, float> LatestScanResults;
 
-	// ── Scan parameters ───────────────────────────────────────────────────────
+	// ── Параметри сканування ───────────────────────────────────────────────────────
 
-	/** Maximum detection range in Unreal cm (default 5000 cm = 50 m). */
+	/** Максимальна дальність виявлення в см Unreal (за замовчуванням 5000 см = 50 м). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lidar", meta = (ClampMin = 1.0f))
 	float Range = 5000.0f;
 
-	/** Number of rays distributed evenly over a full 360° horizontal sweep. */
+	/** Кількість променів, рівномірно розподілених по повному горизонтальному розгортанню 360°. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lidar", meta = (ClampMin = 1))
 	int32 HorizontalRays = 360;
 
-	/** Number of evenly-spaced vertical scan layers. */
+	/** Кількість рівномірно розподілених вертикальних шарів сканування. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lidar", meta = (ClampMin = 1))
 	int32 VerticalLayers = 16;
 
-	/** Total vertical field of view in degrees, symmetric around the horizontal plane. */
+	/** Повне вертикальне поле зору в градусах, симетричне відносно горизонтальної площини. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lidar", meta = (ClampMin = 1.0f, ClampMax = 180.0f))
 	float VerticalFOVDeg = 30.0f;
 
-	/** How many full scans are performed per second. */
+	/** Скільки повних сканувань виконується за секунду. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lidar", meta = (ClampMin = 0.1f, ClampMax = 100.0f))
 	float ScanRate = 10.0f;
 
-	/** Collision channel used for ray traces. */
+	/** Канал колізії, що використовується для трасування променів. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lidar")
 	TEnumAsByte<ECollisionChannel> CollisionChannel = ECC_Visibility;
 
@@ -73,5 +73,5 @@ private:
 	float  GetVerticalAngle(int32 V) const;
 
 	float  ScanAccumulator      = 0.0f;
-	double LatestScanTimestamp  = 0.0;   // world time when Scan() last completed
+	double LatestScanTimestamp  = 0.0;   // ігровий час, коли Scan() востаннє завершився
 };

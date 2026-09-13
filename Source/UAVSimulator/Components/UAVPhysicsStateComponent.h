@@ -5,9 +5,9 @@
 #include "UAVPhysicsStateComponent.generated.h"
 
 /**
- * Tracks per-tick physics state for the aircraft: linear/angular velocity,
- * center of mass, and airflow direction.
- * Call Update() once per tick before reading any getter.
+ * Відстежує пофреймовий фізичний стан літака: лінійну/кутову швидкість,
+ * центр мас і напрямок набігаючого потоку.
+ * Викликайте Update() один раз на такт перед зчитуванням будь-якого геттера.
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API UUAVPhysicsStateComponent : public UActorComponent

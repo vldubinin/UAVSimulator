@@ -79,18 +79,6 @@ bool AerodynamicToolRunner::RunPythonScript(FString Command)
 
 	const bool bSuccess = IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
 
-	// Перенаправляємо весь вивід Python у LogUAV
-	for (const FPythonLogOutputEntry& Entry : PythonCommand.LogOutput)
-	{
-		if (Entry.Type == EPythonLogOutputType::Error)
-		{
-			/* UE_LOG(LogUAV, Error, TEXT("[Python ERROR] %s"), *Entry.Output); */
-		}
-		else
-		{
-			/* UE_LOG(LogUAV, Log, TEXT("[Python INFO] %s"), *Entry.Output); */
-		}
-	}
 	return bSuccess;
 }
 

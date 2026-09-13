@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Заповніть примітку про авторські права на сторінці Description в Project Settings.
 
 #include "FlightPlaybackComponent.h"
 #include "UAVSimulator/Components/FlightDynamicsComponent.h"
@@ -9,7 +9,7 @@
 UFlightPlaybackComponent::UFlightPlaybackComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
-	// Tick is driven by the playback state; start disabled and enable in StartPlayback.
+	// Тік керується станом відтворення; починаємо вимкненим і вмикаємо в StartPlayback.
 	PrimaryComponentTick.bStartWithTickEnabled = false;
 }
 
@@ -20,7 +20,6 @@ void UFlightPlaybackComponent::StartPlayback()
 
 	if (!Scenario || Scenario->FlightFrames.Num() == 0)
 	{
-		/* UE_LOG(LogTemp, Warning, TEXT("FlightPlaybackComponent: failed to load scenario from slot '%s'"), *SaveSlotName); */
 		return;
 	}
 
@@ -32,14 +31,14 @@ void UFlightPlaybackComponent::StartPlayback()
 	AActor* Owner = GetOwner();
 	if (!Owner) return;
 
-	// Disable physics so playback drives transforms directly without fighting the solver.
+	// Вимикаємо фізику, щоб відтворення напряму керувало трансформаціями, не борючись із солвером.
 	UStaticMeshComponent* Mesh = Owner->FindComponentByClass<UStaticMeshComponent>();
 	if (Mesh)
 	{
 		Mesh->SetSimulatePhysics(false);
 	}
 
-	// Silence flight dynamics so it applies no forces while we replay transforms.
+	// Глушимо політну динаміку, щоб під час відтворення трансформацій вона не застосовувала жодних сил.
 	UFlightDynamicsComponent* FlightDynamics = Owner->FindComponentByClass<UFlightDynamicsComponent>();
 	if (FlightDynamics)
 	{
@@ -61,7 +60,7 @@ void UFlightPlaybackComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 		bIsPlaying = false;
 		SetComponentTickEnabled(false);
 
-		// Snap to the final recorded frame.
+		// Фіксуємось на останньому записаному кадрі.
 		const TArray<FFlightFrame>& Frames = LoadedScenario->FlightFrames;
 		if (Frames.Num() > 0)
 		{
@@ -70,7 +69,7 @@ void UFlightPlaybackComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 		return;
 	}
 
-	// Find Frame B: first frame whose Timestamp is strictly past CurrentPlaybackTime.
+	// Шукаємо кадр B: перший кадр, чий Timestamp строго перевищує CurrentPlaybackTime.
 	const TArray<FFlightFrame>& Frames = LoadedScenario->FlightFrames;
 	int32 FrameBIndex = INDEX_NONE;
 	for (int32 i = 0; i < Frames.Num(); ++i)
@@ -82,7 +81,7 @@ void UFlightPlaybackComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 		}
 	}
 
-	// No upper bracket means we are before the first frame or the array is empty — nothing to draw yet.
+	// Відсутність верхньої межі означає, що ми перед першим кадром або масив порожній — малювати ще нічого.
 	if (FrameBIndex <= 0) return;
 
 	const FFlightFrame& FrameA = Frames[FrameBIndex - 1];

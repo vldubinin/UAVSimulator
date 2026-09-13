@@ -12,7 +12,7 @@ class UAVSIMULATOR_API AUAVSimulatorPlayerController : public APlayerController
 	GENERATED_BODY()
 
 public:
-	/** Blueprint widget class to instantiate as the simulator menu. */
+	/** Клас Blueprint-віджета, який інстанціюється як меню симулятора. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
 	TSubclassOf<USimulatorMenuWidget> MenuWidgetClass;
 
@@ -28,7 +28,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "UI")
 	bool IsMenuVisible() const;
 
-	/** Called by AAirplane when it creates a camera widget so the PC can clean it up. */
+	/** Викликається з AAirplane при створенні віджета камери, щоб PC міг його прибрати. */
 	void RegisterCameraWidget(UUserWidget* Widget);
 	void RemoveCameraWidgets();
 

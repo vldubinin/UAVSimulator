@@ -17,14 +17,15 @@
 class ACesiumCameraManager;
 
 /**
- * Manages the onboard camera: RGB capture, OpenCV processing, optional segmentation
- * mask capture, and per-tick stable JPEG payloads for downstream consumers.
+ * Керує бортовою камерою: RGB-захопленням, обробкою OpenCV, опційним захопленням маски
+ * сегментації та стабільними в межах тіку JPEG-корисними навантаженнями для споживачів нижче
+ * за течією.
  *
- * Call GetRGBFrame() / GetMaskFrame() on the game thread to obtain the latest
- * JPEG-encoded payload for the current tick. Multiple calls within the same tick
- * always return the same snapshot.
+ * Викликайте GetRGBFrame() / GetMaskFrame() в ігровому потоці, щоб отримати останнє
+ * JPEG-закодоване навантаження для поточного тіку. Кілька викликів у межах одного тіку
+ * завжди повертають той самий знімок.
  *
- * JPEG encoding for each stream runs on a dedicated background thread.
+ * JPEG-кодування кожного потоку виконується у виділеному фоновому потоці.
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API UUAVCameraComponent : public UActorComponent
@@ -38,16 +39,16 @@ public:
 	void SetCameraProcessingEnabled(bool bEnable);
 
 	/**
-	 * Returns the tick-stable JPEG-encoded RGB payload.
-	 * Multiple calls within the same tick return the same snapshot.
-	 * Must be called on the game thread.
+	 * Повертає стабільне в межах тіку JPEG-закодоване RGB-навантаження.
+	 * Кілька викликів у межах одного тіку повертають той самий знімок.
+	 * Має викликатися в ігровому потоці.
 	 */
 	bool GetRGBFrame(TArray<uint8>& OutPayload, double& OutTimestamp) const;
 
 	/**
-	 * Returns the tick-stable JPEG-encoded segmentation mask payload.
-	 * Only produces data when MaskPostProcessMaterial is set.
-	 * Must be called on the game thread.
+	 * Повертає стабільне в межах тіку JPEG-закодоване навантаження маски сегментації.
+	 * Видає дані лише коли встановлено MaskPostProcessMaterial.
+	 * Має викликатися в ігровому потоці.
 	 */
 	bool GetMaskFrame(TArray<uint8>& OutPayload, double& OutTimestamp) const;
 
@@ -64,28 +65,28 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 public:
-	/** Processed output texture — bind in a widget or material. */
+	/** Оброблена вихідна текстура — прив'язуйте у віджеті або матеріалі. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Computer Vision")
 	UTexture2D* OutputTexture;
 
-	/** Horizontal FOV of the capture camera in degrees. */
+	/** Горизонтальний FOV камери захоплення, у градусах. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Computer Vision")
 	float HorizontalFOVDeg = 0.0f;
 
-	/** Vertical FOV of the capture camera in degrees. */
+	/** Вертикальний FOV камери захоплення, у градусах. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Computer Vision")
 	float VerticalFOVDeg = 0.0f;
 
-	/** JPEG quality for encoded frames (1–100). */
+	/** Якість JPEG для закодованих кадрів (1–100). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Streaming", meta = (ClampMin = 1, ClampMax = 100))
 	int32 JpegQuality = 80;
 
-	/** Maximum JPEG encodes per second for both streams. */
+	/** Максимальна кількість кодувань JPEG за секунду для обох потоків. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Streaming", meta = (ClampMin = 1, ClampMax = 120))
 	int32 MaxEncodeFPS = 30;
 
-	/** Post-process material that converts the Custom Stencil to a B&W mask.
-	 *  When set, mask capture runs alongside RGB each tick. */
+	/** Матеріал пост-процесу, що перетворює Custom Stencil на чорно-білу маску.
+	 *  Коли встановлено, захоплення маски виконується разом з RGB щотіку. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Segmentation")
 	UMaterialInterface* MaskPostProcessMaterial = nullptr;
 
@@ -97,21 +98,21 @@ private:
 	void ComputeFOV(float HFovDeg);
 	void LogCameraIntrinsics() const;
 
-	// ── Cesium scene-capture camera registration ─────────────────────────────
-	/** Find or spawn the Cesium camera manager for this (game) world. */
+	// ── Реєстрація камери захоплення сцени Cesium ─────────────────────────────
+	/** Знаходить або спавнить менеджер камер Cesium для цього (ігрового) світу. */
 	void ResolveCesiumCameraManager();
-	/** Per-frame add-or-update of our FCesiumCamera so Cesium refines tiles for this capture. */
+	/** Щокадрове додавання-або-оновлення нашого FCesiumCamera, щоб Cesium уточнював тайли для цього захоплення. */
 	void SyncCesiumSceneCaptureCamera();
-	/** Remove our FCesiumCamera on disable / teardown. */
+	/** Видаляє наш FCesiumCamera при вимкненні / знищенні. */
 	void UnregisterCesiumSceneCaptureCamera();
 
-	/** Cesium camera manager for this world (resolved lazily; self-nulls). */
+	/** Менеджер камер Cesium для цього світу (розв'язується лінькаво; самообнуляється). */
 	TWeakObjectPtr<ACesiumCameraManager> CesiumCameraManager;
 
-	/** Stable id from ACesiumCameraManager::AddCamera; INDEX_NONE while unregistered. */
+	/** Стабільний id з ACesiumCameraManager::AddCamera; INDEX_NONE, доки не зареєстровано. */
 	int32 CesiumCameraId = INDEX_NONE;
 
-	/** True between a successful AddCamera and its RemoveCamera. */
+	/** True в проміжку між успішним AddCamera і відповідним RemoveCamera. */
 	bool bCesiumCameraRegistered = false;
 
 	UPROPERTY()
@@ -130,19 +131,19 @@ private:
 	static constexpr int32 CVWidth  = 640;
 	static constexpr int32 CVHeight = 480;
 
-	// ── RGB encode input (game thread → encoder thread) ───────────────────────
+	// ── Вхід кодування RGB (ігровий потік → потік кодувальника) ───────────────────────
 	TArray<uint8>    PendingRGBBGRA;
 	double           PendingRGBTimestamp  = 0.0;
 	bool             bHasPendingRGBFrame  = false;
 	FCriticalSection RGBFrameMutex;
 
-	// ── RGB encode output (encoder thread → game thread) ─────────────────────
+	// ── Вихід кодування RGB (потік кодувальника → ігровий потік) ─────────────────
 	TArray<uint8>    LatestRGBPayload;
 	double           LatestRGBTimestamp   = 0.0;
 	bool             bHasLatestRGBFrame   = false;
 	FCriticalSection LatestRGBMutex;
 
-	// ── RGB encoder thread ────────────────────────────────────────────────────
+	// ── Потік кодувальника RGB ────────────────────────────────────────────────────
 	FEvent*          RGBFrameReadyEvent   = nullptr;
 	FThreadSafeBool  bRGBEncoderRunning;
 	FRunnable*       RGBEncoderRunnable   = nullptr;
@@ -151,24 +152,24 @@ private:
 	double MinEncodeInterval  = 1.0 / 30.0;
 	double LastRGBEncodeTime  = 0.0;
 
-	// ── Tick-stable RGB cache (game thread only, written once per tick) ───────
+	// ── Стабільний у межах тіку кеш RGB (лише ігровий потік, записується раз на тік) ───────
 	TArray<uint8> TickRGBPayload;
 	double        TickRGBTimestamp  = 0.0;
 	bool          bHasTickRGBFrame  = false;
 
-	// ── Mask encode input (game thread → encoder thread) ─────────────────────
+	// ── Вхід кодування маски (ігровий потік → потік кодувальника) ─────────────────
 	TArray<uint8>    PendingMaskBGRA;
 	double           PendingMaskTimestamp  = 0.0;
 	bool             bHasPendingMaskFrame  = false;
 	FCriticalSection MaskFrameMutex;
 
-	// ── Mask encode output (encoder thread → game thread) ────────────────────
+	// ── Вихід кодування маски (потік кодувальника → ігровий потік) ────────────────
 	TArray<uint8>    LatestMaskPayload;
 	double           LatestMaskTimestamp   = 0.0;
 	bool             bHasLatestMaskFrame   = false;
 	FCriticalSection LatestMaskMutex;
 
-	// ── Mask encoder thread ───────────────────────────────────────────────────
+	// ── Потік кодувальника маски ───────────────────────────────────────────────────
 	FEvent*          MaskFrameReadyEvent   = nullptr;
 	FThreadSafeBool  bMaskEncoderRunning;
 	FRunnable*       MaskEncoderRunnable   = nullptr;
@@ -176,7 +177,7 @@ private:
 
 	double LastMaskEncodeTime = 0.0;
 
-	// ── Tick-stable mask cache (game thread only, written once per tick) ──────
+	// ── Стабільний у межах тіку кеш маски (лише ігровий потік, записується раз на тік) ──────
 	TArray<uint8> TickMaskPayload;
 	double        TickMaskTimestamp  = 0.0;
 	bool          bHasTickMaskFrame  = false;

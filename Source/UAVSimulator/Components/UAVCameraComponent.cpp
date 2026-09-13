@@ -11,7 +11,7 @@
 #include "CesiumCamera.h"
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Minimal FRunnable wrapper
+// Мінімальна обгортка FRunnable
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace
@@ -28,7 +28,7 @@ namespace
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Lifecycle
+// Життєвий цикл
 // ─────────────────────────────────────────────────────────────────────────────
 
 UUAVCameraComponent::UUAVCameraComponent()
@@ -83,18 +83,17 @@ void UUAVCameraComponent::BeginPlay()
 	CaptureComponent = Owner->FindComponentByClass<USceneCaptureComponent2D>();
 	if (!CaptureComponent)
 	{
-		/* UE_LOG(LogUAV, Error, TEXT("UAVCameraComponent: USceneCaptureComponent2D not found on %s."), *Owner->GetName()); */
 		return;
 	}
 
 	ComputeFOV(CaptureComponent->FOVAngle);
 	LogCameraIntrinsics();
 
-	// Debug shapes (DrawDebugLine/Box/Sphere/...) render into the world's line-batch
-	// components, which are plain UPrimitiveComponents with no owning actor — a scene
-	// capture has no automatic way to exclude them, so any debug visualization drawn
-	// elsewhere (e.g. UCesiumSurroundingsScannerComponent's rays) would otherwise show up
-	// directly in this camera's feed. Explicitly hide all three line-batcher types.
+	// Відладочні фігури (DrawDebugLine/Box/Sphere/...) рендеряться в компоненти line-batch
+	// світу, які є звичайними UPrimitiveComponent без актора-власника — захоплення сцени не
+	// має автоматичного способу їх виключити, тож будь-яка відладочна візуалізація, намальована
+	// деінде (наприклад, промені UCesiumSurroundingsScannerComponent), інакше з'явилася б прямо
+	// в потоці цієї камери. Явно ховаємо всі три типи line-batcher.
 	if (UWorld* World = GetWorld())
 	{
 		if (ULineBatchComponent* LineBatcher = World->GetLineBatcher(UWorld::ELineBatcherType::World))
@@ -105,14 +104,14 @@ void UUAVCameraComponent::BeginPlay()
 			CaptureComponent->HideComponent(ForegroundLineBatcher);
 	}
 
-	// RGB render target
+	// RGB рендер-таргет
 	RenderTarget = NewObject<UTextureRenderTarget2D>();
 	RenderTarget->InitCustomFormat(CVWidth, CVHeight, PF_B8G8R8A8, false);
 	RenderTarget->UpdateResourceImmediate(false);
 	CaptureComponent->TextureTarget = RenderTarget;
 	CaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
 
-	// Output texture
+	// Вихідна текстура
 	OutputTexture = UTexture2D::CreateTransient(CVWidth, CVHeight, PF_B8G8R8A8);
 	OutputTexture->UpdateResource();
 	if (FTexture2DMipMap* Mip = &OutputTexture->GetPlatformData()->Mips[0])
@@ -125,7 +124,7 @@ void UUAVCameraComponent::BeginPlay()
 
 	UpdateRegion = new FUpdateTextureRegion2D(0, 0, 0, 0, CVWidth, CVHeight);
 
-	// Mask render target — always allocated; capture is gated on MaskPostProcessMaterial
+	// Рендер-таргет маски — завжди виділяється; захоплення обумовлене наявністю MaskPostProcessMaterial
 	MaskRenderTarget = NewObject<UTextureRenderTarget2D>(this);
 	MaskRenderTarget->InitCustomFormat(CVWidth, CVHeight, PF_B8G8R8A8, false);
 	MaskRenderTarget->UpdateResourceImmediate(false);
@@ -136,21 +135,21 @@ void UUAVCameraComponent::BeginPlay()
 	PendingRGBBGRA.SetNumUninitialized(CVWidth * CVHeight * 4);
 	PendingMaskBGRA.SetNumUninitialized(CVWidth * CVHeight * 4);
 
-	// RGB encoder thread
+	// Потік кодувальника RGB
 	RGBFrameReadyEvent = FPlatformProcess::GetSynchEventFromPool(/*bIsManualReset=*/false);
 	bRGBEncoderRunning = true;
 	RGBEncoderRunnable = new FLambdaRunnable([this]() { RGBEncoderLoop(); });
 	RGBEncoderThread   = FRunnableThread::Create(RGBEncoderRunnable, TEXT("UAV_RGBEncoder"), 0, TPri_BelowNormal);
 
-	// Mask encoder thread
+	// Потік кодувальника маски
 	MaskFrameReadyEvent = FPlatformProcess::GetSynchEventFromPool(/*bIsManualReset=*/false);
 	bMaskEncoderRunning = true;
 	MaskEncoderRunnable = new FLambdaRunnable([this]() { MaskEncoderLoop(); });
 	MaskEncoderThread   = FRunnableThread::Create(MaskEncoderRunnable, TEXT("UAV_MaskEncoder"), 0, TPri_BelowNormal);
 
-	// Register this scene capture as a Cesium camera so tiles in its view are refined
-	// independently of the main player camera's frustum (SyncCesiumSceneCaptureCamera
-	// re-resolves if this fails now).
+	// Реєструємо це захоплення сцени як камеру Cesium, щоб тайли в її полі зору уточнювалися
+	// незалежно від фрустуму основної камери гравця (SyncCesiumSceneCaptureCamera повторно
+	// розв'язує менеджер, якщо це зараз не вдасться).
 	ResolveCesiumCameraManager();
 }
 
@@ -198,13 +197,13 @@ void UUAVCameraComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Cesium scene-capture camera registration
+// Реєстрація камери захоплення сцени Cesium
 //
-// Cesium's ACesium3DTileset only feeds tile selection / LOD / culling from player
-// cameras, editor viewports, and standalone ASceneCapture2D *actors*. Our capture
-// is a USceneCaptureComponent2D living inside the pawn Blueprint, so Cesium never
-// sees it and tiles in its view direction get culled by the main camera's frustum.
-// Fix: mirror the capture into ACesiumCameraManager as an FCesiumCamera every frame.
+// ACesium3DTileset у Cesium подає вибір тайлів / LOD / відсіювання лише з камер гравця,
+// вікон перегляду редактора та окремих *акторів* ASceneCapture2D. Наше захоплення —
+// це USceneCaptureComponent2D, що живе всередині Blueprint пешки, тож Cesium його ніколи не
+// бачить, і тайли в напрямку його огляду відсікаються фрустумом основної камери.
+// Рішення: щокадру віддзеркалюємо захоплення в ACesiumCameraManager як FCesiumCamera.
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UUAVCameraComponent::ResolveCesiumCameraManager()
@@ -216,7 +215,7 @@ void UUAVCameraComponent::ResolveCesiumCameraManager()
 
 void UUAVCameraComponent::SyncCesiumSceneCaptureCamera()
 {
-	// Mirror ACesium3DTileset::GetSceneCaptures gating: perspective, sized RT, valid FOV.
+	// Дзеркалимо умови ACesium3DTileset::GetSceneCaptures: перспектива, розмірений RT, дійсний FOV.
 	if (!CaptureComponent || !RenderTarget ||
 		CaptureComponent->ProjectionType != ECameraProjectionMode::Perspective ||
 		CaptureComponent->FOVAngle <= 0.f ||
@@ -230,8 +229,8 @@ void UUAVCameraComponent::SyncCesiumSceneCaptureCamera()
 	ACesiumCameraManager* Mgr = CesiumCameraManager.Get();
 	if (!Mgr) return;
 
-	// FOVAngle is horizontal degrees — passed straight through, exactly as Cesium
-	// does for level scene captures. OverrideAspectRatio stays 0 (derived from size).
+	// FOVAngle — це горизонтальні градуси — передаються напряму, точно так, як Cesium робить
+	// для захоплень сцени рівня. OverrideAspectRatio лишається 0 (виводиться з розміру).
 	const FCesiumCamera Cam(
 		FVector2D(RenderTarget->SizeX, RenderTarget->SizeY),
 		CaptureComponent->GetComponentLocation(),
@@ -245,7 +244,7 @@ void UUAVCameraComponent::SyncCesiumSceneCaptureCamera()
 	}
 	else if (!Mgr->UpdateCamera(CesiumCameraId, Cam))
 	{
-		// Manager recreated (e.g. seamless travel) or id lost — re-add.
+		// Менеджер перестворено (наприклад, seamless travel) або id втрачено — додаємо повторно.
 		CesiumCameraId = Mgr->AddCamera(Cam);
 	}
 }
@@ -260,7 +259,7 @@ void UUAVCameraComponent::UnregisterCesiumSceneCaptureCamera()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tick
+// Тік
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UUAVCameraComponent::SetCameraProcessingEnabled(bool bEnable)
@@ -271,7 +270,7 @@ void UUAVCameraComponent::SetCameraProcessingEnabled(bool bEnable)
 	if (CaptureComponent)
 		CaptureComponent->bCaptureEveryFrame = bEnable;
 
-	// Tick stops when disabled, so the Cesium camera must be removed from here.
+	// Тік зупиняється при вимкненні, тож камеру Cesium потрібно видалити саме тут.
 	if (!bEnable)
 		UnregisterCesiumSceneCaptureCamera();
 }
@@ -283,8 +282,8 @@ void UUAVCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 
 	SyncCesiumSceneCaptureCamera();
 
-	// Snapshot latest encoded results into tick-stable caches before processing.
-	// Consumers calling GetRGBFrame() / GetMaskFrame() this tick see a consistent snapshot.
+	// Знімаємо останні закодовані результати у стабільні в межах тіку кеші перед обробкою.
+	// Споживачі, що викликають GetRGBFrame() / GetMaskFrame() цього тіку, бачать узгоджений знімок.
 	{
 		FScopeLock Lock(&LatestRGBMutex);
 		if (bHasLatestRGBFrame)
@@ -309,7 +308,7 @@ void UUAVCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RGB capture
+// RGB-захоплення
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UUAVCameraComponent::ProcessFrame()
@@ -346,10 +345,10 @@ void UUAVCameraComponent::ProcessFrame()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Mask capture — borrows CaptureComponent for one CaptureScene(), then restores.
-// ReadPixels() flushes the render thread, so the CaptureScene() command is
-// guaranteed to have executed before the pixel read — no cross-tick buffering
-// needed. This keeps the mask frame aligned with the RGB frame from the same tick.
+// Захоплення маски — позичає CaptureComponent на один CaptureScene(), потім повертає назад.
+// ReadPixels() скидає (flush) потік рендеру, тож команда CaptureScene() гарантовано
+// виконається до читання пікселів — міжтіковий буферинг не потрібен. Це утримує кадр маски
+// узгодженим із RGB-кадром того самого тіку.
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UUAVCameraComponent::CaptureMask()
@@ -360,7 +359,7 @@ void UUAVCameraComponent::CaptureMask()
 	const double Now = FPlatformTime::Seconds();
 	if ((Now - LastMaskEncodeTime) < MinEncodeInterval) return;
 
-	// Borrow CaptureComponent, point it at MaskRenderTarget, inject post-process material.
+	// Позичаємо CaptureComponent, спрямовуємо на MaskRenderTarget, впроваджуємо матеріал пост-процесу.
 	UTextureRenderTarget2D*    OriginalRT         = CaptureComponent->TextureTarget;
 	TArray<FWeightedBlendable> OriginalBlendables = CaptureComponent->PostProcessSettings.WeightedBlendables.Array;
 
@@ -370,12 +369,12 @@ void UUAVCameraComponent::CaptureMask()
 	);
 	CaptureComponent->CaptureScene();
 
-	// Restore immediately — the render command already holds its own reference.
+	// Відновлюємо негайно — команда рендеру вже тримає власне посилання.
 	CaptureComponent->TextureTarget                                 = OriginalRT;
 	CaptureComponent->PostProcessSettings.WeightedBlendables.Array = OriginalBlendables;
 
-	// ReadPixels flushes all pending render commands, including the CaptureScene()
-	// above, so MaskRenderTarget is fully populated before we read it.
+	// ReadPixels скидає всі відкладені команди рендеру, включно з CaptureScene() вище,
+	// тож MaskRenderTarget повністю заповнений до того, як ми його читаємо.
 	FTextureRenderTargetResource* RTResource = MaskRenderTarget->GameThread_GetRenderTargetResource();
 	if (!RTResource) return;
 
@@ -394,7 +393,7 @@ void UUAVCameraComponent::CaptureMask()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Public frame accessors — tick-stable, game thread only
+// Публічні акцесори кадрів — стабільні в межах тіку, лише ігровий потік
 // ─────────────────────────────────────────────────────────────────────────────
 
 bool UUAVCameraComponent::GetRGBFrame(TArray<uint8>& OutPayload, double& OutTimestamp) const
@@ -414,7 +413,7 @@ bool UUAVCameraComponent::GetMaskFrame(TArray<uint8>& OutPayload, double& OutTim
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RGB encoder thread
+// Потік кодувальника RGB
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UUAVCameraComponent::RGBEncoderLoop()
@@ -457,7 +456,7 @@ void UUAVCameraComponent::RGBEncoderLoop()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Mask encoder thread
+// Потік кодувальника маски
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UUAVCameraComponent::MaskEncoderLoop()
@@ -500,7 +499,7 @@ void UUAVCameraComponent::MaskEncoderLoop()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helpers
+// Допоміжні функції
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UUAVCameraComponent::ComputeFOV(float HFovDeg)
@@ -518,9 +517,9 @@ void UUAVCameraComponent::LogCameraIntrinsics() const
 {
 	if (!CaptureComponent) return;
 
-	// Focal length in pixels, derived from horizontal FOV and resolution.
-	// Square-pixel assumption holds because VerticalFOVDeg is itself derived
-	// from HorizontalFOVDeg via the CVWidth/CVHeight aspect ratio (see ComputeFOV).
+	// Фокусна відстань у пікселях, виведена з горизонтального FOV і роздільної здатності.
+	// Припущення про квадратні пікселі справедливе, оскільки VerticalFOVDeg сам виводиться
+	// з HorizontalFOVDeg через співвідношення сторін CVWidth/CVHeight (див. ComputeFOV).
 	const float FocalPx = (CVWidth * 0.5f) / FMath::Tan(FMath::DegreesToRadians(HorizontalFOVDeg * 0.5f));
 
 	FMatrix ProjectionMatrix;

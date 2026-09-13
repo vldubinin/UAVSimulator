@@ -24,7 +24,7 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UCheckBox> AltimeterCB;
 
-	/** Optional — same convention as CesiumSurroundingsCB; add an "AttitudeIndicatorCB" checkbox to the UMG Blueprint to bind it. */
+	/** Опціонально — за тим самим принципом, що й CesiumSurroundingsCB; щоб прив'язати, додайте чекбокс "AttitudeIndicatorCB" до UMG Blueprint. */
 	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
 	TObjectPtr<UCheckBox> AttitudeIndicatorCB;
 
@@ -37,20 +37,21 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UCheckBox> PositionCB;
 
-	/** Optional — same convention as CesiumSurroundingsCB; add a "GeoPositionCB" checkbox to the UMG Blueprint to bind it. */
+	/** Опціонально — за тим самим принципом, що й CesiumSurroundingsCB; щоб прив'язати, додайте чекбокс "GeoPositionCB" до UMG Blueprint. */
 	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
 	TObjectPtr<UCheckBox> GeoPositionCB;
 
 	/**
-	 * Optional — meta=(BindWidget) alone (without "optional") would normally require this
-	 * widget to exist in the paired UMG Blueprint at construction time. Until someone adds a
-	 * "CesiumSurroundingsCB" checkbox to that Blueprint in the UMG editor, this stays null;
-	 * every use below is guarded accordingly instead of assuming it's bound like the others.
+	 * Опціонально — саме лише meta=(BindWidget) (без "optional") зазвичай вимагало б, щоб цей
+	 * віджет існував у парному UMG Blueprint на момент конструювання. Поки хтось не додасть
+	 * чекбокс "CesiumSurroundingsCB" до цього Blueprint у редакторі UMG, тут залишається null;
+	 * тому кожне використання нижче відповідно захищене перевіркою, а не вважається прив'язаним
+	 * без умов, як інші поля.
 	 */
 	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
 	TObjectPtr<UCheckBox> CesiumSurroundingsCB;
 
-	/** Optional — same convention as CesiumSurroundingsCB; add a "CustomSurroundingsCB" checkbox to the UMG Blueprint to bind it. */
+	/** Опціонально — за тим самим принципом, що й CesiumSurroundingsCB; щоб прив'язати, додайте чекбокс "CustomSurroundingsCB" до UMG Blueprint. */
 	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
 	TObjectPtr<UCheckBox> CustomSurroundingsCB;
 

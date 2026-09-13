@@ -7,17 +7,17 @@
 #include "CameraInclinationComponent.generated.h"
 
 /**
- * Camera inclination sensor: reads the actual world-space vertical tilt angle
- * of the onboard camera (USceneCaptureComponent2D) each tick.
+ * Сенсор нахилу камери: читає фактичний кут вертикального нахилу бортової
+ * камери (USceneCaptureComponent2D) у світових координатах щотіку.
  *
- * Reports pitch in world space — not relative to the aircraft — so the value
- * accounts for both the gimbal deflection and the aircraft's own attitude.
- * Positive = camera pointing upward, negative = camera pointing downward.
+ * Значення pitch подається у світовому просторі — не відносно літака, — тому
+ * воно враховує і відхилення підвісу (гімбала), і власну орієнтацію літака.
+ * Додатне значення = камера дивиться вгору, від'ємне = камера дивиться вниз.
  *
- * Implements IUAVSensorInterface — SensorBusComponent auto-discovers this
- * component and calls GetLatestFrame() each bus tick.
+ * Реалізує IUAVSensorInterface — SensorBusComponent автоматично знаходить цей
+ * компонент і викликає GetLatestFrame() на кожному тіку шини.
  *
- * Payload format: {"pitch_deg": <float>}
+ * Формат корисного навантаження: {"pitch_deg": <float>}
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API UCameraInclinationComponent : public UActorComponent, public IUAVSensorInterface
@@ -34,7 +34,7 @@ public:
 	virtual FString GetSensorTopic() const override { return TEXT("camera_inclination"); }
 	virtual bool GetLatestFrame(FSensorFrame& OutFrame) override;
 
-	/** Current world-space camera pitch in degrees. Positive = up, negative = down. */
+	/** Поточний тангаж камери у світових координатах, у градусах. Додатне = вгору, від'ємне = вниз. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera Inclination")
 	float LatestPitchDeg = 0.0f;
 

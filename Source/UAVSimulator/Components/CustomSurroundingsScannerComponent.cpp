@@ -19,11 +19,11 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonWriter.h"
 
-// Placeholder for a future file/network-backed source — hardcoded here for now, per the schema in
-// Tools/TestingPlatform/attitude_control/map_objects.json: each entry is
-// {"elementId": "...", "type": "...", "altitude": ..., "bbox": {x_min, x_max, y_min, y_max}} where
-// every corner is a {"latitude": ..., "longitude": ...} pair. An entry with no usable "bbox" is
-// skipped.
+// Заглушка для майбутнього джерела на основі файлу/мережі — наразі захардкоджено тут, за схемою з
+// Tools/TestingPlatform/attitude_control/map_objects.json: кожен запис —
+// {"elementId": "...", "type": "...", "altitude": ..., "bbox": {x_min, x_max, y_min, y_max}}, де
+// кожен кут — це пара {"latitude": ..., "longitude": ...}. Запис без придатного "bbox"
+// пропускається.
 static const TCHAR* DefaultCustomObjectsJson = TEXT(R"([
 	{
 		"elementId": "obj3",
@@ -77,16 +77,16 @@ void UCustomSurroundingsScannerComponent::BeginPlay()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tick
+// Тік
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UCustomSurroundingsScannerComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	// Live-reload: pick up edits to ObjectsJson (bbox corners, type, altitude, ...) without
-	// requiring a restart. Scan() below re-syncs already-visible ObjectStorage entries from the
-	// freshly reloaded AllObjects.
+	// Живе перезавантаження: підхоплює редагування ObjectsJson (кути bbox, тип, висота тощо) без
+	// потреби перезапуску. Scan() нижче ресинхронізує вже видимі записи ObjectStorage зі свіжо
+	// перезавантаженого AllObjects.
 	if (ObjectsJson != LastLoadedObjectsJson)
 	{
 		LoadObjects();
@@ -99,12 +99,13 @@ void UCustomSurroundingsScannerComponent::TickComponent(float DeltaTime, ELevelT
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Load — (re)parses ObjectsJson, converting every entry's four "bbox" corners to world space via
-// Georeference (BBoxCornersWorldMeters) and taking their mean as the footprint centre
-// (Latitude/Longitude/WorldLocationMeters). The corners are converted at ellipsoid height 0 — the
-// JSON "altitude" is ignored; Scan() then snaps each corner's height onto the Cesium tile surface
-// (ResolveGroundHeights). Called from BeginPlay and again from TickComponent whenever ObjectsJson
-// changes (see LastLoadedObjectsJson); DistanceMeters is additionally refreshed every Scan().
+// Load — (пере)парсовує ObjectsJson, перетворюючи чотири кути "bbox" кожного запису у світові
+// координати через Georeference (BBoxCornersWorldMeters) і беручи їхнє середнє як центр
+// відбитка (Latitude/Longitude/WorldLocationMeters). Кути перетворюються на висоті еліпсоїда 0 —
+// "altitude" з JSON ігнорується; далі Scan() прив'язує висоту кожного кута до поверхні тайла
+// Cesium (ResolveGroundHeights). Викликається з BeginPlay і повторно з TickComponent щоразу, коли
+// змінюється ObjectsJson (див. LastLoadedObjectsJson); DistanceMeters додатково оновлюється кожен
+// Scan().
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UCustomSurroundingsScannerComponent::LoadObjects()
@@ -119,7 +120,7 @@ void UCustomSurroundingsScannerComponent::LoadObjects()
 		return;
 	}
 
-	// The four "bbox" corner names, in winding order — the quad is drawn / projected in this order.
+	// Чотири назви кутів "bbox", у порядку обходу — чотирикутник малюється / проєктується саме в цьому порядку.
 	static const TCHAR* CornerNames[] = { TEXT("x_min"), TEXT("x_max"), TEXT("y_min"), TEXT("y_max") };
 
 	for (const TSharedPtr<FJsonValue>& Value : ParsedArray)
@@ -130,8 +131,9 @@ void UCustomSurroundingsScannerComponent::LoadObjects()
 		FCustomSurroundingObject Entry;
 		(*JsonObject)->TryGetStringField(TEXT("elementId"), Entry.ObjectID);
 		(*JsonObject)->TryGetStringField(TEXT("type"), Entry.ObjectType);
-		// "altitude" is still read (it is echoed back in the sensor payload) but NOT used to place
-		// the markers — Scan() snaps their height onto the Cesium tile surface instead.
+		// "altitude" все ще зчитується (вона повертається назад у навантаженні сенсора), але НЕ
+		// використовується для розміщення маркерів — натомість Scan() прив'язує їхню висоту до
+		// поверхні тайла Cesium.
 		(*JsonObject)->TryGetNumberField(TEXT("altitude"), Entry.AltitudeMeters);
 
 		if (Entry.ObjectID.IsEmpty()) continue;
@@ -159,8 +161,8 @@ void UCustomSurroundingsScannerComponent::LoadObjects()
 			(*CornerObject)->TryGetNumberField(TEXT("latitude"), CornerLat);
 			(*CornerObject)->TryGetNumberField(TEXT("longitude"), CornerLong);
 
-			// Convert at ellipsoid height 0 — the JSON "altitude" is ignored. Scan() replaces the
-			// height with a trace onto the Cesium tile surface (see ResolveGroundHeights).
+			// Перетворення на висоті еліпсоїда 0 — "altitude" з JSON ігнорується. Scan() замінює
+			// висоту трасою на поверхню тайла Cesium (див. ResolveGroundHeights).
 			Entry.BBoxCornersWorldMeters.Add(GeoToWorldMeters(CornerLat, CornerLong, 0.0));
 
 			SumLat  += CornerLat;
@@ -174,7 +176,7 @@ void UCustomSurroundingsScannerComponent::LoadObjects()
 			continue;
 		}
 
-		// Footprint centre — mean of the parsed corners, in both geographic and world space.
+		// Центр відбитка — середнє розпарсованих кутів, як у географічних, так і у світових координатах.
 		Entry.Latitude  = SumLat / CornerCount;
 		Entry.Longitude = SumLong / CornerCount;
 
@@ -188,10 +190,11 @@ void UCustomSurroundingsScannerComponent::LoadObjects()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Geo → world helpers + ground snapping. The JSON "altitude" is never used to place a marker;
-// every corner is traced straight down/up onto the Cesium tile surface instead, so the markers
-// always sit exactly on the terrain height. ResolveGroundHeights is retried each Scan() until it
-// lands, because Cesium streams tiles in by camera distance.
+// Допоміжні функції geo → world + прив'язка до землі. "altitude" з JSON ніколи не
+// використовується для розміщення маркера; натомість кожен кут трасується прямо вниз/вгору на
+// поверхню тайла Cesium, тож маркери завжди лежать точно на висоті рельєфу.
+// ResolveGroundHeights повторюється кожен Scan(), доки не влучить, оскільки Cesium стрімить
+// тайли за дистанцією до камери.
 // ─────────────────────────────────────────────────────────────────────────────
 
 FVector UCustomSurroundingsScannerComponent::GeoToWorldMeters(double LatitudeDeg, double LongitudeDeg, double HeightMeters) const
@@ -235,9 +238,9 @@ bool UCustomSurroundingsScannerComponent::TryTraceTileSurfaceMeters(const FVecto
 	const FHitResult* Accepted = nullptr;
 	for (const FHitResult& Hit : Hits)
 	{
-		// Accept a hit on any Cesium3DTileset (a scene can have several — terrain, buildings, ...),
-		// not only the first one found in BeginPlay. bRequireCesiumTilesetHit can be turned off to
-		// snap to any blocking geometry on the channel instead.
+		// Приймаємо влучання в будь-який Cesium3DTileset (сцена може мати декілька — рельєф,
+		// будівлі тощо), а не лише перший, знайдений у BeginPlay. bRequireCesiumTilesetHit можна
+		// вимкнути, щоб натомість прив'язуватися до будь-якої блокуючої геометрії на цьому каналі.
 		const AActor* HitActor = Hit.GetActor();
 		if (bRequireCesiumTilesetHit && (!HitActor || !HitActor->IsA<ACesium3DTileset>()))
 			continue;
@@ -248,13 +251,13 @@ bool UCustomSurroundingsScannerComponent::TryTraceTileSurfaceMeters(const FVecto
 
 	if (bDebugGroundTrace)
 	{
-		// LifeTime -1.f → redrawn fresh each tick, same convention as this file's other debug markers.
+		// LifeTime -1.f → перемальовується заново щотіку, та сама угода, що й для інших відладочних маркерів у цьому файлі.
 		const FColor LineColor = Accepted ? FColor::Green : FColor::Red;
 		DrawDebugLine(World, Start, End, LineColor, false, -1.0f, 0, 20.0f);
 		if (Accepted)
 			DrawDebugSphere(World, Accepted->ImpactPoint, 300.0f, 12, FColor::Green, false, -1.0f);
 
-		// Throttled so a persistently-missing trace doesn't flood the log every tick.
+		// Обмежено за частотою, щоб постійно промахувана траса не заповнювала лог щотіку.
 		const double Now = World->GetTimeSeconds();
 		if (!Accepted && Now - LastGroundTraceLogTime > 2.0)
 		{
@@ -286,7 +289,7 @@ void UCustomSurroundingsScannerComponent::ResolveGroundHeights(FCustomSurroundin
 	const int32 CornerCount = Object.BBoxCornersWorldMeters.Num();
 	if (CornerCount == 0) return;
 
-	// "up" barely varies across a single footprint — one axis, taken at the centre, is enough.
+	// "вгору" майже не змінюється в межах одного відбитка — достатньо однієї осі, взятої в центрі.
 	const FVector UpMeters = GeographicUpMeters(Object.Latitude, Object.Longitude);
 
 	int32 HitCount = 0;
@@ -295,12 +298,12 @@ void UCustomSurroundingsScannerComponent::ResolveGroundHeights(FCustomSurroundin
 		FVector SurfacePoint;
 		if (TryTraceTileSurfaceMeters(Corner, UpMeters, SurfacePoint))
 		{
-			Corner = SurfacePoint;   // stable to re-run: next trace starts from the snapped point
+			Corner = SurfacePoint;   // стабільно при повторному запуску: наступна траса стартує з прив'язаної точки
 			++HitCount;
 		}
 	}
 
-	// Footprint centre — mean of the (now snapped) corners, same convention as LoadObjects().
+	// Центр відбитка — середнє (тепер уже прив'язаних) кутів, та сама угода, що й у LoadObjects().
 	FVector CentreSum = FVector::ZeroVector;
 	for (const FVector& Corner : Object.BBoxCornersWorldMeters)
 		CentreSum += Corner;
@@ -309,15 +312,16 @@ void UCustomSurroundingsScannerComponent::ResolveGroundHeights(FCustomSurroundin
 	const bool bAllResolved = (HitCount == CornerCount);
 	Object.bGroundHeightResolved = bAllResolved;
 
-	// Fires once per object (once resolved, Scan() stops calling this). The miss case is reported
-	// — throttled — from TryTraceTileSurfaceMeters instead, so it doesn't flood every tick.
+	// Спрацьовує один раз на об'єкт (щойно розв'язано, Scan() перестає це викликати). Випадок
+	// промаху натомість повідомляється — з обмеженням частоти — з TryTraceTileSurfaceMeters, щоб
+	// не заповнювати лог щотіку.
 	if (bDebugGroundTrace && bAllResolved)
 		UE_LOG(LogUAV, Log, TEXT("CustomSurroundingsScanner: %s приземлено на тайли (усі %d кути), центр Z=%.1f м"),
 			*Object.ObjectID, CornerCount, Object.WorldLocationMeters.Z);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ObjectStorage — the only two operations that mutate it.
+// ObjectStorage — єдині дві операції, що його змінюють.
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UCustomSurroundingsScannerComponent::AddObject(const FString& Key, const FCustomSurroundingObject& Entry)
@@ -335,9 +339,9 @@ void UCustomSurroundingsScannerComponent::RemoveObject(const FString& Key)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Scan — re-tests every loaded object against the camera's current range/frame, reconciles the
-// result against ObjectStorage (add newly-visible, remove no-longer-visible), then rebuilds
-// LatestScanResults and the debug rays from ObjectStorage.
+// Scan — заново перевіряє кожен завантажений об'єкт відносно поточної дальності/кадру камери,
+// звіряє результат з ObjectStorage (додає щойно видимі, видаляє більше не видимі), потім
+// перебудовує LatestScanResults і відладочні промені з ObjectStorage.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const TArray<FCustomSurroundingObject>& UCustomSurroundingsScannerComponent::Scan()
@@ -355,9 +359,9 @@ const TArray<FCustomSurroundingObject>& UCustomSurroundingsScannerComponent::Sca
 	TSet<FString> CurrentlyVisibleKeys;
 	for (FCustomSurroundingObject& Object : AllObjects)
 	{
-		// The JSON "altitude" is ignored for placement — snap every marker onto the Cesium tile
-		// surface. Retried until each corner lands a hit, since tiles stream in by camera distance
-		// and a distant object's tiles may not exist yet.
+		// "altitude" із JSON ігнорується для розміщення — прив'язуємо кожен маркер до поверхні
+		// тайла Cesium. Повторюється, доки кожен кут не отримає влучання, оскільки тайли
+		// стрімляться за дистанцією до камери, і тайли віддаленого об'єкта можуть ще не існувати.
 		if (bSnapMarkersToTileSurface && !Object.bGroundHeightResolved)
 			ResolveGroundHeights(Object);
 
@@ -369,8 +373,8 @@ const TArray<FCustomSurroundingObject>& UCustomSurroundingsScannerComponent::Sca
 		if (!bVisible) continue;
 
 		CurrentlyVisibleKeys.Add(Object.ObjectID);
-		// Full overwrite (not just DistanceMeters) so a live ObjectsJson edit — bbox corners, type,
-		// altitude — reaches an already-visible object immediately, not only newly-added ones.
+		// Повне перезаписування (не лише DistanceMeters), щоб живе редагування ObjectsJson — кути
+		// bbox, тип, висота — доходило до вже видимого об'єкта негайно, а не лише до щойно доданих.
 		if (FCustomSurroundingObject* Stored = ObjectStorage.Find(Object.ObjectID))
 			*Stored = Object;
 		else
@@ -389,7 +393,7 @@ const TArray<FCustomSurroundingObject>& UCustomSurroundingsScannerComponent::Sca
 	for (const TPair<FString, FCustomSurroundingObject>& Pair : ObjectStorage)
 		LatestScanResults.Add(Pair.Value);
 
-	// Debug markers switch off together with the component — only drawn while bSensorEnabled.
+	// Відладочні маркери вимикаються разом із компонентом — малюються лише поки bSensorEnabled.
 	if (bSensorEnabled)
 	{
 		if (bDrawScanArea && SensorSizeX > 0 && SensorSizeY > 0)
@@ -400,8 +404,9 @@ const TArray<FCustomSurroundingObject>& UCustomSurroundingsScannerComponent::Sca
 			DrawScanAreaDebug(SceneCaptureComponent->GetComponentTransform(), ScanRadiusMeters * 100.0f, HalfHFovRad, HalfVFovRad);
 		}
 
-		// One ray (+ optional bbox) per visible object, redrawn fresh every tick (LifeTime -1.f,
-		// same single-frame-refresh convention as UCesiumSurroundingsScannerComponent's rays).
+		// По одному променю (+ опційно bbox) на кожен видимий об'єкт, перемальовується заново
+		// щотіку (LifeTime -1.f, та сама угода про оновлення в один кадр, що й у променях
+		// UCesiumSurroundingsScannerComponent).
 		for (const TPair<FString, FCustomSurroundingObject>& Pair : ObjectStorage)
 		{
 			DrawDebugLine(World, Owner->GetActorLocation(), Pair.Value.WorldLocationMeters * 100.0, RayDebugColor, false, -1.0f);
@@ -418,8 +423,9 @@ const TArray<FCustomSurroundingObject>& UCustomSurroundingsScannerComponent::Sca
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Scan-area wireframe — a cheap 8-line frustum outline showing the camera's current view out to
-// ScanRadiusMeters. Same shape/logic as UCesiumSurroundingsScannerComponent::DrawScanAreaDebug.
+// Каркас зони сканування — дешевий контур фрустуму з 8 ліній, що показує поточний вигляд камери
+// до ScanRadiusMeters. Та сама форма/логіка, що й у
+// UCesiumSurroundingsScannerComponent::DrawScanAreaDebug.
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UCustomSurroundingsScannerComponent::DrawScanAreaDebug(const FTransform& OriginTransform, float Range, float HalfHFovRad, float HalfVFovRad) const
@@ -439,13 +445,13 @@ void UCustomSurroundingsScannerComponent::DrawScanAreaDebug(const FTransform& Or
 	const FVector BottomLeft  = Origin + DirAt(-HalfHFovRad, -HalfVFovRad) * Range;
 	const FVector BottomRight = Origin + DirAt(+HalfHFovRad, -HalfVFovRad) * Range;
 
-	// Four edges from the origin to the far corners.
+	// Чотири ребра від початку координат до дальніх кутів.
 	DrawDebugLine(World, Origin, TopLeft,     ScanAreaDebugColor, false, -1.0f);
 	DrawDebugLine(World, Origin, TopRight,    ScanAreaDebugColor, false, -1.0f);
 	DrawDebugLine(World, Origin, BottomLeft,  ScanAreaDebugColor, false, -1.0f);
 	DrawDebugLine(World, Origin, BottomRight, ScanAreaDebugColor, false, -1.0f);
 
-	// Far rectangle connecting the four corners.
+	// Дальній прямокутник, що з'єднує чотири кути.
 	DrawDebugLine(World, TopLeft,     TopRight,    ScanAreaDebugColor, false, -1.0f);
 	DrawDebugLine(World, TopRight,    BottomRight, ScanAreaDebugColor, false, -1.0f);
 	DrawDebugLine(World, BottomRight, BottomLeft,  ScanAreaDebugColor, false, -1.0f);
@@ -453,9 +459,10 @@ void UCustomSurroundingsScannerComponent::DrawScanAreaDebug(const FTransform& Or
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Object bbox — the object's footprint quad, its four "bbox" corners (BBoxCornersWorldMeters,
-// winding order x_min -> x_max -> y_min -> y_max) joined edge to edge. These are real world-space
-// points, so the quad sits on the actual footprint — no billboarding, no fixed reference axes.
+// Bbox об'єкта — чотирикутник відбитка об'єкта, його чотири кути "bbox" (BBoxCornersWorldMeters,
+// порядок обходу x_min -> x_max -> y_min -> y_max), з'єднані ребро до ребра. Це реальні
+// світові точки, тож чотирикутник лежить на фактичному відбитку — без білбордингу, без
+// фіксованих референсних осей.
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UCustomSurroundingsScannerComponent::DrawObjectBBoxDebug(const TArray<FVector>& CornersMeters) const
@@ -473,8 +480,8 @@ void UCustomSurroundingsScannerComponent::DrawObjectBBoxDebug(const TArray<FVect
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Object bbox — projected screen size. Projects the same four corners DrawObjectBBoxDebug draws,
-// so the reported pixel size matches the world quad exactly.
+// Bbox об'єкта — проєктований розмір на екрані. Проєктує ті самі чотири кути, що малює
+// DrawObjectBBoxDebug, тож повідомлений піксельний розмір точно відповідає світовому чотирикутнику.
 // ─────────────────────────────────────────────────────────────────────────────
 
 FVector2D UCustomSurroundingsScannerComponent::ComputeBBoxScreenSize(const TArray<FVector>& CornersMeters) const
@@ -486,7 +493,7 @@ FVector2D UCustomSurroundingsScannerComponent::ComputeBBoxScreenSize(const TArra
 	for (const FVector& CornerMeters : CornersMeters)
 	{
 		FVector2D ScreenPos;
-		if (!ProjectWorldToScreenUnclamped(CornerMeters * 100.0, ScreenPos)) continue; // behind camera — skip
+		if (!ProjectWorldToScreenUnclamped(CornerMeters * 100.0, ScreenPos)) continue; // позаду камери — пропускаємо
 
 		bAnyCornerInFront = true;
 		Min.X = FMath::Min(Min.X, ScreenPos.X);
@@ -500,7 +507,7 @@ FVector2D UCustomSurroundingsScannerComponent::ComputeBBoxScreenSize(const TArra
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Object label — the "elementId" text, drawn just above the object's point.
+// Мітка об'єкта — текст "elementId", намальований одразу над точкою об'єкта.
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UCustomSurroundingsScannerComponent::DrawObjectLabelDebug(const FVector& WorldPositionCm, const FString& Label) const
@@ -508,8 +515,9 @@ void UCustomSurroundingsScannerComponent::DrawObjectLabelDebug(const FVector& Wo
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	// Duration 0 → drawn for the current frame only, same redrawn-every-tick convention as the
-	// other debug markers (which use LifeTime -1.0f for the same effect on lines/points).
+	// Duration 0 → малюється лише для поточного кадру, та сама угода про перемальовування щотіку,
+	// що й у інших відладочних маркерів (які використовують LifeTime -1.0f для того самого ефекту
+	// на лініях/точках).
 	DrawDebugString(World, WorldPositionCm + FVector::UpVector * 50.0f, Label, nullptr, LabelDebugColor, 0.0f, false, LabelFontScale);
 }
 
@@ -528,8 +536,9 @@ bool UCustomSurroundingsScannerComponent::GetLatestFrame(FSensorFrame& OutFrame)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sensor payload — one JSON object per currently-visible object (ObjectStorage), re-projected
-// onto the camera every tick since the camera (not the static object) is what moves.
+// Корисне навантаження сенсора — один JSON-об'єкт на кожен наразі видимий об'єкт
+// (ObjectStorage), перепроєктований на камеру щотіку, оскільки рухається саме камера (а не
+// статичний об'єкт).
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UCustomSurroundingsScannerComponent::UpdateSensorSize()
@@ -559,14 +568,15 @@ void UCustomSurroundingsScannerComponent::BuildSensorFrame()
 		FVector2D ScreenPos;
 		const bool bVisible = ProjectWorldToScreen(Entry.WorldLocationMeters * 100.0, ScreenPos);
 
-		// Pixel-space bbox size — the projected axis-aligned bounds of the footprint quad's four
-		// corners (BBoxCornersWorldMeters), same projection as pixel_x/pixel_y below.
+		// Розмір bbox у піксельному просторі — проєктовані осьовирівняні межі чотирьох кутів
+		// чотирикутника відбитка (BBoxCornersWorldMeters), та сама проєкція, що й у pixel_x/pixel_y нижче.
 		const FVector2D BBoxScreenSize = ComputeBBoxScreenSize(Entry.BBoxCornersWorldMeters);
 
-		// Each footprint corner projected onto the frame, unclamped, as a flat [x0,y0,x1,y1,...]
-		// array in winding order x_min -> x_max -> y_min -> y_max — lets the consumer build a tight
-		// axis-aligned OR an oriented (rotated) box, which is the natural fit for a footprint quad
-		// seen from an oblique heading. A corner behind the camera is written as [-1, -1].
+		// Кожен кут відбитка, проєктований у кадр, без обмеження меж, як плоский масив
+		// [x0,y0,x1,y1,...] у порядку обходу x_min -> x_max -> y_min -> y_max — дозволяє
+		// споживачу побудувати або точний осьовирівняний, або орієнтований (повернутий) бокс, що
+		// природно підходить для чотирикутника відбитка, побаченого під косим курсом. Кут позаду
+		// камери записується як [-1, -1].
 		TArray<TSharedPtr<FJsonValue>> CornersJson;
 		CornersJson.Reserve(Entry.BBoxCornersWorldMeters.Num() * 2);
 		for (const FVector& CornerMeters : Entry.BBoxCornersWorldMeters)
@@ -607,7 +617,7 @@ void UCustomSurroundingsScannerComponent::BuildSensorFrame()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Projection — identical view/projection setup to
+// Проєкція — ідентичне налаштування вигляду/проєкції до
 // UCesiumSurroundingsScannerComponent::ProjectWorldToScreen.
 // ─────────────────────────────────────────────────────────────────────────────
 

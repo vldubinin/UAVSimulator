@@ -21,7 +21,7 @@ class UAVSIMULATOR_API UScenarioSectionWidget : public USimulatorSectionWidget
 protected:
 	virtual void NativeConstruct() override;
 
-	// — Bound widgets (names must match exactly in the Blueprint) ————————————
+	// — Прив'язані віджети (імена мають точно збігатися з Blueprint) ————————————
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UComboBoxString> ComboBoxMode;
@@ -29,7 +29,7 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UEditableText> EditableTextTrajectoryName;
 
-	/** Container row for the offset distance field; hidden when mode is RecordTarget. */
+	/** Рядок-контейнер для поля відстані зміщення; прихований у режимі RecordTarget. */
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UWidget> PanelOffsetDistance;
 
@@ -42,11 +42,11 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UTextBlock> TrajectoryName;
 
-	/** Selects which airplane role (Drone / Target / None) the onboard camera runs on. */
+	/** Обирає, для якої ролі літака (Drone / Target / None) працює бортова камера. */
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UComboBoxString> ComboBoxOnboardCameraMode;
 
-	/** Selects which airplane role (Drone / Target / None) the sensor bus runs on. */
+	/** Обирає, для якої ролі літака (Drone / Target / None) працює шина сенсорів. */
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UComboBoxString> ComboBoxSensorsMode;
 

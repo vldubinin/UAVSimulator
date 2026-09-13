@@ -17,7 +17,7 @@ class UAVSIMULATOR_API USimulatorMenuWidget : public UUserWidget
 	GENERATED_BODY()
 
 public:
-	/** Switches to a menu section and notifies the active panel. */
+	/** Перемикає на розділ меню і повідомляє про це активну панель. */
 	UFUNCTION(BlueprintCallable, Category = "Menu")
 	void OpenSection(EMenuSection Section);
 
@@ -27,7 +27,7 @@ public:
 protected:
 	virtual void NativeConstruct() override;
 
-	// Navigation buttons — must exist with these exact names in the Blueprint widget.
+	// Кнопки навігації — мають існувати саме з цими іменами у Blueprint-віджеті.
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UButton> ButtonScenario;
 
@@ -46,7 +46,7 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UButton> ButtonStartSimulation;
 
-	// Switcher — children must be ordered: 0=Scenario, 1=Sensors, 2=Environment, 3=SyntheticData, 4=Global.
+	// Перемикач (Switcher) — дочірні елементи мають бути впорядковані: 0=Scenario, 1=Sensors, 2=Environment, 3=SyntheticData, 4=Global.
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UWidgetSwitcher> ContentSwitcher;
 

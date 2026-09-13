@@ -9,15 +9,15 @@
 #include "KeyPointDetectionComponent.generated.h"
 
 /**
- * Placed on the OBSERVER actor (same actor as CameraFrameComponent and SensorBusComponent).
- * Uses the same lidar-style ray sweep as BBoxDetectionComponent to find nearby actors,
- * then projects each UKeyPointComponent found on those actors onto the observer's
- * SceneCaptureComponent2D, and publishes the results as JSON on the "keypoints" topic.
+ * Розміщується на акторі-СПОСТЕРІГАЧІ (тому самому, що й CameraFrameComponent та SensorBusComponent).
+ * Використовує те саме лідар-подібне променеве розгортання, що й BBoxDetectionComponent, для
+ * пошуку найближчих акторів, потім проєктує кожен UKeyPointComponent, знайдений на цих акторах,
+ * на SceneCaptureComponent2D спостерігача та публікує результати як JSON у топіку "keypoints".
  *
- * UKeyPointComponent instances must be placed on the TARGET drone blueprint — NOT on
- * the observer. The observer discovers them automatically via the ray sweep.
+ * Екземпляри UKeyPointComponent мають розміщуватися на блупринті ЦІЛЬОВОГО дрона — а НЕ на
+ * спостерігачі. Спостерігач знаходить їх автоматично через променеве розгортання.
  *
- * JSON output format (one payload per bus tick):
+ * Формат вихідного JSON (один payload на такт шини):
  * {
  *   "Cessna_172_C_0": [
  *     { "id": "nose",     "x": 320.5, "y": 240.1, "visible": true  },
@@ -25,8 +25,8 @@
  *   ],
  *   "Cessna_172_C_1": [ ... ]
  * }
- * "visible" is false when the point is behind the camera or outside the image bounds.
- * x/y are always emitted so consumers can detect occlusion without changing array length.
+ * "visible" дорівнює false, коли точка знаходиться за камерою або за межами кадру.
+ * x/y завжди присутні, щоб споживачі могли визначити оклюзію без зміни довжини масиву.
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API UKeyPointDetectionComponent : public UActorComponent, public IUAVSensorInterface
@@ -46,19 +46,19 @@ protected:
 	virtual void BeginPlay() override;
 
 public:
-	/** Maximum ray-cast range used to discover target actors (cm). */
+	/** Максимальна дальність променів для пошуку цільових акторів (см). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "KeyPoint", meta = (ClampMin = 1.0f))
 	float Range = 5000.0f;
 
-	/** Number of horizontal rays in the discovery sweep. */
+	/** Кількість горизонтальних променів у розгортанні пошуку. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "KeyPoint", meta = (ClampMin = 1))
 	int32 HorizontalRays = 360;
 
-	/** Number of vertical layers in the discovery sweep. */
+	/** Кількість вертикальних шарів у розгортанні пошуку. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "KeyPoint", meta = (ClampMin = 1))
 	int32 VerticalLayers = 16;
 
-	/** Collision channel used for ray traces. */
+	/** Канал колізії, що використовується для трасування променів. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "KeyPoint")
 	TEnumAsByte<ECollisionChannel> CollisionChannel = ECC_Visibility;
 
@@ -70,11 +70,11 @@ private:
 		bool      bVisible;
 	};
 
-	/** Projects a single world-space point onto the render target.
-	 *  Returns true if the point lands within the image bounds. */
+	/** Проєктує одну точку зі світового простору на render target.
+	 *  Повертає true, якщо точка потрапляє в межі зображення. */
 	bool ProjectWorldToScreen(const FVector& WorldPos, FVector2D& OutScreenPos) const;
 
-	/** Serializes all actors' keypoints into a single JSON object keyed by actor name. */
+	/** Серіалізує ключові точки всіх акторів в один JSON-об'єкт, ключем якого є ім'я актора. */
 	FString SerializeAllKeyPoints(const TMap<FString, TArray<FKeyPoint2D>>& PerActorKeyPoints) const;
 
 	UPROPERTY()
@@ -84,7 +84,7 @@ private:
 	int32 SizeX          = 0;
 	int32 SizeY          = 0;
 
-	// Latest serialized frame — written and read on the game thread only.
+	// Останній серіалізований кадр — записується й читається лише в ігровому потоці.
 	TArray<uint8> LatestPayload;
 	double        LatestTimestamp = 0.0;
 	bool          bHasFrame       = false;

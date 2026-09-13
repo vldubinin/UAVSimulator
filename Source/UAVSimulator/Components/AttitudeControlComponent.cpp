@@ -9,13 +9,13 @@ THIRD_PARTY_INCLUDES_START
 #include <zmq.hpp>
 THIRD_PARTY_INCLUDES_END
 
-// zmq.hpp drags in <windows.h> -> <wingdi.h>, which #defines OPAQUE.
-// That clashes with CesiumGltf::Material's `static const std::string OPAQUE`
-// member when both end up in the same unity translation unit.
+// zmq.hpp тягне за собою <windows.h> -> <wingdi.h>, який визначає макрос OPAQUE.
+// Це конфліктує з полем `static const std::string OPAQUE` у CesiumGltf::Material,
+// коли обидва потрапляють у той самий unity translation unit.
 #undef OPAQUE
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ZMQ state — defined here so zmq.hpp never leaks into the header
+// Стан ZMQ — визначено тут, щоб zmq.hpp ніколи не потрапляв у заголовковий файл
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct FZmqPullState
@@ -31,7 +31,7 @@ struct FZmqPullState
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Component
+// Компонент
 // ─────────────────────────────────────────────────────────────────────────────
 
 UAttitudeControlComponent::UAttitudeControlComponent()
@@ -168,7 +168,7 @@ void UAttitudeControlComponent::PollCommands()
 	}
 	catch (const zmq::error_t&)
 	{
-		// EAGAIN is expected when no messages are queued — ignore
+		// EAGAIN очікуваний, коли в черзі немає повідомлень — ігноруємо
 	}
 }
 

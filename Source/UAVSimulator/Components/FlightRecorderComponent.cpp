@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Заповніть примітку про авторські права на сторінці Description в Project Settings.
 
 #include "FlightRecorderComponent.h"
 #include "UAVSimulator/Components/FlightDynamicsComponent.h"

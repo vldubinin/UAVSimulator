@@ -8,10 +8,10 @@ class USpinBox;
 class AUAVSimulatorGameModeBase;
 
 /**
- * Global simulator configuration, independent of any single sensor/scenario/environment section.
- * Currently holds only SensorWarmupFrameCount (the number of frames sensors should warm up for
- * before publishing) — the warm-up logic itself is not implemented yet, this section just exposes
- * the value for configuration and persistence, same as the other sections do for their own fields.
+ * Глобальні налаштування симулятора, незалежні від конкретного розділу сенсорів/сценарію/середовища.
+ * Наразі містить лише SensorWarmupFrameCount (кількість кадрів "прогріву" сенсорів перед публікацією) —
+ * сама логіка прогріву ще не реалізована, цей розділ лише надає значення для налаштування й збереження,
+ * так само як інші розділи роблять для власних полів.
  */
 UCLASS()
 class UAVSIMULATOR_API UGlobalSectionWidget : public USimulatorSectionWidget
@@ -22,7 +22,7 @@ protected:
 	virtual void NativeConstruct() override;
 	virtual void OnSectionActivated_Implementation() override;
 
-	// — Bound widgets (name must match exactly in the Blueprint) ————————————————
+	// — Прив'язані віджети (ім'я має точно збігатися з Blueprint) ————————————————
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<USpinBox> SpinBoxSensorWarmupFrames;

@@ -15,8 +15,8 @@ class UAirfoilDATFactory : public UFactory
 public:
 	UAirfoilDATFactory();
 
-	// UFactory interface
+	// Інтерфейс UFactory
 	virtual UObject* FactoryCreateText(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, const TCHAR* Type, const TCHAR*& Buffer, const TCHAR* BufferEnd, FFeedbackContext* Warn) override;
 	virtual bool FactoryCanImport(const FString& Filename) override;
-	// End of UFactory interface
+	// Кінець інтерфейсу UFactory
 };

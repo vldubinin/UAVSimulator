@@ -7,9 +7,9 @@
 #include "AerodynamicPhysicsLibrary.generated.h"
 
 /**
- * Stateless aerodynamics math utilities.
- * Methods with Blueprint-compatible signatures are exposed as BlueprintCallable.
- * Methods taking FAerodynamicProfileRow* are plain static C++ only.
+ * Утиліти для аеродинамічних розрахунків без внутрішнього стану.
+ * Методи із сумісною з Blueprint сигнатурою відкриті як BlueprintCallable.
+ * Методи, що приймають FAerodynamicProfileRow*, доступні лише як звичайний статичний C++.
  */
 UCLASS()
 class UAVSIMULATOR_API UAerodynamicPhysicsLibrary : public UBlueprintFunctionLibrary

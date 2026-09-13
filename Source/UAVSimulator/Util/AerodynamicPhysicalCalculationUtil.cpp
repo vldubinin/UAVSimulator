@@ -38,17 +38,11 @@ void AerodynamicPhysicalCalculationUtil::GenerateAerodynamicPhysicalConfigutatio
 					*Surface->GetName(),
 					i);
 			}
-			// DoesAssetExist uses FPackageName::DoesPackageExist (disk cache) and may not
-			// see an asset created by Python in this same frame. LoadObject inside
-			// AttachAssetToSurface uses StaticFindObject which finds in-memory objects immediately.
+			// DoesAssetExist використовує FPackageName::DoesPackageExist (дисковий кеш) і може не
+			// побачити ассет, створений Python у цьому ж кадрі. LoadObject всередині
+			// AttachAssetToSurface використовує StaticFindObject, який знаходить об'єкти в пам'яті одразу.
 			Surface->Modify();
-			if (AttachAssetToSurface(RootSurface, AssetPath))
-			{
-				/* UE_LOG(LogUAV, Log, TEXT("GenerateAerodynamicPhysicalConfigutation: surface %s оновлено: '%s'."), *Surface->GetName(), *AssetPath); */
-			}
-			else {
-				/* UE_LOG(LogUAV, Error, TEXT("GenerateAerodynamicPhysicalConfigutation: не вдалося оновити surface '%s' за допомогою '%s'."), *Surface->GetName(), *AssetPath); */
-			}
+			AttachAssetToSurface(RootSurface, AssetPath);
 		}
 	}
 }
@@ -116,191 +110,10 @@ FString AerodynamicPhysicalCalculationUtil::FormatFloatForAsset(float Value)
 	return Str;
 }
 
-/*void AerodynamicPhysicalCalculationUtil::GenerateAerodynamicPhysicalConfigutation(TArray<UAerodynamicSurfaceSC*> Surfaces)
-{
-	for (UAerodynamicSurfaceSC* Surface : Surfaces)
-	{
-		FString PathToProfileFile = FindPathToProfile(Surface);
-		Surface->Profile->GetPackage();
-		TArray<FAerodynamicSurfaceStructure>& SubSurfaces = Surface->SurfaceForm;
-
-		for (int32 i = 0; i < SubSurfaces.Num() - 1 && SubSurfaces.Num() > 1; i++)
-		{
-			FAerodynamicSurfaceStructure& RootSurface = SubSurfaces[i];
-			float HingeLocation = ((RootSurface.StartFlapPosition + RootSurface.EndFlapPosition) / 2) * 0.01;
-			FString AssetPath = BuildAssetPath(PathToProfileFile, HingeLocation, RootSurface.MinFlapAngle, RootSurface.MaxFlapAngle);
-
-			if (!DoesAssetExist(AssetPath)) {
-				RunSU2Calculation(PathToProfileFile,
-					*Surface->GetName(),
-					HingeLocation, 
-					RootSurface.MinFlapAngle,
-					RootSurface.MaxFlapAngle);
-			}
-			if (DoesAssetExist(AssetPath)) {
-				Surface->Modify();
-				AttachAssetToSurface(RootSurface, AssetPath);
-			}
-			else {
-				UE_LOG(LogUAV, Error, TEXT("GenerateAerodynamicPhysicalConfigutation: не вдалося створити ассет: '%s'."), *AssetPath);
-			}
-		}
-	}
-}
-
-void AerodynamicPhysicalCalculationUtil::GenerateAerodynamicPhysicalConfigutation(TArray<UAerodynamicSurfaceSC*> Surfaces)
-{
-	for (UAerodynamicSurfaceSC* Surface : Surfaces)
-	{
-		FString PathToProfileFile = FindPathToProfile(Surface);
-		Surface->Profile->GetPackage();
-		TArray<FAerodynamicSurfaceStructure> SubSurfaces = Surface->SurfaceForm;
-
-		// Кожна пара сусідніх секцій SurfaceForm утворює одну трапецієвидну підсекцію крила
-		for (int32 i = 0; i < SubSurfaces.Num() - 1 && SubSurfaces.Num() > 1; i++)
-		{
-			const FAerodynamicSurfaceStructure& RootSurface = SubSurfaces[i];
-			const FAerodynamicSurfaceStructure& TipSurface = SubSurfaces[i + 1];
-
-			// Розмах секції задається зміщенням по Y між сусідніми секціями
-			CalculatePolar(PathToProfileFile,
-				(int32)RootSurface.ChordSize,
-				(int32)TipSurface.ChordSize,
-				(int32)TipSurface.Offset.Y,
-				RootSurface.MinFlapAngle,
-				RootSurface.MaxFlapAngle,
-				*Surface->GetName(),
-				i);
-		}
-		break;
-	}
-}
-
-TMap<float, FPolarRow> AerodynamicPhysicalCalculationUtil::CalculatePolar(
-	FString PathToProfile,
-	int32 RootChord, int32 TipChord, int32 Span,
-	int32 DeflectionAngleStart, int32 DeflectionAngleEnd,
-	int32 Sweep, FString SurfaceName, int32 SubSurfaceIndex)
-{
-	const FString ScriptPath = FPaths::ProjectDir() + TEXT("Tools/XFoil/xfoil.py");
-
-	// Формуємо рядок команди: шлях до скрипту + усі параметри секції як аргументи
-	const FString Command = FString::Printf(
-		TEXT("\"%s\" \"%d\" \"%d\" \"%d\" \"%d\" \"%d\" \"%d\" \"%s\" \"%d\" \"%s\""),
-		*ScriptPath,
-		RootChord, TipChord, Span,
-		DeflectionAngleStart, DeflectionAngleEnd,
-		Sweep,
-		*SurfaceName,
-		SubSurfaceIndex,
-		*PathToProfile);
-
-	AerodynamicToolRunner::RunPythonScript(Command);
-
-	// Результати зберігаються Python-скриптом на диску; тут повертаємо порожню мапу
-	return TMap<float, FPolarRow>();
-}
-
-TMap<float, FPolarRow> AerodynamicPhysicalCalculationUtil::CalculatePolar(
-	FString PathToProfile,
-	int32 RootChord, int32 TipChord, int32 Span,
-	int32 DeflectionAngleStart, int32 DeflectionAngleEnd,
-	int32 Sweep, FString SurfaceName, int32 SubSurfaceIndex)
-{
-	IFileManager& FM = IFileManager::Get();
-	const FString XFoilDir = FPaths::ProjectDir() + TEXT("Tools/XFoil/");
-
-	const FString PolarDatPath   = XFoilDir + TEXT("polar.dat");
-	const FString XfoilExePath   = XFoilDir + TEXT("xfoil.exe");
-	const FString CommandsPath   = XFoilDir + TEXT("commands_generated.txt");
-
-	// Видаляємо попередній polar.dat щоб уникнути використання застарілих даних
-	if (FM.FileExists(*PolarDatPath))
-	{
-		FM.Delete(*PolarDatPath);
-	}
-
-	// Копіюємо профіль крила як polar.dat у робочу директорію XFoil
-	if (FM.Copy(*PolarDatPath, *PathToProfile) != COPY_OK)
-	{
-		UE_LOG(LogUAV, Error, TEXT("CalculatePolar: не вдалося скопіювати '%s' → '%s'"), *PathToProfile, *PolarDatPath);
-		return TMap<float, FPolarRow>();
-	}
-
-	// Конвертуємо шляхи у абсолютні (потрібно для зовнішнього процесу)
-	const FString AbsXfoilExe  = FM.ConvertToAbsolutePathForExternalAppForRead(*XfoilExePath);
-	const FString AbsCommands  = FM.ConvertToAbsolutePathForExternalAppForRead(*CommandsPath);
-
-	// Генеруємо файл команд XFoil — це те саме що com.txt але з підставленими шляхами
-	const FString XFoilCommands =
-		TEXT("LOAD polar.dat\r\n")  // назва файлу відносно робочої директорії XFoil
-		TEXT("GDES\r\n")
-		TEXT("FLAP\r\n")
-		TEXT("0.7\r\n")             // flap_position — відсоток хорди
-		TEXT("999\r\n")             // span-wise station (999 = tip)
-		TEXT("0.5\r\n")             // hinge z-position
-		TEXT("25\r\n")             // flap_angle
-		TEXT("EXEC\r\n")
-		TEXT("\r\n")
-		TEXT("PANE\r\n")
-		TEXT("PPAR\r\n")
-		TEXT("N\r\n")
-		TEXT("200\r\n")
-		TEXT("\r\n")
-		TEXT("\r\n")
-		TEXT("OPER\r\n")
-		TEXT("v\r\n")
-		TEXT("300000\r\n")
-		TEXT("ITER\r\n")
-		TEXT("40\r\n")
-		TEXT("PACC\r\n")
-		TEXT("polar.txt\r\n")       // вихідний файл полярних характеристик
-		TEXT("\r\n")
-		TEXT("ASEQ\r\n")   // позитивний діапазон AoA: від 0 до +20 з кроком 0.5°
-		TEXT("0\r\n")
-		TEXT("20\r\n")
-		TEXT("0.5\r\n")
-		TEXT("INIT\r\n")   // скидаємо стан граничного шару після розбіжності першого діапазону
-		TEXT("ASEQ\r\n")   // негативний діапазон AoA: від 0 до -13 з кроком 0.5°
-		TEXT("0\r\n")
-		TEXT("-13\r\n")
-		TEXT("0.5\r\n")
-		TEXT("\r\n")
-		TEXT("QUIT\r\n");
-
-	FFileHelper::SaveStringToFile(XFoilCommands, *CommandsPath);
-
-	// Запускаємо xfoil.exe через cmd.exe з перенаправленням stdin — точно як "xfoil.exe < com.txt"
-	// Подвійні лапки навколо всієї команди після /C обов'язкові при шляхах з пробілами
-	const FString CmdArgs = FString::Printf(TEXT("/C \"\"%s\" < \"%s\"\""), *AbsXfoilExe, *AbsCommands);
-	FProcHandle Handle = FPlatformProcess::CreateProc(
-		TEXT("cmd.exe"), *CmdArgs,
-		false,   // bLaunchDetached
-		true,    // bLaunchHidden
-		true,    // bLaunchReallyHidden
-		nullptr, 0,
-		*XFoilDir,  // робоча директорія — та ж що й при запуску з командного рядка
-		nullptr);
-
-	if (Handle.IsValid())
-	{
-		FPlatformProcess::WaitForProc(Handle);
-		FPlatformProcess::CloseProc(Handle);
-		UE_LOG(LogUAV, Log, TEXT("CalculatePolar: XFoil завершив роботу, результат у 'polar.txt'"));
-	}
-	else
-	{
-		UE_LOG(LogUAV, Error, TEXT("CalculatePolar: не вдалося запустити cmd.exe для xfoil.exe"));
-	}
-
-	return TMap<float, FPolarRow>();
-}
-*/
-
 void AerodynamicPhysicalCalculationUtil::RunSU2Calculation(
 	FString ProfilePath, FString SurfaceName, float HingeLocation, float MinFlap, float MaxFlap)
 {
-	// Hardcoded SU2 sweep configuration
+	// Жорстко задана конфігурація SU2-обходу
 	const int32  CoreNumber    = 4;
 	const float  FlapStep      = 1.0f;
 	const int32  RmsQuality    = -6;
@@ -308,7 +121,7 @@ void AerodynamicPhysicalCalculationUtil::RunSU2Calculation(
 
 	const FString ScriptPath = FPaths::ProjectDir() + TEXT("Tools/SU2/execute_su2_calculation.py");
 
-	// argv order expected by execute_su2_calculation.py:
+	// Порядок argv, який очікує execute_su2_calculation.py:
 	//   <profile_path> <surface_name> <cores> <hinge> <min_flap> <max_flap> <flap_step> <rms_quality> <resume>
 	const FString Command = FString::Printf(
 		TEXT("\"%s\" \"%s\" \"%s\" \"%d\" \"%g\" \"%g\" \"%g\" \"%g\" \"%d\" \"%s\""),
@@ -323,14 +136,13 @@ void AerodynamicPhysicalCalculationUtil::RunSU2Calculation(
 		RmsQuality,
 		Resume);
 
-	/* UE_LOG(LogUAV, Log, TEXT("RunSU2Calculation: %s"), *Command); */
 	AerodynamicToolRunner::RunPythonScript(Command);
 }
 
 // ---------------------------------------------------------------------------
-// Private helper — matches Python's str(float).replace(".", "-")
-// FString::SanitizeFloat strips trailing zeros, so 0.0f -> "0" (no dot).
-// Python always emits a dot for floats: str(0.0) == "0.0". We replicate that.
+// Приватна допоміжна функція — відповідає Python-виразу str(float).replace(".", "-")
+// FString::SanitizeFloat прибирає кінцеві нулі, тож 0.0f -> "0" (без крапки).
+// Python завжди виводить крапку для float: str(0.0) == "0.0". Відтворюємо цю поведінку.
 // ---------------------------------------------------------------------------
 static FString FmtFloat(float V)
 {
@@ -347,15 +159,15 @@ FString AerodynamicPhysicalCalculationUtil::BuildAssetPath(
 	FString NormPath = ProfilePath;
 	FPaths::NormalizeFilename(NormPath);
 
-	// Make relative to the Content directory to extract the asset folder
+	// Робимо шлях відносним директорії Content, щоб отримати папку ассету
 	FString RelPath = NormPath;
 	FString ContentDir = FPaths::ProjectContentDir();
 	FPaths::NormalizeFilename(ContentDir);
 	FPaths::MakePathRelativeTo(RelPath, *ContentDir);
 
-	// e.g. "WingProfile/NACA_0009"
+	// наприклад "WingProfile/NACA_0009"
 	const FString Folder = FPaths::GetPath(RelPath);
-	// e.g. "naca0009"
+	// наприклад "naca0009"
 	const FString Stem = FPaths::GetBaseFilename(NormPath);
 
 	const FString Name = FString::Printf(TEXT("DT_%s_%s_%s_%s"),
@@ -378,7 +190,6 @@ bool AerodynamicPhysicalCalculationUtil::AttachAssetToSurface(
 	UDataTable* Table = LoadObject<UDataTable>(nullptr, *AssetPath);
 	if (!Table)
 	{
-		/* UE_LOG(LogUAV, Error, TEXT("AttachAssetToSurface: failed to load '%s'"), *AssetPath); */
 		return false;
 	}
 	Structure.AerodynamicTable = Table;
@@ -399,7 +210,6 @@ FString AerodynamicPhysicalCalculationUtil::FindPathToProfile(UAerodynamicSurfac
 
 	if (FoundFiles.Num() != 1)
 	{
-		/* UE_LOG(LogUAV, Error, TEXT("FindPathToProfile: expected exactly 1 .dat file in '%s', found %d"), *ProfilePath, FoundFiles.Num()); */
 		return FString();
 	}
 

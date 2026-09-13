@@ -30,11 +30,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulator")
 	FString ScenarioSlotName = TEXT("TargetScenario_1");
 
-	/** Distance in cm to shift the replayed target trajectory ahead of the tracker's starting position. */
+	/** Дистанція в см, на яку відтворювана траєкторія цілі зміщується вперед від стартової позиції трекера. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulator")
 	float TargetSpawnOffsetDistance = 5000.0f;
 
-	/** ZMQ PULL endpoint for attitude commands in PlaybackAndAutoTrack / AutoTrack modes. */
+	/** ZMQ PULL-адреса для команд атитюду в режимах PlaybackAndAutoTrack / AutoTrack. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulator")
 	FString AttitudeCommandEndpoint = TEXT("tcp://*:5556");
 
@@ -44,19 +44,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|VFX")
 	bool bEnableVisualsForTarget = false;
 
-	/** Pushes the current flag values to UUAVSimulationSubsystem and broadcasts to all airplanes. */
+	/** Надсилає поточні значення прапорців у UUAVSimulationSubsystem і розсилає їх усім літакам. */
 	UFUNCTION(BlueprintCallable, Category = "Simulation|VFX")
 	void UpdateVisualSettings();
 
-	/** Which airplane role the onboard camera is active on; independent of CurrentSimulatorMode. */
+	/** Для якої ролі літака активна бортова камера; не залежить від CurrentSimulatorMode. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Camera")
 	EOnboardTargetMode OnboardCameraMode = EOnboardTargetMode::Drone;
 
-	/** Pushes the current flag values to UUAVSimulationSubsystem and broadcasts to all airplanes. */
+	/** Надсилає поточні значення прапорців у UUAVSimulationSubsystem і розсилає їх усім літакам. */
 	UFUNCTION(BlueprintCallable, Category = "Simulation|Camera")
 	void UpdateCameraSettings();
 
-	/** Which airplane role the sensor bus is active on; independent of CurrentSimulatorMode. */
+	/** Для якої ролі літака активна шина сенсорів; не залежить від CurrentSimulatorMode. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
 	EOnboardTargetMode SensorsMode = EOnboardTargetMode::Drone;
 
@@ -96,22 +96,22 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Sensors")
 	bool bEnableSensorCustomSurroundings = false;
 
-	/** Pushes sensor enable flags to UUAVSimulationSubsystem and broadcasts to all airplanes. */
+	/** Надсилає прапорці увімкнення сенсорів у UUAVSimulationSubsystem і розсилає їх усім літакам. */
 	UFUNCTION(BlueprintCallable, Category = "Simulation|Sensors")
 	void UpdateSensorSettings();
 
 	/**
-	 * Number of frames sensors should warm up for before publishing. Configured here for now —
-	 * the warm-up logic itself is not implemented yet.
+	 * Кількість кадрів, протягом яких сенсори мають "прогріватися" перед публікацією. Поки що
+	 * лише налаштування тут — сама логіка прогріву ще не реалізована.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|Global")
 	int32 SensorWarmupFrameCount = 0;
 
-	/** Spawns actors and starts the simulation. Must be called explicitly (e.g., from the UI). */
+	/** Спавнить актори та запускає симуляцію. Має викликатись явно (наприклад, з UI). */
 	UFUNCTION(BlueprintCallable, Category = "Simulator")
 	void StartSimulation();
 
-	/** Destroys all spawned airplanes and resets simulation state. */
+	/** Знищує всі заспавнені літаки та скидає стан симуляції. */
 	UFUNCTION(BlueprintCallable, Category = "Simulator")
 	void StopSimulation();
 

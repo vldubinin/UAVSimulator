@@ -27,8 +27,8 @@ TArray<FHitResult> USensorUtilityLibrary::FindActors(const UObject* WorldContext
 		QueryParams.AddIgnoredActor(ActorToIgnore);
 	}
 	QueryParams.bTraceComplex = bTraceComplex;
-	// Chaos does not compute FHitResult::FaceIndex for complex traces unless asked —
-	// it's a separate opt-in perf flag from bTraceComplex itself.
+	// Chaos не обчислює FHitResult::FaceIndex для складних трасувань, якщо це не запитано явно —
+	// це окремий прапорець продуктивності, увімкнений опціонально, незалежний від самого bTraceComplex.
 	QueryParams.bReturnFaceIndex = bTraceComplex;
 
 	const float HStep = 360.0f / FMath::Max(HorizontalRays, 1);

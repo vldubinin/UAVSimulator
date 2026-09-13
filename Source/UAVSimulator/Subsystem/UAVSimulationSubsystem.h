@@ -23,10 +23,10 @@ public:
 	bool bEnableVisualsForPlayer = true;
 	bool bEnableVisualsForTarget = false;
 
-	/** Which role the onboard camera (USceneCaptureComponent2D pipeline) is active on. */
+	/** Для якої ролі активна бортова камера (конвеєр USceneCaptureComponent2D). */
 	EOnboardTargetMode OnboardCameraMode = EOnboardTargetMode::Drone;
 
-	/** Which role the sensor bus is active on; individual sensors below still gate by type. */
+	/** Для якої ролі активна шина сенсорів; окремі сенсори нижче додатково фільтруються за типом. */
 	EOnboardTargetMode SensorsMode = EOnboardTargetMode::Drone;
 
 	bool bEnableSensorAltimeter          = true;

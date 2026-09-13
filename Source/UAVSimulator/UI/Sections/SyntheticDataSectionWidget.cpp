@@ -44,7 +44,7 @@ void USyntheticDataSectionWidget::SyncFromActors()
 {
 	if (ADroneDatasetGeneratorActor* Actor = GetDatasetActor())
 	{
-		// Show the base folder (strip the filename to display just the directory)
+		// Показуємо базову теку (прибираємо ім'я файлу, щоб відобразити лише директорію)
 		const FString BasePath = FPaths::GetPath(Actor->OutputJsonPath);
 		SphericalContourFilePathTextBox->SetText(FText::FromString(BasePath));
 	}

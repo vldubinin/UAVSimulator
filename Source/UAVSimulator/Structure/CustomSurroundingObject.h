@@ -4,78 +4,79 @@
 #include "CustomSurroundingObject.generated.h"
 
 /**
- * One object loaded by UCustomSurroundingsScannerComponent from its JSON source: a stable id,
- * a free-form type tag (e.g. "building", "tree"), a single "altitude", and a "bbox" — four
- * geographic corners ("x_min", "x_max", "y_min", "y_max", each a {latitude, longitude} pair)
- * that outline the object's footprint. Latitude/Longitude here are the mean of those four
- * corners (the footprint centre); WorldLocationMeters is that centre converted to world space,
- * and BBoxCornersWorldMeters holds the four corners converted the same way, in winding order
- * x_min -> x_max -> y_min -> y_max. Re-parsed from ObjectsJson whenever that string changes
- * (see LoadObjects()), so every field here tracks live edits to the source JSON without a restart.
+ * Один об'єкт, завантажений UCustomSurroundingsScannerComponent з його JSON-джерела: стабільний id,
+ * довільний тег типу (напр. "building", "tree"), значення "altitude" і "bbox" — чотири
+ * географічні кути ("x_min", "x_max", "y_min", "y_max", кожен — пара {latitude, longitude}),
+ * що окреслюють контур об'єкта. Latitude/Longitude тут — середнє цих чотирьох
+ * кутів (центр контуру); WorldLocationMeters — цей центр, конвертований у світові координати,
+ * а BBoxCornersWorldMeters містить чотири кути, конвертовані так само, в порядку обходу
+ * x_min -> x_max -> y_min -> y_max. Перепарситься з ObjectsJson щоразу, коли цей рядок змінюється
+ * (див. LoadObjects()), тож кожне поле тут відображає живі зміни вихідного JSON без перезапуску.
  *
- * The JSON "altitude" is NOT used to place the markers: their height comes from a vertical
- * trace against the Cesium tiles (see UCustomSurroundingsScannerComponent::ResolveGroundHeights),
- * so every corner and the centre sit exactly on the tile surface. bGroundHeightResolved tracks
- * whether that snap has completed.
+ * "altitude" з JSON НЕ використовується для розміщення маркерів: їхня висота береться з
+ * вертикального трасування проти тайлів Cesium (див. UCustomSurroundingsScannerComponent::ResolveGroundHeights),
+ * тож кожен кут і центр лежать точно на поверхні тайла. bGroundHeightResolved відстежує,
+ * чи це прив'язування вже завершилося.
  */
 USTRUCT(BlueprintType)
 struct UAVSIMULATOR_API FCustomSurroundingObject
 {
 	GENERATED_BODY()
 
-	/** "elementId" from the source JSON — stable identity, used as the ObjectStorage key. */
+	/** "elementId" з вихідного JSON — стабільний ідентифікатор, використовується як ключ ObjectStorage. */
 	UPROPERTY(BlueprintReadOnly, Category = "Custom Surroundings")
 	FString ObjectID;
 
-	/** "type" from the source JSON (e.g. "building", "tree"). */
+	/** "type" з вихідного JSON (напр. "building", "tree"). */
 	UPROPERTY(BlueprintReadOnly, Category = "Custom Surroundings")
 	FString ObjectType;
 
-	/** Mean latitude of the four "bbox" corners, in degrees — the footprint centre. */
+	/** Середня широта чотирьох кутів "bbox", у градусах — центр контуру. */
 	UPROPERTY(BlueprintReadOnly, Category = "Custom Surroundings")
 	double Latitude = 0.0;
 
-	/** Mean longitude of the four "bbox" corners, in degrees — the footprint centre. */
+	/** Середня довгота чотирьох кутів "bbox", у градусах — центр контуру. */
 	UPROPERTY(BlueprintReadOnly, Category = "Custom Surroundings")
 	double Longitude = 0.0;
 
 	/**
-	 * "altitude" from the source JSON, in metres above the ellipsoid. Informational only — it is
-	 * still reported in the sensor payload, but it is NOT used to position the markers (their
-	 * height is snapped onto the Cesium tile surface instead, see bGroundHeightResolved).
+	 * "altitude" з вихідного JSON, у метрах над еліпсоїдом. Лише інформативне — воно
+	 * все ще передається в payload сенсора, але НЕ використовується для позиціонування маркерів
+	 * (натомість їхня висота прив'язується до поверхні тайла Cesium, див. bGroundHeightResolved).
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "Custom Surroundings")
 	double AltitudeMeters = 0.0;
 
 	/**
-	 * Footprint centre in world space, in metres — the mean of BBoxCornersWorldMeters (each of
-	 * which is a "bbox" corner run through
-	 * ACesiumGeoreference::TransformLongitudeLatitudeHeightPositionToUnreal at load time).
+	 * Центр контуру у світових координатах, у метрах — середнє BBoxCornersWorldMeters (кожен з
+	 * яких — кут "bbox", пропущений через
+	 * ACesiumGeoreference::TransformLongitudeLatitudeHeightPositionToUnreal під час завантаження).
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "Custom Surroundings")
 	FVector WorldLocationMeters = FVector::ZeroVector;
 
 	/**
-	 * The four "bbox" corners in world space, in metres, in winding order
-	 * x_min -> x_max -> y_min -> y_max — each converted via
-	 * ACesiumGeoreference::TransformLongitudeLatitudeHeightPositionToUnreal when the JSON was
-	 * (re)loaded, then snapped in Z onto the Cesium tile surface directly below/above it
-	 * (ResolveGroundHeights) — the JSON "altitude" is not used. Drives the debug bbox outline
-	 * and its projected pixel size.
+	 * Чотири кути "bbox" у світових координатах, у метрах, у порядку обходу
+	 * x_min -> x_max -> y_min -> y_max — кожен конвертований через
+	 * ACesiumGeoreference::TransformLongitudeLatitudeHeightPositionToUnreal під час (пере)завантаження
+	 * JSON, а потім прив'язаний по Z до поверхні тайла Cesium точно під/над ним
+	 * (ResolveGroundHeights) — "altitude" з JSON не використовується. Керує відладковим контуром
+	 * bbox та його проєкційним розміром у пікселях.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "Custom Surroundings")
 	TArray<FVector> BBoxCornersWorldMeters;
 
-	/** Distance from the scanning actor to WorldLocationMeters, in metres — refreshed every Scan(). */
+	/** Відстань від сканувального актора до WorldLocationMeters, у метрах — оновлюється на кожному Scan(). */
 	UPROPERTY(BlueprintReadOnly, Category = "Custom Surroundings")
 	float DistanceMeters = 0.0f;
 
 	/**
-	 * True once every BBoxCornersWorldMeters corner (and, from their mean, WorldLocationMeters)
-	 * has been snapped onto the Cesium tile surface by
-	 * UCustomSurroundingsScannerComponent::ResolveGroundHeights. Until then the snap is retried
-	 * on each Scan() — Cesium streams tiles in by camera distance, so a far object's tiles may
-	 * not exist yet at load time. Reset to false whenever the source JSON is reloaded.
+	 * True, щойно кожен кут BBoxCornersWorldMeters (а через їхнє середнє — і WorldLocationMeters)
+	 * прив'язано до поверхні тайла Cesium через
+	 * UCustomSurroundingsScannerComponent::ResolveGroundHeights. До того прив'язування повторюється
+	 * на кожному Scan() — Cesium підвантажує тайли залежно від відстані до камери, тож тайли
+	 * далекого об'єкта можуть ще не існувати на момент завантаження. Скидається у false щоразу,
+	 * коли вихідний JSON перезавантажується.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "Custom Surroundings")
 	bool bGroundHeightResolved = false;

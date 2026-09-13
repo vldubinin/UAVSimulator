@@ -7,11 +7,12 @@
 class AAirplane;
 
 /**
- * Thin telemetry readout widget. Holds a reference to the observed AAirplane (set via
- * SetAirplane, same pattern as UCameraViewWidget) and exposes BlueprintPure getters for
- * altitude/speed/pitch/roll. Create a Widget Blueprint with this as its parent class, add
- * TextBlocks, and bind their Text property to these getters (wrap with a Format Text node
- * for units/decimals) — the actual layout stays in the Blueprint, not in native code.
+ * Легкий віджет для відображення телеметрії. Зберігає посилання на спостережуваний AAirplane
+ * (встановлюється через SetAirplane, за тим самим патерном, що й UCameraViewWidget) і надає
+ * BlueprintPure геттери для висоти/швидкості/тангажу/крену. Створіть Widget Blueprint із цим
+ * класом як батьківським, додайте TextBlock'и й прив'яжіть їхню властивість Text до цих геттерів
+ * (обгорнувши вузлом Format Text для одиниць виміру/десяткових знаків) — сама розкладка
+ * лишається в Blueprint, а не в нативному коді.
  */
 UCLASS()
 class UAVSIMULATOR_API UAirplaneTelemetryWidget : public UUserWidget

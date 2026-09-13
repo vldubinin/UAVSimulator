@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "OnboardTargetMode.generated.h"
 
-/** Which airplane role the onboard camera / sensor bus should be active on, independent of ESimulatorMode. */
+/** Для якої ролі літака мають бути активні бортова камера / сенсорна шина, незалежно від ESimulatorMode. */
 UENUM(BlueprintType)
 enum class EOnboardTargetMode : uint8
 {

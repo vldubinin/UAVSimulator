@@ -26,7 +26,7 @@
 | [09-Dataset-Generation.md](09-Dataset-Generation.md) | Редакторні інструменти генерації синтетичних даних: силует дрона, ключові точки, об'єкти сцени, YOLO-датасет маркерів мапи |
 | [10-Aero-Data-Pipeline.md](10-Aero-Data-Pipeline.md) | Конвеєр аеродинамічних полярів: OpenVSP → XFoil / SU2 → екстраполяція 360° → плагін `AirfoilImporter` → `DataTable` |
 | [11-External-Tooling.md](11-External-Tooling.md) | Зовнішні Python-інструменти в `Tools/TestingPlatform/`: наведення на слабкому залізі, автопілот «коло», розмітка мапи, запис датасетів позиціонування |
-| [Niagara_VLM_Setup.md](Niagara_VLM_Setup.md) | Покрокове налаштування Niagara-системи візуалізації вихорового сліду (VLM / Біо-Савар на GPU) |
+| [12-Niagara_VLM_Setup.md](Niagara_VLM_Setup.md) | Покрокове налаштування Niagara-системи візуалізації вихорового сліду (VLM / Біо-Савар на GPU) |
 
 ## Швидкий старт для читача коду
 

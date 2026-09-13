@@ -4,7 +4,7 @@
 #include "UAVSimulator/Entity/ControlInputState.h"
 
 /**
- * Maps pilot control inputs to flap deflection angles.
+ * Перетворює керуючі сигнали пілота на кути відхилення закрилків.
  */
 class UAVSIMULATOR_API ControlInputMapper
 {

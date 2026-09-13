@@ -12,16 +12,16 @@ class UAVSIMULATOR_API IUAVSensorInterface
 {
 	GENERATED_BODY()
 public:
-	/** Controlled by RefreshSensorSettings; default false so sensors are inert until explicitly enabled. */
+	/** Керується RefreshSensorSettings; за замовчуванням false — сенсор інертний, доки його явно не ввімкнуть. */
 	bool bSensorEnabled = false;
 
-	/** Returns the sensor's topic name (e.g. "camera", "lidar"). */
+	/** Повертає назву топіка сенсора (напр. "camera", "lidar"). */
 	virtual FString GetSensorTopic() const = 0;
 
 	/**
-	 * Fills OutFrame with the most recently prepared data and returns true.
-	 * Returns false if the sensor has not produced any data yet.
-	 * Called on the game thread by SensorBusComponent each bus tick.
+	 * Заповнює OutFrame останніми підготованими даними й повертає true.
+	 * Повертає false, якщо сенсор ще не виробив жодних даних.
+	 * Викликається в ігровому потоці компонентом SensorBusComponent на кожному тіку шини.
 	 */
 	virtual bool GetLatestFrame(FSensorFrame& OutFrame) = 0;
 };

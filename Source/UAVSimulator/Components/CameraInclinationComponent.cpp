@@ -11,7 +11,7 @@ UCameraInclinationComponent::UCameraInclinationComponent()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Lifecycle
+// Життєвий цикл
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UCameraInclinationComponent::BeginPlay()
@@ -21,14 +21,10 @@ void UCameraInclinationComponent::BeginPlay()
 	AActor* Owner = GetOwner();
 	if (Owner)
 		CaptureComp = Owner->FindComponentByClass<USceneCaptureComponent2D>();
-
-	/*if (!CaptureComp)
-		 UE_LOG(LogUAV, Warning, TEXT("CameraInclinationComponent: USceneCaptureComponent2D not found on %s — pitch will not be reported."),
-			Owner ? *Owner->GetName() : TEXT("Unknown")); */
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tick
+// Тік
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UCameraInclinationComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -42,7 +38,7 @@ void UCameraInclinationComponent::TickComponent(float DeltaTime, ELevelTick Tick
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// IUAVSensorInterface — called on game thread by SensorBusComponent
+// IUAVSensorInterface — викликається в ігровому потоці компонентом SensorBusComponent
 // ─────────────────────────────────────────────────────────────────────────────
 
 bool UCameraInclinationComponent::GetLatestFrame(FSensorFrame& OutFrame)

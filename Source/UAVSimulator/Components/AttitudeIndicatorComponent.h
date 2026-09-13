@@ -6,20 +6,20 @@
 #include "AttitudeIndicatorComponent.generated.h"
 
 /**
- * Attitude Indicator sensor: reads the aircraft's body attitude —
- * roll (крен), pitch (тангаж), yaw (рискання) — and the corresponding
- * body angular rates, publishing them as a JSON payload each tick.
+ * Сенсор авіагоризонту: читає просторову орієнтацію літака —
+ * крен (roll), тангаж (pitch), рискання (yaw) — та відповідні
+ * кутові швидкості корпусу, публікуючи їх як JSON-корисне навантаження щотіку.
  *
- * Implements IUAVSensorInterface — SensorBusComponent auto-discovers this
- * component and calls GetLatestFrame() each bus tick.
+ * Реалізує IUAVSensorInterface — SensorBusComponent автоматично знаходить цей
+ * компонент і викликає GetLatestFrame() на кожному тіку шини.
  *
- * Payload format:
+ * Формат корисного навантаження:
  *   {
  *     "roll_deg":  <float>,  "pitch_deg":  <float>,  "yaw_deg":  <float>,
  *     "roll_rate_dps": <float>, "pitch_rate_dps": <float>, "yaw_rate_dps": <float>
  *   }
- * Angles come from GetOwner()->GetActorRotation(); rates from the owner's
- * UStaticMeshComponent physics angular velocity (0 if physics is not simulating).
+ * Кути беруться з GetOwner()->GetActorRotation(); швидкості — з фізичної кутової
+ * швидкості UStaticMeshComponent власника (0, якщо фізика не симулюється).
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API UAttitudeIndicatorComponent : public UActorComponent, public IUAVSensorInterface

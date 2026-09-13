@@ -7,20 +7,20 @@
 struct FZmqSocketState;
 
 /**
- * Collects data from all IUAVSensorInterface components on the owner simultaneously
- * and publishes a single ZMQ multipart message each bus tick:
+ * Одночасно збирає дані з усіх компонентів IUAVSensorInterface на власнику
+ * і публікує одне ZMQ multipart-повідомлення на кожному такті шини:
  *
- *   Part 0:   JSON envelope  — {"timestamp": T, "sensors": [{"topic": "camera", "timestamp": T1}, ...]}
- *   Part 1..N: Raw payloads  — one per sensor, in the same order as the envelope array
+ *   Частина 0:   JSON-конверт  — {"timestamp": T, "sensors": [{"topic": "camera", "timestamp": T1}, ...]}
+ *   Частина 1..N: Сирі payload — по одному на датчик, у тому самому порядку, що й масив у конверті
  *
- * Python client example:
+ * Приклад Python-клієнта:
  *   parts = socket.recv_multipart()
  *   envelope = json.loads(parts[0])
  *   for i, s in enumerate(envelope["sensors"], start=1):
  *       process(s["topic"], parts[i])
  *
- * If Sensors is left empty, all IUAVSensorInterface components on the owner are
- * discovered automatically at BeginPlay. Populate it explicitly to restrict the set.
+ * Якщо Sensors залишити порожнім, усі компоненти IUAVSensorInterface на власнику
+ * знаходяться автоматично в BeginPlay. Заповніть явно, щоб обмежити набір.
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API USensorBusComponent : public UActorComponent
@@ -32,18 +32,18 @@ public:
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	/** ZMQ PUB endpoint. Python connects with zmq.SUB. Example: "tcp://*:5555" */
+	/** ZMQ PUB endpoint. Python підключається через zmq.SUB. Приклад: "tcp://*:5555" */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Streaming")
 	FString Endpoint = TEXT("tcp://*:5555");
 
-	/** How many combined sensor packets are sent per second. Should match or exceed
-	 *  the fastest sensor's rate (typically the camera's MaxEncodeFPS). */
+	/** Скільки об'єднаних пакетів датчиків надсилається за секунду. Має відповідати або
+	 *  перевищувати частоту найшвидшого датчика (зазвичай MaxEncodeFPS камери). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Streaming", meta = (ClampMin = 0.1f, ClampMax = 120.0f))
 	float BusRate = 30.0f;
 
 	/**
-	 * Explicit list of sensor components to aggregate (must implement IUAVSensorInterface).
-	 * Leave empty to auto-discover all IUAVSensorInterface components on the owner.
+	 * Явний список компонентів-датчиків для агрегації (мають реалізувати IUAVSensorInterface).
+	 * Залиште порожнім для автоматичного пошуку всіх компонентів IUAVSensorInterface на власнику.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Streaming")
 	TArray<TObjectPtr<UActorComponent>> Sensors;
@@ -53,14 +53,14 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
-	/** Polls every sensor, bundles results, sends one ZMQ multipart message. */
+	/** Опитує кожен датчик, об'єднує результати, надсилає одне ZMQ multipart-повідомлення. */
 	void CollectAndSend();
 
 	bool IsEnabledSensors();
 
 	FZmqSocketState* ZmqState = nullptr;
 
-	// Resolved at BeginPlay; iterated each bus tick
+	// Визначається в BeginPlay; перебирається на кожному такті шини
 	TArray<TWeakObjectPtr<UActorComponent>> ResolvedSensors;
 
 	float BusAccumulator = 0.0f;

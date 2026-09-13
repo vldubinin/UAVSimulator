@@ -5,8 +5,8 @@
 #include "UAVSimulator/DataAsset/AerodynamicProfileRow.h"
 
 /**
- * Encapsulates DataTable row lookup for aerodynamic polar profiles.
- * Row name format: FLAP_{angle}_Deg
+ * Інкапсулює пошук рядків DataTable для аеродинамічних полярних профілів.
+ * Формат імені рядка: FLAP_{angle}_Deg
  */
 class UAVSIMULATOR_API AerodynamicProfileLookup
 {

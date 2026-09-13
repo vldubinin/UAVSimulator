@@ -12,13 +12,13 @@ THIRD_PARTY_INCLUDES_START
 #include <zmq.hpp>
 THIRD_PARTY_INCLUDES_END
 
-// zmq.hpp drags in <windows.h> -> <wingdi.h>, which #defines OPAQUE.
-// That clashes with CesiumGltf::Material's `static const std::string OPAQUE`
-// member when both end up in the same unity translation unit.
+// zmq.hpp тягне за собою <windows.h> -> <wingdi.h>, який визначає макрос OPAQUE.
+// Це конфліктує з `static const std::string OPAQUE` — членом CesiumGltf::Material,
+// коли обидва потрапляють у той самий unity translation unit.
 #undef OPAQUE
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ZMQ state — defined here so zmq.hpp never leaks into the header
+// Стан ZMQ — визначено тут, щоб zmq.hpp ніколи не потрапляв у заголовок
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct FZmqSocketState
@@ -36,7 +36,7 @@ struct FZmqSocketState
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Component
+// Компонент
 // ─────────────────────────────────────────────────────────────────────────────
 
 USensorBusComponent::USensorBusComponent()
@@ -57,7 +57,6 @@ void USensorBusComponent::BeginPlay()
 	try
 	{
 		ZmqState = new FZmqSocketState(Endpoint);
-		/* UE_LOG(LogTemp, Log, TEXT("SensorBusComponent: ZMQ PUB bound to %s"), *Endpoint); */
 	}
 	catch (const zmq::error_t& E)
 	{
@@ -65,7 +64,7 @@ void USensorBusComponent::BeginPlay()
 		return;
 	}
 
-	// Build the sensor list: use explicit Sensors array or auto-discover on owner
+	// Побудова списку датчиків: явний масив Sensors або авто-дискавер на власнику
 	TArray<UActorComponent*> Resolved;
 	if (Sensors.Num() > 0)
 	{
@@ -87,13 +86,9 @@ void USensorBusComponent::BeginPlay()
 	{
 		if (!Cast<IUAVSensorInterface>(Comp))
 		{
-			/* UE_LOG(LogTemp, Warning, TEXT("SensorBusComponent: %s does not implement IUAVSensorInterface, skipped."),
-				*Comp->GetName()); */
 			continue;
 		}
 		ResolvedSensors.Add(Comp);
-		/* UE_LOG(LogTemp, Log, TEXT("SensorBusComponent: registered sensor '%s' on %s"),
-			*Cast<IUAVSensorInterface>(Comp)->GetSensorTopic(), *GetOwner()->GetName()); */
 	}
 }
 
@@ -108,7 +103,7 @@ void USensorBusComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tick
+// Тік
 // ─────────────────────────────────────────────────────────────────────────────
 
 void USensorBusComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -125,14 +120,14 @@ void USensorBusComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CollectAndSend — the core of the synchronous pipeline
+// CollectAndSend — ядро синхронного пайплайну
 // ─────────────────────────────────────────────────────────────────────────────
 
 void USensorBusComponent::CollectAndSend()
 {
 	if (!ZmqState) return;
 
-	// ── 1. Poll every sensor for its latest frame ─────────────────────────────
+	// ── 1. Опитати кожен датчик на останній кадр ─────────────────────────────
 	TArray<FSensorFrame> Frames;
 	for (const TWeakObjectPtr<UActorComponent>& WeakComp : ResolvedSensors)
 	{
@@ -149,7 +144,7 @@ void USensorBusComponent::CollectAndSend()
 
 	if (Frames.IsEmpty()) return;
 
-	// ── 2. Build JSON envelope ────────────────────────────────────────────────
+	// ── 2. Побудувати JSON-конверт ────────────────────────────────────────────────
 	// {"timestamp": <bus_time>, "sensors": [{"topic": "...", "timestamp": <sensor_time>}, ...]}
 	TSharedRef<FJsonObject> EnvelopeObj = MakeShared<FJsonObject>();
 	EnvelopeObj->SetNumberField(TEXT("timestamp"), GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0);
@@ -170,9 +165,9 @@ void USensorBusComponent::CollectAndSend()
 
 	FTCHARToUTF8 EnvelopeUtf8(*EnvelopeStr);
 
-	// ── 3. Send as a single atomic ZMQ multipart message ─────────────────────
-	// Part 0:   JSON envelope
-	// Part 1..N: raw payload for each sensor (same order as envelope "sensors" array)
+	// ── 3. Надіслати як одне атомарне ZMQ multipart-повідомлення ─────────────────────
+	// Частина 0:   JSON-конверт
+	// Частина 1..N: сирий payload кожного датчика (у тому самому порядку, що й масив "sensors" у конверті)
 	try
 	{
 		zmq::message_t EnvelopeMsg(EnvelopeUtf8.Get(), static_cast<size_t>(EnvelopeUtf8.Length()));
@@ -189,7 +184,7 @@ void USensorBusComponent::CollectAndSend()
 	}
 	catch (const zmq::error_t&)
 	{
-		// Drop on HWM — receiver is too slow; don't block the game thread
+		// Втрата повідомлення при досягненні HWM — приймач надто повільний; не блокуємо ігровий потік
 	}
 }
 

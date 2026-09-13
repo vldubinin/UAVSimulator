@@ -4,23 +4,23 @@
 #include "VortexEntities.generated.h"
 
 /**
- * Bound vortex segment positioned at the 1/4-chord line of a wing panel.
- * Represents the circulation-carrying filament in LLT/VLM.
+ * Приєднаний (bound) відрізок вихору, розташований на лінії 1/4 хорди панелі крила.
+ * Представляє нитку, що несе циркуляцію, у моделі LLT/VLM.
  */
 USTRUCT(BlueprintType)
 struct UAVSIMULATOR_API FBoundVortex
 {
 	GENERATED_BODY()
 
-	/** World-space start point of the vortex filament (e.g. wing root end). */
+	/** Початкова точка нитки вихору у світових координатах (напр. кінець біля кореня крила). */
 	UPROPERTY(BlueprintReadOnly)
 	FVector StartPoint;
 
-	/** World-space end point of the vortex filament (e.g. wing tip end). */
+	/** Кінцева точка нитки вихору у світових координатах (напр. кінець біля кінчика крила). */
 	UPROPERTY(BlueprintReadOnly)
 	FVector EndPoint;
 
-	/** Circulation strength Γ (m²/s). Positive = counter-clockwise when viewed from tip to root. */
+	/** Сила циркуляції Γ (м²/с). Додатне значення — проти годинникової стрілки, якщо дивитися від кінчика до кореня крила. */
 	UPROPERTY(BlueprintReadOnly)
 	float Gamma;
 
@@ -38,19 +38,19 @@ struct UAVSIMULATOR_API FBoundVortex
 };
 
 /**
- * A single node in a trailing vortex wake line shed from a wing panel edge.
- * Nodes are stored sequentially per wake line; consecutive nodes define vortex segments.
+ * Один вузол у лінії сходового (trailing) вихрового сліду, що сходить з краю панелі крила.
+ * Вузли зберігаються послідовно для кожної лінії сліду; сусідні вузли визначають відрізки вихору.
  */
 USTRUCT(BlueprintType)
 struct UAVSIMULATOR_API FTrailingVortexNode
 {
 	GENERATED_BODY()
 
-	/** World-space position of this wake node. */
+	/** Позиція цього вузла сліду у світових координатах. */
 	UPROPERTY(BlueprintReadOnly)
 	FVector Position;
 
-	/** Circulation Γ (m²/s) carried by the trailing filament leaving the wing at this node's creation. */
+	/** Циркуляція Γ (м²/с), яку несе сходова нитка, що покидає крило в момент створення цього вузла. */
 	UPROPERTY(BlueprintReadOnly)
 	float Gamma;
 

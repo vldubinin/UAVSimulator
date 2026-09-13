@@ -16,10 +16,6 @@ void UCameraFrameComponent::BeginPlay()
 	if (!Owner) return;
 
 	CameraComp = Owner->FindComponentByClass<UUAVCameraComponent>();
-	if (!CameraComp)
-	{
-		/* UE_LOG(LogUAV, Error, TEXT("CameraFrameComponent: UUAVCameraComponent not found on %s."), *Owner->GetName()); */
-	}
 }
 
 bool UCameraFrameComponent::GetLatestFrame(FSensorFrame& OutFrame)

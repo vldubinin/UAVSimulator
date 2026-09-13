@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Заповніть примітку про авторські права на сторінці Description в Project Settings.
 
 
 #include "AerodynamicSurfaceSC.h"
@@ -7,11 +7,11 @@
 
 
 
-// Sets default values for this component's properties
+// Встановлює значення за замовчуванням для властивостей цього компонента
 UAerodynamicSurfaceSC::UAerodynamicSurfaceSC()
 {
-	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
-	// off to improve performance if you don't need them.
+	// Цей компонент ініціалізується на старті гри і тікає щокадру. Ці можливості можна
+	// вимкнути заради продуктивності, якщо вони не потрібні.
 	PrimaryComponentTick.bCanEverTick = true;
 }
 

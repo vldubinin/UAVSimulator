@@ -9,11 +9,11 @@
 class UUAVCameraComponent;
 
 /**
- * Sensor adapter that exposes the segmentation mask stream on the
- * "segmentation_mask" topic. Delegates mask retrieval to UAVCameraComponent,
- * which owns the capture and encoding pipeline.
+ * Адаптер-датчик, що публікує потік маски сегментації у топіку
+ * "segmentation_mask". Делегує отримання маски UAVCameraComponent,
+ * якому належить пайплайн захоплення й кодування.
  *
- * Requires UAVCameraComponent::MaskPostProcessMaterial to be set on the same actor.
+ * Потребує, щоб UAVCameraComponent::MaskPostProcessMaterial було встановлено на тому самому акторі.
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API USegmentationMaskCameraComponent : public UActorComponent, public IUAVSensorInterface

@@ -11,7 +11,7 @@ UCameraAltitudeComponent::UCameraAltitudeComponent()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Lifecycle
+// Життєвий цикл
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UCameraAltitudeComponent::BeginPlay()
@@ -21,14 +21,10 @@ void UCameraAltitudeComponent::BeginPlay()
 	AActor* Owner = GetOwner();
 	if (Owner)
 		CaptureComp = Owner->FindComponentByClass<USceneCaptureComponent2D>();
-
-	/*if (!CaptureComp)
-		UE_LOG(LogUAV, Warning, TEXT("CameraAltitudeComponent: USceneCaptureComponent2D not found on %s — altitude will not be reported."),
-			Owner ? *Owner->GetName() : TEXT("Unknown")); */
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tick
+// Тік
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UCameraAltitudeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -36,14 +32,14 @@ void UCameraAltitudeComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	if (!bSensorEnabled || !CaptureComp) return;
 
-	// Unreal uses cm; convert to metres
+	// Unreal використовує см; конвертуємо в метри
 	LatestAltitudeMeters = CaptureComp->GetComponentLocation().Z * 0.01f;
 	LatestTimestamp      = GetWorld()->GetTimeSeconds();
 	bHasData             = true;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// IUAVSensorInterface — called on game thread by SensorBusComponent
+// IUAVSensorInterface — викликається в ігровому потоці компонентом SensorBusComponent
 // ─────────────────────────────────────────────────────────────────────────────
 
 bool UCameraAltitudeComponent::GetLatestFrame(FSensorFrame& OutFrame)

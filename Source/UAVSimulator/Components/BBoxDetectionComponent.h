@@ -9,12 +9,12 @@
 #include "BBoxDetectionComponent.generated.h"
 
 /**
- * Detects scene actors via a lidar-style ray sweep from the owner's
- * SceneCaptureComponent2D, projects each actor's OBB to 2D screen space,
- * and publishes the resulting bounding boxes as JSON on the "bbox" topic.
+ * Виявляє актори сцени за допомогою лідар-подібної розгортки променів від
+ * SceneCaptureComponent2D власника, проєктує OBB кожного актора у 2D-простір
+ * екрану і публікує отримані обмежувальні рамки як JSON на топіку "bbox".
  *
- * SceneActors are collected once on the first tick; their 2D projections
- * are recomputed every tick using the current camera transform.
+ * SceneActors збираються один раз на першому тіку; їхні 2D-проєкції
+ * перераховуються щотіку з урахуванням поточної трансформації камери.
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API UBBoxDetectionComponent : public UActorComponent, public IUAVSensorInterface
@@ -34,23 +34,23 @@ protected:
 	virtual void BeginPlay() override;
 
 public:
-	/** Maximum ray-cast range in cm. */
+	/** Максимальна дальність трасування променів у см. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BBox", meta = (ClampMin = 1.0f))
 	float Range = 5000.0f;
 
-	/** Number of rays distributed evenly over a full 360° horizontal sweep. */
+	/** Кількість променів, рівномірно розподілених по повному горизонтальному охопленню 360°. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BBox", meta = (ClampMin = 1))
 	int32 HorizontalRays = 360;
 
-	/** Number of evenly-spaced vertical scan layers. */
+	/** Кількість рівномірно розташованих вертикальних шарів сканування. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BBox", meta = (ClampMin = 1))
 	int32 VerticalLayers = 16;
 
-	/** How many full scans are performed per second (reserved for future rate-limiting). */
+	/** Скільки повних сканувань виконується за секунду (зарезервовано для майбутнього обмеження частоти). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BBox", meta = (ClampMin = 0.1f, ClampMax = 100.0f))
 	float ScanRate = 10.0f;
 
-	/** Collision channel used for ray traces. */
+	/** Канал колізій, що використовується для трасування променів. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BBox")
 	TEnumAsByte<ECollisionChannel> CollisionChannel = ECC_Visibility;
 
@@ -66,7 +66,7 @@ private:
 
 	TArray<AActor*> SceneActors;
 
-	// Latest serialized frame — written and read on the game thread only.
+	// Останній серіалізований кадр — записується і читається лише в ігровому потоці.
 	TArray<uint8> LatestPayload;
 	double        LatestTimestamp = 0.0;
 	bool          bHasFrame = false;

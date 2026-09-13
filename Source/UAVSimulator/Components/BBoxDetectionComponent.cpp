@@ -9,7 +9,7 @@
 #include "Serialization/JsonWriter.h"
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Lifecycle
+// Життєвий цикл
 // ─────────────────────────────────────────────────────────────────────────────
 
 UBBoxDetectionComponent::UBBoxDetectionComponent()
@@ -27,12 +27,11 @@ void UBBoxDetectionComponent::BeginPlay()
 	CaptureComponent = Owner->FindComponentByClass<USceneCaptureComponent2D>();
 	if (!CaptureComponent)
 	{
-		/* UE_LOG(LogUAV, Error, TEXT("BBoxDetectionComponent: USceneCaptureComponent2D not found on %s."), *Owner->GetName()); */
 		SetComponentTickEnabled(false);
 		return;
 	}
 
-	// Derive vertical FOV from the capture component so the ray sweep matches the camera frustum.
+	// Обчислюємо вертикальний FOV із компонента захоплення, щоб розгортка променів відповідала пірамідi видимості камери.
 	if (CaptureComponent->TextureTarget)
 	{
 		const int32 SizeX = CaptureComponent->TextureTarget->SizeX;
@@ -47,13 +46,13 @@ void UBBoxDetectionComponent::BeginPlay()
 		}
 	}
 
-	// Fallback: use horizontal FOV as vertical FOV (square sensor assumption).
+	// Запасний варіант: використовуємо горизонтальний FOV як вертикальний (припущення про квадратний сенсор).
 	if (VerticalFOVDeg <= 0.0f)
 		VerticalFOVDeg = CaptureComponent->FOVAngle;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tick
+// Тік
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UBBoxDetectionComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -94,7 +93,7 @@ bool UBBoxDetectionComponent::GetLatestFrame(FSensorFrame& OutFrame)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Actor collection — runs once; result is cached for subsequent ticks.
+// Збір акторів сцени — виконується один раз; результат кешується для наступних тіків.
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UBBoxDetectionComponent::CollectSceneActors()
@@ -120,7 +119,7 @@ void UBBoxDetectionComponent::CollectSceneActors()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2D projection — OBB mid-section approach to avoid perspective inflation.
+// 2D-проєкція — підхід через середній переріз OBB, щоб уникнути перспективного роздування.
 // ─────────────────────────────────────────────────────────────────────────────
 
 FBox2D UBBoxDetectionComponent::ProjectActorToScreen(AActor* Actor) const
@@ -225,7 +224,7 @@ FBox2D UBBoxDetectionComponent::ProjectActorToScreen(AActor* Actor) const
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// JSON serialization
+// Серіалізація в JSON
 // ─────────────────────────────────────────────────────────────────────────────
 
 FString UBBoxDetectionComponent::SerializeBBoxes(const TMap<FString, FBox2D>& BBoxMap) const

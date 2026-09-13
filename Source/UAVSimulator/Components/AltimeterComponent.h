@@ -6,14 +6,14 @@
 #include "AltimeterComponent.generated.h"
 
 /**
- * Altimeter sensor: reads the aircraft's world-space altitude (Z position)
- * and publishes it as a JSON payload each tick.
+ * Сенсор висотоміра: читає висоту літака у світових координатах (позиція Z)
+ * і щотіку публікує її як JSON-корисне навантаження.
  *
- * Implements IUAVSensorInterface — SensorBusComponent auto-discovers this
- * component and calls GetLatestFrame() each bus tick.
+ * Реалізує IUAVSensorInterface — SensorBusComponent автоматично знаходить цей
+ * компонент і викликає GetLatestFrame() на кожному тіку шини.
  *
- * Payload format: {"altitude_m": <float>}
- * Value is in metres (converted from Unreal cm).
+ * Формат корисного навантаження: {"altitude_m": <float>}
+ * Значення у метрах (конвертоване з см Unreal).
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API UAltimeterComponent : public UActorComponent, public IUAVSensorInterface
@@ -29,7 +29,7 @@ public:
 	virtual FString GetSensorTopic() const override { return TEXT("altimeter"); }
 	virtual bool GetLatestFrame(FSensorFrame& OutFrame) override;
 
-	/** Current altitude in metres, updated every tick. */
+	/** Поточна висота в метрах, оновлюється щотіку. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Altimeter")
 	float LatestAltitudeMeters = 0.0f;
 

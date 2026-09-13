@@ -10,7 +10,7 @@
 #include "Serialization/JsonWriter.h"
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Lifecycle
+// Життєвий цикл
 // ─────────────────────────────────────────────────────────────────────────────
 
 UKeyPointDetectionComponent::UKeyPointDetectionComponent()
@@ -28,13 +28,12 @@ void UKeyPointDetectionComponent::BeginPlay()
 	CaptureComponent = Owner->FindComponentByClass<USceneCaptureComponent2D>();
 	if (!CaptureComponent)
 	{
-		/* UE_LOG(LogUAV, Error, TEXT("KeyPointDetectionComponent: USceneCaptureComponent2D not found on %s."), *Owner->GetName()); */
 		SetComponentTickEnabled(false);
 		return;
 	}
 
-	// Try to derive vertical FOV now; if TextureTarget is not yet set by
-	// UAVCameraComponent::BeginPlay, this will be retried lazily in TickComponent.
+	// Спроба визначити вертикальний FOV зараз; якщо TextureTarget ще не встановлено
+	// в UAVCameraComponent::BeginPlay, спроба повториться пізніше в TickComponent.
 	if (CaptureComponent->TextureTarget)
 	{
 		const int32 W = CaptureComponent->TextureTarget->SizeX;
@@ -51,7 +50,7 @@ void UKeyPointDetectionComponent::BeginPlay()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tick
+// Тік
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UKeyPointDetectionComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -59,7 +58,7 @@ void UKeyPointDetectionComponent::TickComponent(float DeltaTime, ELevelTick Tick
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	if (!bSensorEnabled || !CaptureComponent) return;
 
-	// UAVCameraComponent assigns TextureTarget in its own BeginPlay; re-read until valid.
+	// UAVCameraComponent призначає TextureTarget у власному BeginPlay; перечитуємо, доки не стане валідним.
 	if ((SizeX <= 0 || SizeY <= 0) && CaptureComponent->TextureTarget)
 	{
 		SizeX = CaptureComponent->TextureTarget->SizeX;
@@ -67,7 +66,7 @@ void UKeyPointDetectionComponent::TickComponent(float DeltaTime, ELevelTick Tick
 	}
 	if (SizeX <= 0 || SizeY <= 0) return;
 
-	// Recompute vertical FOV once the texture size is known.
+	// Перерахувати вертикальний FOV, щойно розмір текстури стане відомим.
 	if (VerticalFOVDeg <= 0.0f && SizeX > 0 && SizeY > 0)
 	{
 		const float AR      = static_cast<float>(SizeX) / static_cast<float>(SizeY);
@@ -77,7 +76,7 @@ void UKeyPointDetectionComponent::TickComponent(float DeltaTime, ELevelTick Tick
 			VerticalFOVDeg = CaptureComponent->FOVAngle;
 	}
 
-	// ── 1. Discover nearby target actors via the same ray sweep as BBoxDetection ─
+	// ── 1. Пошук найближчих цільових акторів тим самим променевим розгортанням, що й BBoxDetection ─
 	TArray<FHitResult> HitResults = USensorUtilityLibrary::FindActors(
 		this,
 		CaptureComponent->GetComponentTransform(),
@@ -96,7 +95,7 @@ void UKeyPointDetectionComponent::TickComponent(float DeltaTime, ELevelTick Tick
 			TargetActors.AddUnique(Hit.GetActor());
 	}
 
-	// ── 2. For each target actor collect and project its UKeyPointComponents ───
+	// ── 2. Для кожного цільового актора зібрати й спроєктувати його UKeyPointComponents ───
 	TMap<FString, TArray<FKeyPoint2D>> PerActorKeyPoints;
 
 	for (AActor* Target : TargetActors)
@@ -120,7 +119,7 @@ void UKeyPointDetectionComponent::TickComponent(float DeltaTime, ELevelTick Tick
 		}
 	}
 
-	// ── 3. Serialize and store ────────────────────────────────────────────────
+	// ── 3. Серіалізувати та зберегти ────────────────────────────────────────────────
 	FString Json = SerializeAllKeyPoints(PerActorKeyPoints);
 	FTCHARToUTF8 JsonUtf8(*Json);
 
@@ -145,7 +144,7 @@ bool UKeyPointDetectionComponent::GetLatestFrame(FSensorFrame& OutFrame)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Projection — identical view/projection setup to BBoxDetectionComponent.
+// Проєкція — налаштування view/projection ідентичне BBoxDetectionComponent.
 // ─────────────────────────────────────────────────────────────────────────────
 
 bool UKeyPointDetectionComponent::ProjectWorldToScreen(const FVector& WorldPos, FVector2D& OutScreenPos) const
@@ -205,7 +204,7 @@ bool UKeyPointDetectionComponent::ProjectWorldToScreen(const FVector& WorldPos, 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// JSON serialization — one object keyed by actor name, analogous to BBox output.
+// Серіалізація JSON — один об'єкт, ключем якого є ім'я актора, за аналогією з виводом BBox.
 // ─────────────────────────────────────────────────────────────────────────────
 
 FString UKeyPointDetectionComponent::SerializeAllKeyPoints(const TMap<FString, TArray<FKeyPoint2D>>& PerActorKeyPoints) const

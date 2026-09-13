@@ -9,9 +9,9 @@
 class UUAVCameraComponent;
 
 /**
- * Sensor adapter that exposes the UAVCameraComponent's RGB stream on the
- * "camera" topic. Add this alongside UAVCameraComponent and SensorBusComponent
- * on the same actor.
+ * Адаптер-сенсор, що публікує RGB-потік UAVCameraComponent на топіку
+ * "camera". Додавати поруч з UAVCameraComponent і SensorBusComponent
+ * на тому самому акторі.
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API UCameraFrameComponent : public UActorComponent, public IUAVSensorInterface

@@ -55,7 +55,7 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Push flags so subsystem is ready before StartSimulation() is called from the UI.
+	// Надсилаємо прапорці, щоб підсистема була готова ще до виклику StartSimulation() з UI.
 	if (UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>())
 	{
 		Subsystem->CurrentSimulatorMode    = CurrentSimulatorMode;
@@ -83,7 +83,7 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 	if (bSimulationStarted) return;
 	bSimulationStarted = true;
 
-	// Re-push current settings (may have been edited via UI before Start).
+	// Повторно надсилаємо поточні налаштування (могли бути змінені через UI перед стартом).
 	if (UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>())
 	{
 		Subsystem->CurrentSimulatorMode    = CurrentSimulatorMode;
@@ -116,7 +116,6 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 	{
 		if (!TargetAirplaneClass)
 		{
-			/* UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TargetAirplaneClass is not set.")); */
 			return;
 		}
 
@@ -135,7 +134,6 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 	{
 		if (!TargetAirplaneClass || !TrackerAirplaneClass)
 		{
-			/* UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TargetAirplaneClass or TrackerAirplaneClass is not set.")); */
 			return;
 		}
 
@@ -144,7 +142,6 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 
 		if (!LoadedScenario || LoadedScenario->FlightFrames.Num() == 0)
 		{
-			/* UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: Failed to load scenario from slot '%s'."), *ScenarioSlotName); */
 			return;
 		}
 
@@ -187,7 +184,6 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 	{
 		if (!TargetAirplaneClass || !TrackerAirplaneClass)
 		{
-			/* UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TargetAirplaneClass or TrackerAirplaneClass is not set.")); */
 			return;
 		}
 
@@ -196,7 +192,6 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 
 		if (!LoadedScenario || LoadedScenario->FlightFrames.Num() == 0)
 		{
-			/* UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: Failed to load scenario from slot '%s'."), *ScenarioSlotName); */
 			return;
 		}
 
@@ -252,7 +247,6 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 		// автопілот (він отримує уставки атитюду ззовні через ZMQ) і опановуємо його.
 		if (!TrackerAirplaneClass)
 		{
-			/* UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TrackerAirplaneClass is not set.")); */
 			return;
 		}
 
@@ -281,7 +275,6 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 	{
 		if (!TargetAirplaneClass)
 		{
-			/* UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TargetAirplaneClass is not set.")); */
 			return;
 		}
 
@@ -290,7 +283,6 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 
 		if (!LoadedScenario || LoadedScenario->FlightFrames.Num() == 0)
 		{
-			/* UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: Failed to load scenario from slot '%s'."), *ScenarioSlotName); */
 			return;
 		}
 
@@ -317,7 +309,6 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 	{
 		if (!TargetAirplaneClass)
 		{
-			/* UE_LOG(LogTemp, Warning, TEXT("UAVSimulatorGameModeBase: TargetAirplaneClass is not set.")); */
 			return;
 		}
 
@@ -333,7 +324,7 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 		}
 	}
 
-	// Broadcast AFTER all actors are spawned and possessed.
+	// Розсилаємо ПІСЛЯ того, як усі актори заспавнені та опановані.
 	UpdateCameraSettings();
 	UpdateVisualSettings();
 	UpdateSensorSettings();

@@ -10,7 +10,7 @@ ULidarComponent::ULidarComponent()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tick
+// Тік
 // ─────────────────────────────────────────────────────────────────────────────
 
 void ULidarComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -28,7 +28,7 @@ void ULidarComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActor
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Scan
+// Сканування
 // ─────────────────────────────────────────────────────────────────────────────
 
 float ULidarComponent::GetVerticalAngle(int32 V) const
@@ -77,7 +77,7 @@ const TMap<FString, float>& ULidarComponent::Scan()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// IUAVSensorInterface — called on game thread by SensorBusComponent
+// IUAVSensorInterface — викликається в ігровому потоці з SensorBusComponent
 // ─────────────────────────────────────────────────────────────────────────────
 
 bool ULidarComponent::GetLatestFrame(FSensorFrame& OutFrame)

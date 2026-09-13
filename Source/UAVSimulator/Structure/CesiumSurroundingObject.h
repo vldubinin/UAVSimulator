@@ -4,17 +4,17 @@
 #include "CesiumSurroundingObject.generated.h"
 
 /**
- * One feature hit by UCesiumSurroundingsScannerComponent's scan: the actor/component
- * it belongs to, its distance from the scanning actor, and whatever Cesium metadata
- * properties (e.g. Longitude/Latitude/Height, set up per
- * https://cesium.com/learn/unreal/unreal-visualize-metadata) its property table carries.
+ * Один об'єкт, знайдений скануванням UCesiumSurroundingsScannerComponent: актор/компонент,
+ * якому він належить, відстань від сканувального актора, і будь-які властивості Cesium-метаданих
+ * (напр. Longitude/Latitude/Height, налаштовані за
+ * https://cesium.com/learn/unreal/unreal-visualize-metadata), які містить його таблиця властивостей.
  */
 USTRUCT(BlueprintType)
 struct UAVSIMULATOR_API FCesiumSurroundingObject
 {
 	GENERATED_BODY()
 
-	/** Stable identity for this feature (UCesiumSurroundingsScannerComponent::BuildFeatureKey), same across frames. */
+	/** Стабільний ідентифікатор цього об'єкта (UCesiumSurroundingsScannerComponent::BuildFeatureKey), однаковий у різних кадрах. */
 	UPROPERTY(BlueprintReadOnly, Category = "Cesium")
 	FString ObjectID;
 
@@ -24,15 +24,15 @@ struct UAVSIMULATOR_API FCesiumSurroundingObject
 	UPROPERTY(BlueprintReadOnly, Category = "Cesium")
 	FString ComponentName;
 
-	/** Distance from the scanning actor, in metres. */
+	/** Відстань від сканувального актора, в метрах. */
 	UPROPERTY(BlueprintReadOnly, Category = "Cesium")
 	float DistanceMeters = 0.0f;
 
-	/** World-space hit location, in metres (converted from Unreal cm). */
+	/** Точка влучання у світових координатах, в метрах (конвертовано з сантиметрів Unreal). */
 	UPROPERTY(BlueprintReadOnly, Category = "Cesium")
 	FVector HitLocationMeters = FVector::ZeroVector;
 
-	/** Property table values for the hit feature, keyed by property name (e.g. "Longitude", "Latitude", "Height"). */
+	/** Значення таблиці властивостей для знайденого об'єкта, за ключем — назвою властивості (напр. "Longitude", "Latitude", "Height"). */
 	UPROPERTY(BlueprintReadOnly, Category = "Cesium")
 	TMap<FString, FString> Metadata;
 };

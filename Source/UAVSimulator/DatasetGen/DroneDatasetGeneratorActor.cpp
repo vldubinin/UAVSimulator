@@ -10,15 +10,15 @@
 #include "HAL/FileManager.h"
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Construction
+// Конструювання
 // ─────────────────────────────────────────────────────────────────────────────
 
 ADroneDatasetGeneratorActor::ADroneDatasetGeneratorActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	// APawn does not set a root automatically; create one so USceneComponent
-	// children can attach (matches the pattern noted in CLAUDE.md).
+	// APawn не встановлює root автоматично; створюємо його, щоб дочірні
+	// USceneComponent могли приєднатися (відповідає патерну з CLAUDE.md).
 	USceneComponent* Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	RootComponent = Root;
 
@@ -32,26 +32,24 @@ ADroneDatasetGeneratorActor::ADroneDatasetGeneratorActor()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Public entry point
+// Публічна точка входу
 // ─────────────────────────────────────────────────────────────────────────────
 
 void ADroneDatasetGeneratorActor::GenerateDataset()
 {
 	if (!DroneBlueprintClass)
 	{
-		/* UE_LOG(LogUAV, Warning, TEXT("DatasetGenerator: DroneBlueprintClass is not set.")); */
 		return;
 	}
 	if (OutputJsonPath.IsEmpty())
 	{
-		/* UE_LOG(LogUAV, Warning, TEXT("DatasetGenerator: OutputJsonPath is empty.")); */
 		return;
 	}
 
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	// ── Spawn drone ───────────────────────────────────────────────────────────
+	// ── Спавн дрона ───────────────────────────────────────────────────────────
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	AActor* Drone = World->SpawnActor<AActor>(
@@ -59,11 +57,10 @@ void ADroneDatasetGeneratorActor::GenerateDataset()
 
 	if (!Drone)
 	{
-		/* UE_LOG(LogUAV, Error, TEXT("DatasetGenerator: Failed to spawn drone Blueprint.")); */
 		return;
 	}
 
-	// Enable Custom Depth on every primitive so the mask PP material sees the drone.
+	// Вмикаємо Custom Depth на кожному примітиві, щоб маска PP-матеріалу бачила дрон.
 	TArray<UPrimitiveComponent*> Prims;
 	Drone->GetComponents<UPrimitiveComponent>(Prims);
 	for (UPrimitiveComponent* Prim : Prims)
@@ -79,7 +76,7 @@ void ADroneDatasetGeneratorActor::GenerateDataset()
 
 	CaptureComp->FOVAngle = CameraFOV;
 
-	// ── Image output directory ────────────────────────────────────────────────
+	// ── Директорія для вихідних зображень ────────────────────────────────────
 	FString ImageDir;
 	if (bSaveDebugImages)
 	{
@@ -89,19 +86,15 @@ void ADroneDatasetGeneratorActor::GenerateDataset()
 			: OutputImageDir;
 
 		IFileManager::Get().MakeDirectory(*ImageDir, /*CreateTree=*/true);
-		/* UE_LOG(LogUAV, Log, TEXT("DatasetGenerator: Debug images → %s"), *ImageDir); */
 	}
 
-	// ── Sweep ─────────────────────────────────────────────────────────────────
+	// ── Обхід ─────────────────────────────────────────────────────────────────
 	const FVector DroneOrigin = Drone->GetActorLocation();
 	TArray<FFrameData> Frames;
 
-	/* UE_LOG(LogUAV, Log, TEXT("DatasetGenerator: Starting sweep for %s"),
-		*DroneBlueprintClass->GetName()); */
-
 	int FrameId = 0;
 
-	// Captures one camera position and appends a frame if pixels are valid.
+	// Захоплює одну позицію камери та додає кадр, якщо пікселі валідні.
 	auto CaptureFrame = [&](float Azim, float Elev)
 	{
 		PlaceCameraAt(DroneOrigin, Azim, Elev);
@@ -115,37 +108,29 @@ void ADroneDatasetGeneratorActor::GenerateDataset()
 		}
 	};
 
-	// South pole — single frame, azimuth irrelevant.
+	// Південний полюс — один кадр, азимут не має значення.
 	CaptureFrame(0.f, -90.f);
 
-	// Latitude rings from −90+step to 90−step.
+	// Кільця широти від −90+step до 90−step.
 	for (float Elev = -90.f + ElevationStep; Elev < 90.f - KINDA_SMALL_NUMBER; Elev += ElevationStep)
 		for (float Azim = 0.f; Azim < 360.f - KINDA_SMALL_NUMBER; Azim += AzimuthStep)
 			CaptureFrame(Azim, Elev);
 
-	// North pole — single frame.
+	// Північний полюс — один кадр.
 	CaptureFrame(0.f, 90.f);
 
-	// ── Cleanup drone ─────────────────────────────────────────────────────────
+	// ── Видалення дрона ───────────────────────────────────────────────────────
 	Drone->Destroy();
 
-	// ── Write JSON ────────────────────────────────────────────────────────────
+	// ── Запис JSON ────────────────────────────────────────────────────────────
 	const FString ModelName = DroneBlueprintClass->GetName();
 	const FString JsonStr   = BuildJson(ModelName, Frames);
 
-	if (FFileHelper::SaveStringToFile(JsonStr, *OutputJsonPath))
-	{
-		/* UE_LOG(LogUAV, Log, TEXT("DatasetGenerator: Saved %d frames → %s"),
-			Frames.Num(), *OutputJsonPath); */
-	}
-	else
-	{
-		/* UE_LOG(LogUAV, Error, TEXT("DatasetGenerator: Failed to write %s"), *OutputJsonPath); */
-	}
+	FFileHelper::SaveStringToFile(JsonStr, *OutputJsonPath);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Camera placement
+// Розташування камери
 // ─────────────────────────────────────────────────────────────────────────────
 
 void ADroneDatasetGeneratorActor::PlaceCameraAt(
@@ -154,7 +139,7 @@ void ADroneDatasetGeneratorActor::PlaceCameraAt(
 	const float AzRad = FMath::DegreesToRadians(AzimuthDeg);
 	const float ElRad = FMath::DegreesToRadians(ElevationDeg);
 
-	// Spherical → Cartesian (UE axes: X forward, Y right, Z up)
+	// Сферичні → декартові координати (осі UE: X вперед, Y вправо, Z вгору)
 	const float X = OrbitRadius * FMath::Cos(ElRad) * FMath::Cos(AzRad);
 	const float Y = OrbitRadius * FMath::Cos(ElRad) * FMath::Sin(AzRad);
 	const float Z = OrbitRadius * FMath::Sin(ElRad);
@@ -166,15 +151,15 @@ void ADroneDatasetGeneratorActor::PlaceCameraAt(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Mask capture — show-only strategy
+// Захоплення маски — стратегія show-only
 //
-// Switches the capture to PRM_UseShowOnlyList with only the drone actor so the
-// scene renders as "drone against a guaranteed-black RT clear color". This works
-// without any post-process material and is immune to custom-depth show-flag
-// issues that caused the original full-scene bleed-through.
+// Перемикає захоплення в PRM_UseShowOnlyList лише з actor'ом дрона, щоб сцена
+// рендерилась як "дрон на гарантовано чорному clear color рендер-таргету". Це працює
+// без жодного post-process матеріалу і несприйнятливе до проблем із show-flag
+// custom depth, які раніше спричиняли протікання всієї сцени.
 //
-// If MaskPostProcessMaterial is set it is injected on top (optional effect).
-// ReadPixels() flushes the render thread before we read pixel data.
+// Якщо задано MaskPostProcessMaterial, він додатково інжектується поверх (опційний ефект).
+// ReadPixels() робить flush рендер-потоку перед читанням даних пікселів.
 // ─────────────────────────────────────────────────────────────────────────────
 
 bool ADroneDatasetGeneratorActor::CaptureMask(
@@ -182,13 +167,13 @@ bool ADroneDatasetGeneratorActor::CaptureMask(
 {
 	if (!CaptureComp || !RT || !DroneActor) return false;
 
-	// ── Save state ────────────────────────────────────────────────────────────
+	// ── Збереження стану ──────────────────────────────────────────────────────
 	const ESceneCapturePrimitiveRenderMode OrigMode   = CaptureComp->PrimitiveRenderMode;
 	TArray<AActor*>                        OrigShow   = CaptureComp->ShowOnlyActors;
 	UTextureRenderTarget2D*                OrigRT     = CaptureComp->TextureTarget;
 	TArray<FWeightedBlendable>             OrigBl     = CaptureComp->PostProcessSettings.WeightedBlendables.Array;
 
-	// ── Capture: drone only against black ────────────────────────────────────
+	// ── Захоплення: лише дрон на чорному фоні ────────────────────────────────
 	CaptureComp->PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_UseShowOnlyList;
 	CaptureComp->ShowOnlyActors      = { DroneActor };
 	CaptureComp->TextureTarget       = RT;
@@ -201,7 +186,7 @@ bool ADroneDatasetGeneratorActor::CaptureMask(
 
 	CaptureComp->CaptureScene();
 
-	// ── Restore before flush so the render command keeps its own refs ─────────
+	// ── Відновлення перед flush, щоб render-команда зберігала власні посилання ─
 	CaptureComp->PrimitiveRenderMode                             = OrigMode;
 	CaptureComp->ShowOnlyActors                                  = OrigShow;
 	CaptureComp->TextureTarget                                   = OrigRT;
@@ -210,39 +195,39 @@ bool ADroneDatasetGeneratorActor::CaptureMask(
 	FTextureRenderTargetResource* Res = RT->GameThread_GetRenderTargetResource();
 	if (!Res) return false;
 
-	Res->ReadPixels(OutPixels);  // flushes render thread
+	Res->ReadPixels(OutPixels);  // виконує flush рендер-потоку
 	return OutPixels.Num() == RenderWidth * RenderHeight;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// OpenCV contour extraction
+// Витягування контуру за допомогою OpenCV
 // ─────────────────────────────────────────────────────────────────────────────
 
 TArray<FVector2D> ADroneDatasetGeneratorActor::ExtractPolygon(
 	const TArray<FColor>& Pixels) const
 {
-	// FColor is laid out as B, G, R, A in memory — CV_8UC4 + BGRA2GRAY is correct.
+	// FColor у пам'яті має порядок B, G, R, A — тому CV_8UC4 + BGRA2GRAY коректні.
 	cv::Mat BGRA(RenderHeight, RenderWidth, CV_8UC4,
 		const_cast<void*>(static_cast<const void*>(Pixels.GetData())));
 
 	cv::Mat Gray;
 	cv::cvtColor(BGRA, Gray, cv::COLOR_BGRA2GRAY);
 
-	// Blur — kernel must be odd; clamp to [1, 31].
+	// Розмиття — ядро має бути непарним; обмежуємо до [1, 31].
 	const int BlurK = FMath::Clamp(SilhouetteBlurSize | 1, 1, 31);
 	if (BlurK > 1)
 		cv::GaussianBlur(Gray, Gray, cv::Size(BlurK, BlurK), 0);
 
-	// Otsu finds the optimal threshold between the black background and the drone.
+	// Otsu знаходить оптимальний поріг між чорним фоном і дроном.
 	cv::Mat Binary;
 	cv::threshold(Gray, Binary, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
 
-	// Close: merge thin protrusions (landing gear, antennas) into the main body.
+	// Closing: об'єднує тонкі виступи (шасі, антени) з основним тілом.
 	const int CloseK = FMath::Max(FillGapsSize | 1, 1);
 	const cv::Mat CloseKernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(CloseK, CloseK));
 	cv::morphologyEx(Binary, Binary, cv::MORPH_CLOSE, CloseKernel);
 
-	// Open: erase isolated blobs that survived the close pass.
+	// Opening: стирає ізольовані плями, що залишились після closing.
 	const int OpenK = FMath::Max(RemoveIslandsSize | 1, 1);
 	const cv::Mat OpenKernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(OpenK, OpenK));
 	cv::morphologyEx(Binary, Binary, cv::MORPH_OPEN, OpenKernel);
@@ -252,7 +237,7 @@ TArray<FVector2D> ADroneDatasetGeneratorActor::ExtractPolygon(
 
 	if (Contours.empty()) return {};
 
-	// Keep the largest contour (the drone body).
+	// Залишаємо найбільший контур (тіло дрона).
 	int    LargestIdx  = 0;
 	double LargestArea = 0.0;
 	for (int i = 0; i < static_cast<int>(Contours.size()); ++i)
@@ -276,7 +261,7 @@ TArray<FVector2D> ADroneDatasetGeneratorActor::ExtractPolygon(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Debug image — mask + polygon overlay saved as PNG
+// Debug-зображення — маска + накладений полігон, збережені як PNG
 // ─────────────────────────────────────────────────────────────────────────────
 
 void ADroneDatasetGeneratorActor::SaveDebugImage(
@@ -285,7 +270,7 @@ void ADroneDatasetGeneratorActor::SaveDebugImage(
 	float AzimuthDeg, float ElevationDeg,
 	const FString& ImageDir, int FrameId) const
 {
-	// BGRA (FColor memory layout) → BGR for imwrite
+	// BGRA (розкладка пам'яті FColor) → BGR для imwrite
 	cv::Mat BGRA(RenderHeight, RenderWidth, CV_8UC4,
 		const_cast<void*>(static_cast<const void*>(Pixels.GetData())));
 	cv::Mat BGR;
@@ -300,21 +285,21 @@ void ADroneDatasetGeneratorActor::SaveDebugImage(
 
 		const std::vector<std::vector<cv::Point>> ContourVec = { Pts };
 
-		// Semi-transparent green fill
+		// Напівпрозора зелена заливка
 		cv::Mat Overlay = BGR.clone();
 		cv::fillPoly(Overlay, ContourVec, cv::Scalar(0, 200, 0));
 		cv::addWeighted(BGR, 0.65, Overlay, 0.35, 0.0, BGR);
 
-		// Solid outline
+		// Суцільний контур
 		cv::polylines(BGR, ContourVec, /*isClosed=*/true,
 			cv::Scalar(0, 255, 0), 2, cv::LINE_AA);
 
-		// Vertex dots — small red filled circles
+		// Точки вершин — маленькі закрашені червоні кола
 		for (const cv::Point& Pt : Pts)
 			cv::circle(BGR, Pt, 2, cv::Scalar(0, 0, 255), cv::FILLED, cv::LINE_AA);
 	}
 
-	// Label: camera position. Dark thick pass first, then bright thin — readable on both backgrounds.
+	// Підпис: позиція камери. Спочатку темний товстий прохід, потім яскравий тонкий — читабельно на обох фонах.
 	const cv::Point Pos(8, 20);
 	const std::string Label = TCHAR_TO_UTF8(*FString::Printf(TEXT("Az: %.0f  El: %.0f"), AzimuthDeg, ElevationDeg));
 	cv::putText(BGR, Label, Pos, cv::FONT_HERSHEY_SIMPLEX, 0.55, cv::Scalar(0,0,0),       3, cv::LINE_AA);
@@ -328,14 +313,14 @@ void ADroneDatasetGeneratorActor::SaveDebugImage(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// JSON serialisation
+// Серіалізація в JSON
 // ─────────────────────────────────────────────────────────────────────────────
 
 FString ADroneDatasetGeneratorActor::BuildJson(
 	const FString& ModelName, const TArray<FFrameData>& Frames) const
 {
-	// ── Neighbor lookup ───────────────────────────────────────────────────────
-	// Key: "Az_El" (rounded to nearest degree). Poles always use Az=0.
+	// ── Пошук сусідів ─────────────────────────────────────────────────────────
+	// Ключ: "Az_El" (округлено до найближчого градуса). Для полюсів завжди Az=0.
 	TMap<FString, int32> FrameLookup;
 	FrameLookup.Reserve(Frames.Num());
 
@@ -347,14 +332,14 @@ FString ADroneDatasetGeneratorActor::BuildJson(
 	for (int32 i = 0; i < Frames.Num(); ++i)
 		FrameLookup.Add(MakeKey(Frames[i].Azimuth, Frames[i].Elevation), i);
 
-	// Actual top/bottom ring elevations — ceiling arithmetic handles the case
-	// where ElevationStep does not evenly divide 90.
+	// Фактичні кути підвищення верхнього/нижнього кільця — арифметика зі стелею обробляє випадок,
+	// коли ElevationStep не ділить 90 без остачі.
 	const int32 NRings       = FMath::CeilToInt(180.f / ElevationStep) - 1;
 	const float TopRingEl    = -90.f + NRings * ElevationStep;
 	const float BottomRingEl = -90.f + ElevationStep;
 
-	// Returns the frame index for the neighbor at (dAz, dEl) from F.
-	// Azimuth wraps [0, 360). Going past ±90 elevation reaches the pole (Az=0).
+	// Повертає індекс кадру-сусіда за (dAz, dEl) відносно F.
+	// Азимут циклічний [0, 360). Вихід за межі ±90 за кутом підвищення означає полюс (Az=0).
 	auto FindNeighbor = [&](const FFrameData& F, float dAz, float dEl) -> int32
 	{
 		float NeighEl = F.Elevation + dEl;
@@ -381,7 +366,7 @@ FString ADroneDatasetGeneratorActor::BuildJson(
 
 	auto IsPole = [](float El) { return FMath::IsNearlyEqual(FMath::Abs(El), 90.f, 0.5f); };
 
-	// 8 compass directions: (name, dAzimuth, dElevation).
+	// 8 напрямків компаса: (назва, dAzimuth, dElevation).
 	const float dAz = AzimuthStep;
 	const float dEl = ElevationStep;
 	struct FDirection { float DAz; float DEl; };
@@ -396,7 +381,7 @@ FString ADroneDatasetGeneratorActor::BuildJson(
 		{ -dAz,  +dEl },
 	};
 
-	// ── Serialize ─────────────────────────────────────────────────────────────
+	// ── Серіалізація ──────────────────────────────────────────────────────────
 	TSharedPtr<FJsonObject> Root = MakeShared<FJsonObject>();
 	Root->SetStringField(TEXT("drone_model"), ModelName);
 
@@ -413,7 +398,7 @@ FString ADroneDatasetGeneratorActor::BuildJson(
 
 		if (IsPole(F.Elevation))
 		{
-			// Pole frame: all frames in the adjacent latitude ring are neighbors.
+			// Кадр полюса: усі кадри сусіднього кільця широти є сусідами.
 			const float AdjacentEl = F.Elevation > 0.f ? TopRingEl : BottomRingEl;
 			for (int32 j = 0; j < Frames.Num(); ++j)
 			{
@@ -425,9 +410,9 @@ FString ADroneDatasetGeneratorActor::BuildJson(
 		}
 		else
 		{
-			// Regular frame: up to 8 directional neighbors, deduplicated by ID.
-			// Near-pole frames have multiple directions that resolve to the same
-			// pole frame; only the first matching direction is kept.
+			// Звичайний кадр: до 8 напрямкових сусідів, з дедуплікацією за ID.
+			// У кадрів поблизу полюса кілька напрямків можуть вести до того самого
+			// кадру полюса; зберігається лише перший відповідний напрямок.
 			TSet<int32> Seen;
 			for (const FDirection& Dir : Directions)
 			{

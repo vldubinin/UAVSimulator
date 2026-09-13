@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Заповніть примітку про авторські права на сторінці Description в Project Settings.
 
 #pragma once
 
@@ -42,7 +42,7 @@ protected:
 public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	/** Replicates the old OnConstruction editor visualization: gathers surfaces, initializes CoM, draws thrust-point markers. */
+	/** Відтворює стару логіку OnConstruction для візуалізації в редакторі: збирає поверхні, ініціалізує центр мас, малює маркери точки тяги. */
 	void UpdateEditorVisualization(class UStaticMeshComponent* Mesh);
 
 	FControlInputState GetControlState() const { return ControlState; }
@@ -123,15 +123,15 @@ private:
 
 	FControlInputState ControlState;
 
-	/** Bound vortex filaments rebuilt each tick from active surfaces. */
+	/** Приєднані вихрові нитки, що перебудовуються щотіку з активних поверхонь. */
 	TArray<FBoundVortex> CurrentBoundVortices;
 
 	/** Світова позиція правого кінця крила (Surfaces[0]), оновлюється кожен тік поруч із CurrentBoundVortices. */
 	FVector CurrentRightWingtipWorldPos = FVector::ZeroVector;
 
 	/**
-	 * Trailing vortex wake lines shed from each surface.
-	 * Outer index = wake line (2 per surface: root + tip); inner = sequential nodes.
+	 * Лінії сліду хвостових вихорів, що сходять з кожної поверхні.
+	 * Зовнішній індекс = лінія сліду (2 на поверхню: корінь + кінцівка); внутрішній = послідовні вузли.
 	 */
 	TArray<TArray<FTrailingVortexNode>> VortexWakeLines;
 

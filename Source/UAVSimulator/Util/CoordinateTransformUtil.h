@@ -6,7 +6,7 @@
 class USceneComponent;
 
 /**
- * Helpers for converting local-space positions and chords to world space via a USceneComponent's transform.
+ * Допоміжні функції для перетворення точок і хорд з локального простору у світовий через трансформ USceneComponent.
  */
 class UAVSIMULATOR_API CoordinateTransformUtil
 {

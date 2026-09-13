@@ -1,4 +1,0 @@
-ultralytics>=8.0.0
-opencv-contrib-python>=4.8.0
-pyzmq>=25.0.0
-numpy>=1.24.0

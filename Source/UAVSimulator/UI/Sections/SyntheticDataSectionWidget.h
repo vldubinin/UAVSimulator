@@ -45,8 +45,8 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UEditableTextBox> SceneObjectExportPathTextBox;
 
-	// Optional — add these widgets to the menu Blueprint to expose the YOLO marker
-	// dataset generator. Absent bindings are tolerated so the existing UMG still loads.
+	// Опціонально — додайте ці віджети до Blueprint меню, щоб відкрити доступ до генератора
+	// YOLO-датасету маркерів. Відсутність прив'язки допустима, щоб наявний UMG усе одно завантажувався.
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UButton> RunMarkerDatasetBtn;
 

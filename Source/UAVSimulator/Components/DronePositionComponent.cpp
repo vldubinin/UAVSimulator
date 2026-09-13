@@ -10,7 +10,7 @@ UDronePositionComponent::UDronePositionComponent()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tick
+// Тік
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UDronePositionComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -21,14 +21,14 @@ void UDronePositionComponent::TickComponent(float DeltaTime, ELevelTick TickType
 	AActor* Owner = GetOwner();
 	if (!Owner) return;
 
-	// Unreal uses cm; convert to metres
+	// Unreal використовує см; конвертуємо в метри
 	LatestPositionMeters = Owner->GetActorLocation() * 0.01f;
 	LatestTimestamp       = GetWorld()->GetTimeSeconds();
 	bHasData              = true;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// IUAVSensorInterface — called on game thread by SensorBusComponent
+// IUAVSensorInterface — викликається в ігровому потоці компонентом SensorBusComponent
 // ─────────────────────────────────────────────────────────────────────────────
 
 bool UDronePositionComponent::GetLatestFrame(FSensorFrame& OutFrame)

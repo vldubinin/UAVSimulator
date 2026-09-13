@@ -6,18 +6,18 @@
 #include "SceneObjectDatasetActor.generated.h"
 
 /**
- * Editor/runtime tool actor. Place in any level, set OutputJsonPath, then click
- * "Export Scene Objects" (or trigger ExportSceneObjects() from the UI).
+ * Інструментарний actor для редактора/рантайму. Розмістіть на будь-якому рівні, задайте OutputJsonPath,
+ * потім натисніть "Export Scene Objects" (або викличте ExportSceneObjects() з UI).
  *
- * Scans every actor currently in the world and exports its world-space position
- * and axis-aligned bounding box size (in Unreal units, same as position).
- * Player and target drones (AAirplane instances) are excluded by class check —
- * no tagging or other per-actor markup is required. Actors whose class name
- * matches an entry in ExcludedActorClassNames are also skipped. Actors with no
- * UStaticMeshComponent (game mode, controllers, volumes, subsystem actors, etc.)
- * are skipped since they are not physical scene objects.
+ * Сканує кожен actor, наявний у світі, і експортує його позицію в світових координатах
+ * та розмір axis-aligned bounding box (в одиницях Unreal, як і позиція).
+ * Дрони гравця і цілі (екземпляри AAirplane) виключаються перевіркою класу —
+ * теги чи інше маркування actor'ів не потрібні. Actor'и, чиє ім'я класу
+ * збігається з елементом ExcludedActorClassNames, також пропускаються. Actor'и без
+ * UStaticMeshComponent (game mode, контролери, volume, actor'и підсистем тощо)
+ * пропускаються, оскільки вони не є фізичними об'єктами сцени.
  *
- * JSON output:
+ * Вихідний JSON:
  * {
  *   "objects": [
  *     { "name": "Building_1", "class": "StaticMeshActor", "x": 120.0, "y": -50.0, "z": 0.0,
@@ -33,16 +33,16 @@ class UAVSIMULATOR_API ASceneObjectDatasetActor : public AActor
 public:
 	ASceneObjectDatasetActor();
 
-	/** Absolute path for the output JSON file, e.g. C:/Datasets/scene_objects.json */
+	/** Абсолютний шлях до вихідного JSON-файлу, наприклад C:/Datasets/scene_objects.json */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset")
 	FString OutputJsonPath = TEXT("C:/Datasets/scene_objects.json");
 
-	/** Actor class names to exclude from the export (matched against GetClass()->GetName(),
-	 *  e.g. "StaticMeshActor"). AAirplane instances are always excluded regardless of this list. */
+	/** Імена класів actor'ів, які виключаються з експорту (звіряються з GetClass()->GetName(),
+	 *  наприклад "StaticMeshActor"). Екземпляри AAirplane завжди виключаються незалежно від цього списку. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset")
 	TArray<FString> ExcludedActorClassNames;
 
-	/** Click to scan the scene and write the JSON file. */
+	/** Натисніть, щоб просканувати сцену та записати JSON-файл. */
 	UFUNCTION(CallInEditor, Category = "Dataset")
 	void ExportSceneObjects();
 

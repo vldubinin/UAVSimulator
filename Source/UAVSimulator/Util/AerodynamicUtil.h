@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Заповніть примітку про авторські права на сторінці Description у Project Settings.
 
 #pragma once
 
@@ -7,8 +7,8 @@
 #include "AirfoilData.h"
 
 /**
- * Stateless airfoil geometry utilities: chord finding, profile scaling, normalization, and 3D conversion.
- * Coordinate-space transforms live in CoordinateTransformUtil.
+ * Утиліти геометрії профілю крила без внутрішнього стану: пошук хорди, масштабування профілю,
+ * нормалізація та переведення в 3D. Перетворення координатних просторів знаходяться в CoordinateTransformUtil.
  */
 class UAVSIMULATOR_API AerodynamicUtil
 {

@@ -7,5 +7,5 @@ struct FPolarRow
 	float CM = 0.0f;
 };
 
-// Compatibility alias — remove once all call sites use FPolarRow
+// Псевдонім для сумісності — прибрати, коли всі виклики перейдуть на FPolarRow
 using PolarRow = FPolarRow;

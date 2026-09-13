@@ -6,8 +6,8 @@
 class USceneComponent;
 
 /**
- * Static helpers for visualising aerodynamic surfaces and forces in the editor and PIE.
- * All functions are no-ops in shipping builds.
+ * Статичні допоміжні функції для візуалізації аеродинамічних поверхонь і сил у редакторі та PIE.
+ * У shipping-збірках усі функції нічого не роблять.
  */
 class UAVSIMULATOR_API AerodynamicDebugRenderer
 {

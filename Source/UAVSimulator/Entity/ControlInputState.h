@@ -32,5 +32,5 @@ struct UAVSIMULATOR_API FControlInputState
 	{}
 };
 
-// Compatibility alias — remove once all call sites use FControlInputState
+// Псевдонім для сумісності — прибрати, коли всі виклики перейдуть на FControlInputState
 using ControlInputState = FControlInputState;

@@ -53,11 +53,11 @@ public:
 	void RefreshSensorSettings();
 	void CleanupWidgets();
 
-	/** Widget class to instantiate when the camera is active for this airplane. Set in Blueprint. */
+	/** Клас віджета, який інстанціюється, коли камера активна для цього літака. Задається в Blueprint. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Computer Vision")
 	TSubclassOf<UUserWidget> CameraWidgetClass;
 
-	/** Widget class to instantiate on the locally controlled pawn's HUD (e.g. WBP_AirplaneTelemetry). Set in Blueprint. */
+	/** Клас віджета, який інстанціюється на HUD локально керованого пешки (напр. WBP_AirplaneTelemetry). Задається в Blueprint. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Telemetry")
 	TSubclassOf<UUserWidget> TelemetryWidgetClass;
 

@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Заповніть примітку про авторські права на сторінці Description в Project Settings.
 
 #pragma once
 
@@ -52,7 +52,7 @@ public:
 	 */
 	AerodynamicForce CalculateForcesOnSurface(FVector CenterOfMass, FVector LinearVelocity, FVector AngularVelocity, FVector AirflowDirection, ControlInputState ControlState, bool bVisualizeForces, float DeltaTime);
 
-	/** Activates or deactivates all UNiagaraComponents attached to this surface. */
+	/** Активує або деактивує всі UNiagaraComponent, приєднані до цієї поверхні. */
 	void SetNiagaraActive(bool bActive);
 
 private:

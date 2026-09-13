@@ -97,7 +97,7 @@ void UAeroVisualizerComponent::UpdateNiagaraWakeData()
 		}
 		if (Line.Num() > 0)
 		{
-			// Sentinel node signals end-of-line to the Niagara ribbon
+			// Сигнальний вузол позначає кінець лінії для Niagara ribbon
 			FlatWakePositions.Add(Line.Last().Position + FVector(0.0f, 0.0f, 100000.0f));
 			FlatWakeGammas.Add(0.0f);
 		}

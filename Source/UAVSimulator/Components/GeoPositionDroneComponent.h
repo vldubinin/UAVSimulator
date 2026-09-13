@@ -9,19 +9,19 @@ class ACesiumGeoreference;
 class UFlightDynamicsComponent;
 
 /**
- * Same role as UDronePositionComponent, but publishes the aircraft's position as
- * Latitude / Longitude / Altitude instead of a raw Unreal-space (X, Y, Z) position.
+ * Виконує ту саму роль, що й UDronePositionComponent, але публікує позицію літака як
+ * широту / довготу / висоту замість «сирої» позиції (X, Y, Z) у просторі Unreal.
  *
- * Resolves ACesiumGeoreference::GetDefaultGeoreference in BeginPlay, then each tick converts
- * the owner's world-space location to the georeference's local reference frame
- * (InverseTransformPosition) before calling
- * ACesiumGeoreference::TransformUnrealPositionToLongitudeLatitudeHeight — the exact inverse of
- * the lat/long/height -> Unreal conversion used by UCustomSurroundingsScannerComponent::LoadObjects.
+ * У BeginPlay визначає ACesiumGeoreference::GetDefaultGeoreference, а потім щокадру конвертує
+ * світову позицію власника у локальну систему відліку геореференсу (InverseTransformPosition)
+ * перед викликом ACesiumGeoreference::TransformUnrealPositionToLongitudeLatitudeHeight — це точна
+ * зворотна операція до конвертації lat/long/height -> Unreal, яку використовує
+ * UCustomSurroundingsScannerComponent::LoadObjects.
  *
- * Implements IUAVSensorInterface — SensorBusComponent auto-discovers this component and calls
- * GetLatestFrame() each bus tick.
+ * Реалізує IUAVSensorInterface — SensorBusComponent автоматично знаходить цей компонент і викликає
+ * GetLatestFrame() на кожному такті шини.
  *
- * Payload format: {"latitude": <double>, "longitude": <double>, "altitude_m": <double>}
+ * Формат payload: {"latitude": <double>, "longitude": <double>, "altitude_m": <double>}
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API UGeoPositionDroneComponent : public UActorComponent, public IUAVSensorInterface
@@ -37,7 +37,7 @@ public:
 	virtual FString GetSensorTopic() const override { return TEXT("drone_geo_position"); }
 	virtual bool GetLatestFrame(FSensorFrame& OutFrame) override;
 
-	/** Current geographic position (Longitude=X, Latitude=Y, Altitude in metres=Z), updated every tick. */
+	/** Поточна географічна позиція (Довгота=X, Широта=Y, Висота в метрах=Z), оновлюється щокадру. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Geo Position")
 	FVector LatestLongitudeLatitudeHeight = FVector::ZeroVector;
 
@@ -45,11 +45,11 @@ protected:
 	virtual void BeginPlay() override;
 
 private:
-	/** Resolved in BeginPlay via ACesiumGeoreference::GetDefaultGeoreference. */
+	/** Визначається в BeginPlay через ACesiumGeoreference::GetDefaultGeoreference. */
 	UPROPERTY()
 	ACesiumGeoreference* Georeference = nullptr;
 
-	/** Resolved in BeginPlay via FindComponentByClass — used only for the wingspan debug log below. */
+	/** Визначається в BeginPlay через FindComponentByClass — використовується лише для діагностичного логу розмаху крила нижче. */
 	UPROPERTY()
 	UFlightDynamicsComponent* FlightDynamics = nullptr;
 

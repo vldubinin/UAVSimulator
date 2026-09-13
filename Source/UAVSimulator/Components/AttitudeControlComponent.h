@@ -10,14 +10,14 @@ struct FZmqPullState;
 class UFlightDynamicsComponent;
 
 /**
- * Receives attitude commands from an external algorithm via ZMQ PULL socket
- * and converts them to control surface deflections using a proportional controller.
+ * Приймає команди по орієнтації від зовнішнього алгоритму через ZMQ PULL-сокет
+ * і перетворює їх на відхилення керуючих поверхонь за допомогою пропорційного регулятора.
  *
- * Message format (JSON, UTF-8, plain send — not multipart):
+ * Формат повідомлення (JSON, UTF-8, звичайний send — не multipart):
  *   {"command_type":"SET_ATTITUDE_TARGET","roll":0.0,"pitch":0.0,"yaw_rate":0.0,"thrust":0.5}
  *
- * Algorithm side: zmq.PUSH → connect("tcp://localhost:5556")
- * Unreal side:    zmq.PULL ← bind("tcp://*:5556")
+ * Сторона алгоритму: zmq.PUSH → connect("tcp://localhost:5556")
+ * Сторона Unreal:    zmq.PULL ← bind("tcp://*:5556")
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API UAttitudeControlComponent : public UActorComponent, public IPilotInputSource
@@ -36,7 +36,7 @@ public:
 	virtual void BindInput(class UInputComponent* /*InputComponent*/) override {}
 	virtual bool GetPilotCommand(FPilotCommand& OutCommand) override;
 
-	/** ZMQ PULL endpoint. Algorithm connects with zmq.PUSH. Example: "tcp://*:5556" */
+	/** ZMQ PULL endpoint. Алгоритм підключається через zmq.PUSH. Приклад: "tcp://*:5556" */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Control")
 	FString CommandEndpoint = TEXT("tcp://*:5556");
 
@@ -49,15 +49,15 @@ public:
 	 */
 	void ActivateAutopilot();
 
-	/** PID: roll angle error (rad) → aileron signal [-1, 1] */
+	/** PID: похибка кута крену (рад) → сигнал елеронів [-1, 1] */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Control|PID")
 	FPidController RollPid;
 
-	/** PID: pitch angle error (rad) → elevator signal [-1, 1] */
+	/** PID: похибка кута тангажу (рад) → сигнал руля висоти [-1, 1] */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Control|PID")
 	FPidController PitchPid;
 
-	/** PID: yaw rate error (rad/s) → rudder signal [-1, 1] */
+	/** PID: похибка швидкості рискання (рад/с) → сигнал руля напрямку [-1, 1] */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Control|PID")
 	FPidController YawRatePid;
 

@@ -11,7 +11,7 @@ UAttitudeIndicatorComponent::UAttitudeIndicatorComponent()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tick
+// Тік
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UAttitudeIndicatorComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -43,7 +43,7 @@ void UAttitudeIndicatorComponent::TickComponent(float DeltaTime, ELevelTick Tick
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// IUAVSensorInterface — called on game thread by SensorBusComponent
+// IUAVSensorInterface — викликається в ігровому потоці компонентом SensorBusComponent
 // ─────────────────────────────────────────────────────────────────────────────
 
 bool UAttitudeIndicatorComponent::GetLatestFrame(FSensorFrame& OutFrame)

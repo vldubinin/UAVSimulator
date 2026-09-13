@@ -10,7 +10,7 @@ UAltimeterComponent::UAltimeterComponent()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tick
+// Тік
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UAltimeterComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -21,14 +21,14 @@ void UAltimeterComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 	AActor* Owner = GetOwner();
 	if (!Owner) return;
 
-	// Unreal uses cm; convert to metres
+	// Unreal використовує см; конвертуємо в метри
 	LatestAltitudeMeters = Owner->GetActorLocation().Z * 0.01f;
 	LatestTimestamp      = GetWorld()->GetTimeSeconds();
 	bHasData             = true;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// IUAVSensorInterface — called on game thread by SensorBusComponent
+// IUAVSensorInterface — викликається в ігровому потоці компонентом SensorBusComponent
 // ─────────────────────────────────────────────────────────────────────────────
 
 bool UAltimeterComponent::GetLatestFrame(FSensorFrame& OutFrame)

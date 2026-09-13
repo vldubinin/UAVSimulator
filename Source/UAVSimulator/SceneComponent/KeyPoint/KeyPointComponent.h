@@ -5,10 +5,10 @@
 #include "KeyPointComponent.generated.h"
 
 /**
- * Marks a world-space keypoint on the owner actor.
- * Add one per keypoint in Blueprint, position it relative to the mesh,
- * and set PointID to a unique string identifier.
- * UKeyPointDetectionComponent collects all instances automatically in BeginPlay.
+ * Позначає ключову точку в світовому просторі на акторі-власнику.
+ * Додайте по одному екземпляру на кожну точку в Blueprint, розташуйте відносно mesh
+ * і задайте PointID як унікальний рядковий ідентифікатор.
+ * UKeyPointDetectionComponent автоматично збирає всі екземпляри в BeginPlay.
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API UKeyPointComponent : public USceneComponent
@@ -18,7 +18,7 @@ class UAVSIMULATOR_API UKeyPointComponent : public USceneComponent
 public:
 	UKeyPointComponent();
 
-	/** Unique string identifier for this keypoint (e.g. "nose", "left_wing_tip"). */
+	/** Унікальний рядковий ідентифікатор цієї ключової точки (наприклад, "nose", "left_wing_tip"). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "KeyPoint")
 	FString PointID = TEXT("keypoint");
 };

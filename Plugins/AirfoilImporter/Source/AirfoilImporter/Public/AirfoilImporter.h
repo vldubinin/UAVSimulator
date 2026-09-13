@@ -9,7 +9,7 @@ class FAirfoilImporterModule : public IModuleInterface
 {
 public:
 
-	/** IModuleInterface implementation */
+	/** Реалізація IModuleInterface */
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 };

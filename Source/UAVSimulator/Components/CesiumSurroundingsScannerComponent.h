@@ -13,34 +13,38 @@ class ACesium3DTileset;
 class UPrimitiveComponent;
 
 /**
- * Sweeps a small sphere (SweepMultiByChannel) along a grid of directions spanning exactly
- * the owning actor's onboard camera (UUAVCameraComponent/USceneCaptureComponent2D)
- * horizontal/vertical field of view, from the camera's own transform — so the scan finds
- * every Cesium object the camera can see and nothing outside its view. Each ray direction
- * sweeps a thick sphere (SweepRadius) rather than a zero-width line trace, so gaps between
- * angularly-adjacent rays don't let objects slip through at long range. For every hit that
- * lands on a Cesium 3D Tiles feature carrying a property table — set up on the tileset's
- * CesiumFeaturesMetadataComponent per
- * https://cesium.com/learn/unreal/unreal-visualize-metadata — reads that feature's metadata
- * (e.g. Longitude/Latitude/Height) via
- * UCesiumMetadataPickingBlueprintLibrary::GetPropertyTableValuesFromHit. Hits that land on
- * the same feature are merged into a single entry per scan.
+ * Проводить сканування невеликою сферою (SweepMultiByChannel) уздовж сітки напрямків, що
+ * охоплює точно горизонтальне/вертикальне поле зору бортової камери актора-власника
+ * (UUAVCameraComponent/USceneCaptureComponent2D), із власного трансформа камери — тому
+ * сканування знаходить кожен об'єкт Cesium, який бачить камера, і нічого поза її полем зору.
+ * Кожен напрям променя проводить розгортку товстою сферою (SweepRadius), а не трасуванням
+ * лінією нульової товщини, тому проміжки між сусідніми за кутом променями не дають об'єктам
+ * "проскочити" на великій дальності. Для кожного влучання, що потрапляє на об'єкт Cesium 3D
+ * Tiles із таблицею властивостей — налаштованою на компоненті CesiumFeaturesMetadataComponent
+ * тайлсету за
+ * https://cesium.com/learn/unreal/unreal-visualize-metadata — зчитує метадані цього об'єкта
+ * (наприклад, Longitude/Latitude/Height) через
+ * UCesiumMetadataPickingBlueprintLibrary::GetPropertyTableValuesFromHit. Влучання, що
+ * потрапляють на той самий об'єкт, об'єднуються в один запис за скан.
  *
- * Merged entries are then reconciled against ObjectStorage, a persistent map of currently-
- * tracked features:
- *   1. A feature already in storage is left untouched while it keeps getting hit — its data
- *      is frozen to whatever it was first seen with, even if a later scan's hit differs slightly.
- *   2. A feature that this scan's sweep didn't hit (e.g. a momentary gap between rays, or the
- *      feature occluded behind something else) is NOT dropped immediately: its frozen world
- *      position is re-projected onto the camera, and it is kept in storage — still "reproduced" —
- *      for as long as that projection lands inside the camera's screen bounds. Only once its
- *      frozen position would actually fall outside the frame (or behind the camera) is it removed.
- *   3. ObjectStorage is only ever mutated through AddObject() (a newly-seen feature) and
- *      RemoveObject() (a feature whose frozen position has left the frame).
- *   4. Everything downstream — the console log and the debug rays (one ray per tracked
- *      feature, redrawn every tick from the airplane's current position, same picking
- *      technique as https://cesium.com/learn/unreal/unreal-visualize-metadata/) — is driven
- *      from ObjectStorage, not from the fresh per-scan sweep result.
+ * Об'єднані записи потім звіряються з ObjectStorage — постійною мапою наразі відстежуваних
+ * об'єктів:
+ *   1. Об'єкт, що вже є у сховищі, залишається незмінним, доки в нього продовжують влучати —
+ *      його дані заморожені такими, якими вони були побачені вперше, навіть якщо влучання
+ *      наступного скану трохи відрізняється.
+ *   2. Об'єкт, у який розгортка цього скану не влучила (наприклад, миттєвий проміжок між
+ *      променями або об'єкт, затулений чимось іншим), НЕ видаляється одразу: його заморожена
+ *      світова позиція перепроєктується на камеру, і він залишається у сховищі — все ще
+ *      "відтворюваним" — доки ця проєкція потрапляє в межі екрана камери. Лише коли його
+ *      заморожена позиція справді виходить за межі кадру (або опиняється позаду камери), його
+ *      видаляють.
+ *   3. ObjectStorage змінюється лише через AddObject() (щойно побачений об'єкт) та
+ *      RemoveObject() (об'єкт, чия заморожена позиція покинула кадр).
+ *   4. Все, що нижче за течією — консольний лог і відладочні промені (по одному променю на
+ *      кожен відстежуваний об'єкт, що перемальовуються щотіку від поточної позиції літака,
+ *      та сама техніка picking, що й у
+ *      https://cesium.com/learn/unreal/unreal-visualize-metadata/) — керується з ObjectStorage,
+ *      а не зі свіжого результату розгортки поточного скану.
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API UCesiumSurroundingsScannerComponent : public UActorComponent, public IUAVSensorInterface
@@ -61,230 +65,235 @@ protected:
 
 public:
 	/**
-	 * Runs a scan immediately on the game thread, reconciles ObjectStorage against what's
-	 * currently visible (adding newly-seen features, removing ones no longer in view), updates
-	 * LatestScanResults from ObjectStorage, and returns a reference to it. Called automatically
-	 * by TickComponent at ScanRate Hz; can also be triggered directly from Blueprint.
+	 * Виконує сканування негайно в ігровому потоці, звіряє ObjectStorage із тим, що зараз видно
+	 * (додає щойно побачені об'єкти, видаляє ті, що вже поза полем зору), оновлює
+	 * LatestScanResults з ObjectStorage і повертає посилання на нього. Викликається автоматично
+	 * з TickComponent з частотою ScanRate Hz; також може бути викликаний напряму з Blueprint.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Cesium Surroundings")
 	const TArray<FCesiumSurroundingObject>& Scan();
 
-	/** Mirrors ObjectStorage — every feature currently visible, each with its frozen first-seen data. */
+	/** Дзеркало ObjectStorage — кожен наразі видимий об'єкт із його замороженими даними першого спостереження. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cesium Surroundings")
 	TArray<FCesiumSurroundingObject> LatestScanResults;
 
-	// ── Scan parameters ───────────────────────────────────────────────────────
+	// ── Параметри сканування ───────────────────────────────────────────────────────
 
-	/** Maximum detection range, in metres. */
+	/** Максимальна дальність виявлення, у метрах. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings", meta = (ClampMin = 1.0f))
 	float ScanRadiusMeters = 10000.0f;
 
-	/** Number of rays distributed evenly across the camera's horizontal FOV. */
+	/** Кількість променів, рівномірно розподілених по горизонтальному FOV камери. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings", meta = (ClampMin = 1))
 	int32 HorizontalRays = 72;
 
-	/** Number of rays distributed evenly across the camera's vertical FOV. */
+	/** Кількість променів, рівномірно розподілених по вертикальному FOV камери. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings", meta = (ClampMin = 1))
 	int32 VerticalLayers = 8;
 
-	/** How many full scans are performed per second. */
+	/** Скільки повних сканувань виконується за секунду. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings", meta = (ClampMin = 0.01f, ClampMax = 100.0f))
 	float ScanRate = 1.0f;
 
 	/**
-	 * After this many calls to Scan(), the lower half of the vertical FOV (VAngleRad < 0,
-	 * i.e. everything below the camera's forward axis) is permanently excluded from the
-	 * sweep grid — only the upper half keeps being scanned. 0 disables the cutoff, so the
-	 * full vertical FOV is always scanned.
+	 * Після цієї кількості викликів Scan() нижня половина вертикального FOV (VAngleRad < 0,
+	 * тобто все нижче поздовжньої осі камери) назавжди виключається зі сітки розгортки — далі
+	 * скануватиметься лише верхня половина. 0 вимикає це обмеження, тож повний вертикальний FOV
+	 * скануватиметься завжди.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings", meta = (ClampMin = 0))
 	int32 FramesBeforeLowerHalfCutoff = 10;
 
-	/** Collision channel used for the sweeps. */
+	/** Канал колізії, що використовується для розгорток. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings")
 	TEnumAsByte<ECollisionChannel> CollisionChannel = ECC_Visibility;
 
 	/**
-	 * Radius (cm) of the sphere swept along each ray direction. Gives each ray thickness so
-	 * objects between two angularly-adjacent rays aren't missed at long range — raise this if
-	 * a full lidar-style sweep still leaves gaps, lower it to reduce duplicate/overlapping hits.
+	 * Радіус (см) сфери, що розгортається уздовж кожного напрямку променя. Надає кожному
+	 * променю товщину, щоб об'єкти між двома сусідніми за кутом променями не пропускалися на
+	 * великій дальності — збільшуйте це значення, якщо повне сканування у стилі лідара все ще
+	 * лишає проміжки, зменшуйте — щоб знизити кількість дублікатів/накладених влучань.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings", meta = (ClampMin = 1.0f))
 	float SweepRadius = 100.0f;
 
 	/**
-	 * Which feature ID set to read on a hit primitive (index into the primitive's
-	 * CesiumPrimitiveFeatures). Matches the "Feature ID Set Index" used by
-	 * "Get Property Table Values From Hit" in Blueprint.
+	 * Який набір ідентифікаторів об'єктів зчитувати на влученій примітиві (індекс у
+	 * CesiumPrimitiveFeatures примітива). Відповідає "Feature ID Set Index", який
+	 * використовується у "Get Property Table Values From Hit" в Blueprint.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings", meta = (ClampMin = 0))
 	int64 FeatureIDSetIndex = 0;
 
-	// ── Debug rays ─────────────────────────────────────────────────────────────
+	// ── Відладочні промені ─────────────────────────────────────────────────────────────
 
-	/** Color of the debug ray drawn from the airplane's current position to each scanned feature. */
+	/** Колір відладочного променя, що малюється від поточної позиції літака до кожного сканованого об'єкта. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Debug")
 	FColor RayDebugColor = FColor::Yellow;
 
 	/**
-	 * Draws a wireframe of the current sweep area every scan: four edges from the origin out to
-	 * the far corners at ScanRadiusMeters, plus the far rectangle connecting them. Reflects
-	 * FramesBeforeLowerHalfCutoff live — once the cutoff kicks in, the bottom edge sits on the
-	 * camera's forward axis instead of the bottom of the FOV, so the wireframe visibly shrinks
-	 * to the upper half.
+	 * Малює каркас поточної зони сканування щоскану: чотири ребра від початку координат до
+	 * дальніх кутів на ScanRadiusMeters, плюс дальній прямокутник, що їх з'єднує. Відображає
+	 * FramesBeforeLowerHalfCutoff у реальному часі: щойно обмеження спрацьовує, нижнє ребро
+	 * лягає на поздовжню вісь камери замість нижньої межі FOV, тому каркас візуально
+	 * стискається до верхньої половини.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Debug")
 	bool bDrawScanArea = true;
 
-	/** Color of the scan-area wireframe (see bDrawScanArea). */
+	/** Колір каркаса зони сканування (див. bDrawScanArea). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Debug")
 	FColor ScanAreaDebugColor = FColor::Cyan;
 
-	// ── Sensor output (IUAVSensorInterface) ────────────────────────────────────
-	// Property table key names read as lat/long/altitude. Configurable because different
-	// tilesets name these properties differently (e.g. "lat"/"lon" vs "Latitude"/"Longitude").
+	// ── Вихідні дані сенсора (IUAVSensorInterface) ────────────────────────────────────
+	// Назви ключів таблиці властивостей, що зчитуються як шир./довг./висота. Налаштовувані,
+	// бо різні тайлсети називають ці властивості по-різному (наприклад, "lat"/"lon" проти
+	// "Latitude"/"Longitude").
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Sensor")
 	FString ObjectPropertyName = TEXT("elementId");
 
-	/** Property table key read as the object's latitude (degrees). */
+	/** Ключ таблиці властивостей, що зчитується як широта об'єкта (у градусах). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Sensor")
 	FString LatitudePropertyName = TEXT("cesium#latitude");
 
-	/** Property table key read as the object's longitude (degrees). */
+	/** Ключ таблиці властивостей, що зчитується як довгота об'єкта (у градусах). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Sensor")
 	FString LongitudePropertyName = TEXT("cesium#longitude");
 
-	/** Property table key read as the object's altitude/height (metres). */
+	/** Ключ таблиці властивостей, що зчитується як висота об'єкта (у метрах). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Sensor")
 	FString AltitudePropertyName = TEXT("Height");
 
 private:
 	/**
-	 * Sweeps a sphere (SweepRadius) along a HorizontalRays x VerticalLayers grid of directions
-	 * spanning exactly CameraComponent's HorizontalFOVDeg x VerticalFOVDeg, out to
-	 * ScanRadiusMeters, from OriginTransform (the camera's own transform — see Scan()). Each
-	 * direction is built so its horizontal/vertical angle relative to OriginTransform's forward
-	 * axis lands exactly inside [-HalfFOV, +HalfFOV] — the same rectangular-frustum test a
-	 * perspective camera uses — so nothing outside the camera's view is ever swept. Before
-	 * sweeping, a broad-phase (GatherNearbyTileComponents/BuildActiveCellSet) narrows the grid
-	 * down to only the cells that could plausibly hit an already-loaded Cesium tile, so cells
-	 * pointing at empty sky/ground never pay for a physics query at all. Returns every hit from
-	 * every sweep (a single direction can return multiple overlapping hits, same as
-	 * SweepMultiByChannel normally does).
+	 * Розгортає сферу (SweepRadius) уздовж сітки напрямків HorizontalRays x VerticalLayers, що
+	 * охоплює точно HorizontalFOVDeg x VerticalFOVDeg компонента CameraComponent, на дальність
+	 * ScanRadiusMeters, від OriginTransform (власний трансформ камери — див. Scan()). Кожен
+	 * напрямок побудований так, щоб його горизонтальний/вертикальний кут відносно поздовжньої
+	 * осі OriginTransform точно потрапляв у [-HalfFOV, +HalfFOV] — та сама перевірка
+	 * прямокутного фрустуму, яку використовує перспективна камера — тож ніщо поза полем зору
+	 * камери ніколи не сканується. Перед розгорткою широкофазний прохід
+	 * (GatherNearbyTileComponents/BuildActiveCellSet) звужує сітку лише до тих клітинок, що
+	 * потенційно можуть влучити у вже завантажений тайл Cesium, тож клітинки, спрямовані у
+	 * порожнє небо/землю, взагалі не витрачають ресурси на фізичний запит. Повертає кожне
+	 * влучання з кожної розгортки (один напрямок може повернути кілька перекриваних влучань,
+	 * так само як зазвичай робить SweepMultiByChannel).
 	 */
 	TArray<FHitResult> SweepScan(const FTransform& OriginTransform, AActor* ActorToIgnore) const;
 
 	/**
-	 * Draws the bDrawScanArea wireframe (see its comment): four edges from Origin to the far
-	 * corners at Range, plus the far rectangle connecting them. VMinRad/VMaxRad are the
-	 * effective vertical bounds for this scan — VMinRad is 0 instead of -HalfVFovRad once
-	 * FramesBeforeLowerHalfCutoff has kicked in, so the wireframe shrinks to match exactly what
-	 * SweepScan's grid is currently covering.
+	 * Малює каркас bDrawScanArea (див. коментар до нього): чотири ребра від Origin до дальніх
+	 * кутів на Range, плюс дальній прямокутник, що їх з'єднує. VMinRad/VMaxRad — це фактичні
+	 * вертикальні межі для цього скану: VMinRad дорівнює 0 замість -HalfVFovRad, щойно
+	 * FramesBeforeLowerHalfCutoff спрацював, тож каркас звужується точно відповідно до того,
+	 * що зараз охоплює сітка SweepScan.
 	 */
 	void DrawScanAreaDebug(const FTransform& OriginTransform, float Range, float HalfHFovRad, float VMinRad, float VMaxRad) const;
 
 	/**
-	 * Broad-phase candidate gathering, no physics involved: every currently-loaded tile
-	 * primitive under Tileset whose bounding sphere is within RangeCm of Origin. Cesium already
-	 * frustum-culls which tiles are loaded/streamed, so this is just a cheap bounds check over
-	 * whatever tile components already exist as children of the tileset actor.
+	 * Збір кандидатів широкофазного проходу, без фізики: кожна наразі завантажена примітива
+	 * тайла під Tileset, чия обмежувальна сфера в межах RangeCm від Origin. Cesium уже сам
+	 * відсікає тайли за фрустумом при завантаженні/стрімінгу, тож це просто дешева перевірка
+	 * меж серед уже наявних компонентів тайлів, дочірніх до актора тайлсету.
 	 */
 	TArray<UPrimitiveComponent*> GatherNearbyTileComponents(const FVector& Origin, float RangeCm) const;
 
 	/**
-	 * Projects each candidate's bounding sphere into OriginTransform's H/V angle space (the same
-	 * angle convention SweepScan's grid uses) and marks every grid cell whose direction falls
-	 * within the candidate's angular footprint. SweepScan only sweeps cells in the returned set.
-	 * A candidate straddling or behind the camera plane conservatively activates the whole grid
-	 * rather than risk silently dropping it.
+	 * Проєктує обмежувальну сферу кожного кандидата в простір горизонтального/вертикального
+	 * кута OriginTransform (та сама угода про кути, яку використовує сітка SweepScan) і
+	 * позначає кожну клітинку сітки, чий напрямок потрапляє в кутовий відбиток кандидата.
+	 * SweepScan розгортає лише клітинки з повернутого набору. Кандидат, що охоплює або лежить
+	 * позаду площини камери, обережно активує всю сітку, щоб не ризикувати мовчазно його
+	 * втратити.
 	 */
 	TSet<int32> BuildActiveCellSet(const FTransform& OriginTransform, const TArray<UPrimitiveComponent*>& Candidates,
 		float HalfHFovRad, float HalfVFovRad) const;
 
 	/**
-	 * Multiple sweep directions often land on the same physical feature (e.g. several points
-	 * on the same building's facade) since the property table only distinguishes features, not
-	 * individual triangles. Collapses entries that share the same actor/component and identical
-	 * metadata into a single entry, averaging their hit locations and keeping the closest
-	 * distance, so each building produces one storage entry instead of several.
+	 * Кілька напрямків розгортки часто потрапляють на той самий фізичний об'єкт (наприклад,
+	 * кілька точок на одному фасаді будівлі), оскільки таблиця властивостей розрізняє лише
+	 * об'єкти, а не окремі трикутники. Об'єднує записи, що мають той самий актор/компонент і
+	 * однакові метадані, в один запис, усереднюючи їхні позиції влучання й зберігаючи
+	 * найменшу дистанцію, тож кожна будівля дає один запис у сховищі замість кількох.
 	 */
 	static TArray<FCesiumSurroundingObject> MergeDuplicateHits(const TArray<FCesiumSurroundingObject>& RawEntries);
 
-	/** Stable identity for a feature — same actor/component + identical metadata — used as its ObjectStorage key. */
+	/** Стабільна ідентичність об'єкта — той самий актор/компонент + однакові метадані — використовується як ключ ObjectStorage. */
 	static FString BuildFeatureKey(const FCesiumSurroundingObject& Entry);
 
-	/** ObjectStorage operation 1/2: registers a newly-seen feature and logs its discovery. */
+	/** Операція 1/2 над ObjectStorage: реєструє щойно побачений об'єкт і логує його виявлення. */
 	void AddObject(const FString& Key, const FCesiumSurroundingObject& Entry);
 
-	/** ObjectStorage operation 2/2: forgets a feature once its frozen position has left the frame. */
+	/** Операція 2/2 над ObjectStorage: забуває об'єкт, щойно його заморожена позиція покинула кадр. */
 	void RemoveObject(const FString& Key);
 
 	/**
-	 * Builds and caches this tick's IUAVSensorInterface JSON payload from ObjectStorage —
-	 * one object per currently-visible feature, each with a stable id, latitude/longitude/
-	 * altitude parsed out of Metadata (via LatitudePropertyName/LongitudePropertyName/
-	 * AltitudePropertyName), and pixel_x/pixel_y/visible from ProjectWorldToScreen. Called at
-	 * the end of TickComponent, after Scan(); does nothing (and drops the cached frame) while
-	 * bSensorEnabled is false.
+	 * Будує та кешує JSON-корисне навантаження IUAVSensorInterface для цього тіку з
+	 * ObjectStorage — по одному об'єкту на кожен наразі видимий об'єкт, кожен зі стабільним id,
+	 * широтою/довготою/висотою, розібраними з Metadata (через LatitudePropertyName/
+	 * LongitudePropertyName/AltitudePropertyName), та pixel_x/pixel_y/visible з
+	 * ProjectWorldToScreen. Викликається наприкінці TickComponent, після Scan(); нічого не
+	 * робить (і скидає закешований кадр), доки bSensorEnabled — false.
 	 */
 	void BuildSensorFrame();
 
 	/**
-	 * Lazily reads SensorSizeX/SensorSizeY from SceneCaptureComponent's TextureTarget. Split out
-	 * from BuildSensorFrame() (which only runs while bSensorEnabled is true) so ProjectWorldToScreen
-	 * has valid sensor dimensions to test Scan()'s "still in frame?" retention check against
-	 * regardless of whether ZMQ sensor publishing is enabled. Called unconditionally at the top
-	 * of TickComponent, before Scan().
+	 * Лінькаво зчитує SensorSizeX/SensorSizeY з TextureTarget компонента SceneCaptureComponent.
+	 * Винесено окремо від BuildSensorFrame() (який виконується лише поки bSensorEnabled — true),
+	 * щоб ProjectWorldToScreen мав дійсні розміри сенсора для перевірки Scan() "чи все ще в
+	 * кадрі?" незалежно від того, чи увімкнена публікація сенсора через ZMQ. Викликається
+	 * безумовно на початку TickComponent, перед Scan().
 	 */
 	void UpdateSensorSize();
 
 	/**
-	 * Projects a single world-space point (Unreal cm) onto SceneCaptureComponent's render
-	 * target. Identical view/projection matrix setup to
-	 * UKeyPointDetectionComponent::ProjectWorldToScreen — see that implementation for the
-	 * behind-camera (W<=0) and in-bounds checks. Returns false (point not visible) if the
-	 * capture's render target size isn't known yet.
+	 * Проєктує одну точку у світових координатах (в см Unreal) на рендер-таргет
+	 * SceneCaptureComponent. Ідентичне налаштування матриці вигляду/проєкції до
+	 * UKeyPointDetectionComponent::ProjectWorldToScreen — див. цю реалізацію щодо перевірок
+	 * "позаду камери" (W<=0) та потрапляння в межі. Повертає false (точка не видима), якщо
+	 * розмір рендер-таргета захоплення ще не відомий.
 	 *
-	 * Doubles as Scan()'s "is this stored feature still in frame?" test: a frozen
-	 * ObjectStorage entry that this scan's sweep didn't hit is only removed once its
-	 * HitLocationMeters projects outside the returned bounds (or behind the camera).
+	 * Також слугує перевіркою Scan() "чи цей збережений об'єкт усе ще в кадрі?": заморожений
+	 * запис ObjectStorage, у який розгортка цього скану не влучила, видаляється лише тоді,
+	 * коли його HitLocationMeters проєктується за межі повернутих меж (або позаду камери).
 	 */
 	bool ProjectWorldToScreen(const FVector& WorldPositionCm, FVector2D& OutScreenPos) const;
 
-	/** Owner's onboard camera — supplies HorizontalFOVDeg/VerticalFOVDeg for the scan grid. */
+	/** Бортова камера власника — надає HorizontalFOVDeg/VerticalFOVDeg для сітки сканування. */
 	UPROPERTY()
 	UUAVCameraComponent* CameraComponent = nullptr;
 
-	/** Owner's scene capture — supplies the transform (position + orientation) the scan is swept from. */
+	/** Захоплення сцени власника — надає трансформ (позицію + орієнтацію), з якого проводиться сканування. */
 	UPROPERTY()
 	USceneCaptureComponent2D* SceneCaptureComponent = nullptr;
 
 	/**
-	 * First Cesium3DTileset found in the world — supplies the loaded-tile components used for
-	 * SweepScan's broad-phase culling. Null is a safe fallback: SweepScan just sweeps the full
-	 * grid as it always did.
+	 * Перший знайдений у світі ACesium3DTileset — надає завантажені компоненти тайлів для
+	 * широкофазного відсіювання в SweepScan. Null — безпечний резервний варіант: SweepScan
+	 * просто сканує повну сітку, як і раніше без цієї оптимізації.
 	 */
 	UPROPERTY()
 	ACesium3DTileset* Tileset = nullptr;
 
 	/**
-	 * Persistent storage of currently-tracked features, keyed by BuildFeatureKey(). A feature
-	 * stays here — with its data frozen — even across scans that fail to hit it again, as long
-	 * as its frozen position still projects inside the camera's frame (see ProjectWorldToScreen).
-	 * Only ever mutated via AddObject()/RemoveObject() — see class docs. LatestScanResults, the
-	 * console log, and the debug rays are all driven from this, not from the raw per-scan sweep result.
+	 * Постійне сховище наразі відстежуваних об'єктів, ключоване через BuildFeatureKey(). Об'єкт
+	 * залишається тут — з замороженими даними — навіть протягом сканувань, які в нього не
+	 * влучають, поки його заморожена позиція все ще проєктується в кадр камери (див.
+	 * ProjectWorldToScreen). Змінюється лише через AddObject()/RemoveObject() — див.
+	 * документацію класу. LatestScanResults, консольний лог і відладочні промені — усі
+	 * керовані з цього сховища, а не із сирого результату розгортки поточного скану.
 	 */
 	TMap<FString, FCesiumSurroundingObject> ObjectStorage;
 
-	/** Number of completed Scan() calls so far; compared against FramesBeforeLowerHalfCutoff. */
+	/** Кількість завершених викликів Scan() дотепер; порівнюється з FramesBeforeLowerHalfCutoff. */
 	int32 ScanCount = 0;
 
-	/** SceneCaptureComponent's render-target resolution — lazily read in BuildSensorFrame() since UAVCameraComponent assigns TextureTarget in its own BeginPlay. */
+	/** Роздільна здатність рендер-таргета SceneCaptureComponent — лінькаво зчитується в BuildSensorFrame(), оскільки UAVCameraComponent призначає TextureTarget у власному BeginPlay. */
 	int32 SensorSizeX = 0;
 	int32 SensorSizeY = 0;
 
-	// Latest serialized IUAVSensorInterface frame — written and read on the game thread only.
+	// Останній серіалізований кадр IUAVSensorInterface — записується й читається лише в ігровому потоці.
 	TArray<uint8> LatestPayload;
 	double        LatestTimestamp = 0.0;
 	bool          bHasFrame       = false;

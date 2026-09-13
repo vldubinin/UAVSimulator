@@ -7,8 +7,8 @@
 #include "UAVSimulator/Structure/AerodynamicSurfaceStructure.h"
 
 /**
- * Orchestrates aerodynamic polar generation for aircraft surfaces.
- * File I/O, process execution, and polar parsing are delegated to AerodynamicToolRunner.
+ * Оркеструє генерацію аеродинамічних полярних характеристик для поверхонь літального апарата.
+ * Файловий ввід-вивід, запуск процесів та парсинг полярних характеристик делеговані AerodynamicToolRunner.
  */
 class UAVSIMULATOR_API AerodynamicPhysicalCalculationUtil
 {

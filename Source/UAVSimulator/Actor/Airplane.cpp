@@ -27,7 +27,7 @@
 
 namespace
 {
-	/** Resolves an EOnboardTargetMode selection against an airplane's role tags. AutoTracker counts as Drone. */
+	/** Визначає, чи активний обраний EOnboardTargetMode для тегів ролі даного літака. AutoTracker рахується як Drone. */
 	bool IsRoleActiveForOnboardMode(EOnboardTargetMode Mode, bool bIsPlayer, bool bIsTarget, bool bIsAutoTracker)
 	{
 		switch (Mode)
@@ -52,7 +52,7 @@ AAirplane::AAirplane()
 	KeyboardInput = CreateDefaultSubobject<UKeyboardPilotInputComponent>(TEXT("KeyboardInput"));
 	GamepadInput  = CreateDefaultSubobject<UGamepadPilotInputComponent>(TEXT("GamepadInput"));
 
-	// CameraComp is not a CDO — created dynamically in RefreshConfigurations when camera is enabled.
+	// CameraComp не є CDO — створюється динамічно в RefreshConfigurations, коли камера увімкнена.
 }
 
 void AAirplane::OnConstruction(const FTransform& Transform)
@@ -176,7 +176,7 @@ void AAirplane::RefreshConfigurations()
 		Surface->SetNiagaraActive(bNiagaraActive);
 	}
 
-	// Create the camera component only when it is actually needed.
+	// Створюємо компонент камери лише тоді, коли він справді потрібен.
 	if (bCameraActive && !CameraComp)
 	{
 		CameraComp = NewObject<UUAVCameraComponent>(this, TEXT("CameraComp"));
@@ -190,8 +190,8 @@ void AAirplane::RefreshConfigurations()
 
 	if (bCameraActive && CameraWidgetClass && !CameraWidget)
 	{
-		// For a locally controlled pawn use its own PC; for the target use the world's first PC
-		// so the tracking player sees the target camera feed on their HUD.
+		// Для локально керованої пешки використовуємо її власний PC; для цілі — перший PC світу,
+		// щоб гравець-переслідувач бачив відео з камери цілі на своєму HUD.
 		APlayerController* PC = IsLocallyControlled()
 			? Cast<APlayerController>(GetController())
 			: GetWorld()->GetFirstPlayerController();
@@ -219,8 +219,8 @@ void AAirplane::RefreshConfigurations()
 		CameraWidget = nullptr;
 	}
 
-	// Telemetry HUD only ever belongs to the pawn actually being flown right now — unlike the
-	// camera widget, it's never shown for a target/tracker on someone else's PC.
+	// Телеметричний HUD завжди належить лише пешці, якою керують саме зараз — на відміну від
+	// віджета камери, він ніколи не показується для цілі/переслідувача на чужому PC.
 	if (TelemetryWidgetClass && !TelemetryWidget && IsLocallyControlled())
 	{
 		if (APlayerController* PC = Cast<APlayerController>(GetController()))

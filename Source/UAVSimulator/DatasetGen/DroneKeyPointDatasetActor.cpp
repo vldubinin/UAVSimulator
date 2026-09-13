@@ -7,7 +7,7 @@
 #include "Misc/FileHelper.h"
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Construction
+// Конструювання
 // ─────────────────────────────────────────────────────────────────────────────
 
 ADroneKeyPointDatasetActor::ADroneKeyPointDatasetActor()
@@ -18,26 +18,24 @@ ADroneKeyPointDatasetActor::ADroneKeyPointDatasetActor()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Public entry point
+// Публічна точка входу
 // ─────────────────────────────────────────────────────────────────────────────
 
 void ADroneKeyPointDatasetActor::ExportKeyPoints()
 {
 	if (!DroneBlueprintClass)
 	{
-		/* UE_LOG(LogUAV, Warning, TEXT("KeyPointDataset: DroneBlueprintClass is not set.")); */
 		return;
 	}
 	if (OutputJsonPath.IsEmpty())
 	{
-		/* UE_LOG(LogUAV, Warning, TEXT("KeyPointDataset: OutputJsonPath is empty.")); */
 		return;
 	}
 
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	// ── Spawn drone ───────────────────────────────────────────────────────────
+	// ── Спавн дрона ───────────────────────────────────────────────────────────
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	AActor* Drone = World->SpawnActor<AActor>(
@@ -45,28 +43,22 @@ void ADroneKeyPointDatasetActor::ExportKeyPoints()
 
 	if (!Drone)
 	{
-		/* UE_LOG(LogUAV, Error, TEXT("KeyPointDataset: Failed to spawn drone Blueprint.")); */
 		return;
 	}
 
-	// ── Collect keypoint components ───────────────────────────────────────────
+	// ── Збір компонентів ключових точок ───────────────────────────────────────
 	TArray<UKeyPointComponent*> KPComps;
 	Drone->GetComponents<UKeyPointComponent>(KPComps);
 
 	if (KPComps.IsEmpty())
 	{
-		/* UE_LOG(LogUAV, Warning,
-			TEXT("KeyPointDataset: Drone has no UKeyPointComponent instances — nothing to export.")); */
 		Drone->Destroy();
 		return;
 	}
 
-	/* UE_LOG(LogUAV, Log, TEXT("KeyPointDataset: Found %d keypoints on %s."),
-		KPComps.Num(), *DroneBlueprintClass->GetName()); */
-
-	// ── Compute normalisation scale ───────────────────────────────────────────
-	// Transform every keypoint to drone-local space and find the largest absolute
-	// coordinate value. Dividing by this value maps everything into [-1, 1].
+	// ── Обчислення масштабу нормалізації ──────────────────────────────────────
+	// Переводимо кожну ключову точку в локальний простір дрона і знаходимо найбільше
+	// за модулем значення координати. Ділення на нього відображає все в [-1, 1].
 	const FTransform DroneTransform = Drone->GetActorTransform();
 	float MaxAbsCoord = KINDA_SMALL_NUMBER;
 
@@ -79,25 +71,17 @@ void ADroneKeyPointDatasetActor::ExportKeyPoints()
 		MaxAbsCoord = FMath::Max(MaxAbsCoord, FMath::Abs(Local.Z));
 	}
 
-	// ── Serialise and write ───────────────────────────────────────────────────
+	// ── Серіалізація та запис ─────────────────────────────────────────────────
 	const FString ModelName = DroneBlueprintClass->GetName();
 	const FString JsonStr   = BuildJson(ModelName, MaxAbsCoord, KPComps, DroneTransform);
 
 	Drone->Destroy();
 
-	if (FFileHelper::SaveStringToFile(JsonStr, *OutputJsonPath))
-	{
-		/* UE_LOG(LogUAV, Log, TEXT("KeyPointDataset: Saved %d keypoints → %s"),
-			KPComps.Num(), *OutputJsonPath); */
-	}
-	else
-	{
-		/* UE_LOG(LogUAV, Error, TEXT("KeyPointDataset: Failed to write %s"), *OutputJsonPath); */
-	}
+	FFileHelper::SaveStringToFile(JsonStr, *OutputJsonPath);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// JSON serialisation
+// Серіалізація в JSON
 // ─────────────────────────────────────────────────────────────────────────────
 
 FString ADroneKeyPointDatasetActor::BuildJson(

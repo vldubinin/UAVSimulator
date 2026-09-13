@@ -7,18 +7,18 @@
 #include "DroneKeyPointDatasetActor.generated.h"
 
 /**
- * Editor tool actor. Place in any level, assign DroneBlueprintClass (must have
- * UKeyPointComponent instances placed on it in Blueprint), set OutputJsonPath,
- * then click "Export Key Points".
+ * Інструментарний actor для редактора. Розмістіть на будь-якому рівні, призначте DroneBlueprintClass
+ * (на ньому в Blueprint мають бути розміщені екземпляри UKeyPointComponent), задайте OutputJsonPath,
+ * потім натисніть "Export Key Points".
  *
- * Spawns the drone, reads every UKeyPointComponent's position in the drone's
- * local coordinate system, and exports dimensionless (normalised) 3D coordinates.
+ * Спавнить дрон, зчитує позицію кожного UKeyPointComponent у локальній системі
+ * координат дрона та експортує безрозмірні (нормалізовані) 3D-координати.
  *
- * Normalisation: all local positions are divided by the maximum absolute coordinate
- * value found across all keypoints, so every component falls in [-1, 1].
- * The raw scale factor (in cm) is stored in the JSON so positions can be recovered.
+ * Нормалізація: усі локальні позиції діляться на максимальне за модулем значення
+ * координати серед усіх ключових точок, тож кожна компонента потрапляє в [-1, 1].
+ * Сирий масштабний коефіцієнт (у см) зберігається в JSON, щоб позиції можна було відновити.
  *
- * JSON output:
+ * Вихідний JSON:
  * {
  *   "drone_model": "MyDrone_C",
  *   "scale_cm": 245.3,
@@ -36,15 +36,15 @@ class UAVSIMULATOR_API ADroneKeyPointDatasetActor : public AActor
 public:
 	ADroneKeyPointDatasetActor();
 
-	/** Drone Blueprint to sample. Must have UKeyPointComponent children placed on it. */
+	/** Blueprint дрона для семплювання. На ньому мають бути розміщені дочірні UKeyPointComponent. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset")
 	TSubclassOf<AActor> DroneBlueprintClass;
 
-	/** Absolute path for the output JSON file, e.g. C:/Datasets/drone_keypoints.json */
+	/** Абсолютний шлях до вихідного JSON-файлу, наприклад C:/Datasets/drone_keypoints.json */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataset")
 	FString OutputJsonPath;
 
-	/** Click to spawn the drone, collect keypoints and write the JSON file. */
+	/** Натисніть, щоб заспавнити дрон, зібрати ключові точки та записати JSON-файл. */
 	UFUNCTION(CallInEditor, Category = "Dataset")
 	void ExportKeyPoints();
 

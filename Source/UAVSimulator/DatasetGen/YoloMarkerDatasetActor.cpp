@@ -32,12 +32,12 @@
 #include <opencv2/core.hpp>
 #include "PostOpenCVHeaders.h"
 
-// The four "bbox" corner names, in winding order — identical to
-// UCustomSurroundingsScannerComponent::LoadObjects so a footprint quad matches.
+// Назви чотирьох кутів "bbox" у порядку обходу — ідентично до
+// UCustomSurroundingsScannerComponent::LoadObjects, щоб чотирикутник основи збігався.
 static const TCHAR* GCornerNames[] = { TEXT("x_min"), TEXT("x_max"), TEXT("y_min"), TEXT("y_max") };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Construction
+// Конструювання
 // ─────────────────────────────────────────────────────────────────────────────
 
 AYoloMarkerDatasetActor::AYoloMarkerDatasetActor()
@@ -61,7 +61,7 @@ AYoloMarkerDatasetActor::AYoloMarkerDatasetActor()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Public entry points
+// Публічні точки входу
 // ─────────────────────────────────────────────────────────────────────────────
 
 void AYoloMarkerDatasetActor::GenerateDataset()
@@ -91,9 +91,9 @@ void AYoloMarkerDatasetActor::GenerateDataset()
 			SweepTilesets.Add(T);
 	Tileset = SweepTilesets.Num() > 0 ? SweepTilesets[0].Get() : nullptr;
 
-	// Cesium only feeds tile selection from player/editor cameras and standalone
-	// ASceneCapture2D actors — never a capture component nested in an actor. Register
-	// our capture pose with the camera manager so tiles under each shot are streamed.
+	// Cesium підбирає тайли лише за камерами гравця/редактора та окремими акторами
+	// ASceneCapture2D — ніколи за компонентом захоплення, вкладеним в актора. Реєструємо
+	// нашу позу захоплення в менеджері камер, щоб тайли під кожним пострілом стрімилися.
 	CesiumCameraManager = ACesiumCameraManager::GetDefaultCameraManager(this);
 
 	if (!LoadObjects() || Objects.Num() == 0)
@@ -167,7 +167,7 @@ void AYoloMarkerDatasetActor::CancelGeneration()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tick — one shot per frame: place → settle → capture → save → advance.
+// Tick — один постріл за кадр: розташувати → стабілізувати → захопити → зберегти → далі.
 // ─────────────────────────────────────────────────────────────────────────────
 
 void AYoloMarkerDatasetActor::Tick(float DeltaSeconds)
@@ -189,12 +189,13 @@ void AYoloMarkerDatasetActor::ProcessCurrentShot()
 	const FShot& Shot = Shots[ShotCursor];
 	FCustomSurroundingObject& Target = Objects[Shot.MarkerIdx];
 
-	// Snap markers onto the tile surface so their footprints aren't left at ellipsoid
-	// (underground) level, which would project to bogus screen boxes. The shot's own
-	// target is always attempted — a shot whose target never resolves saves nothing.
-	// Every other marker is snapped only a few per tick, round-robin, and dropped after
-	// MaxGroundResolveAttempts misses; the old code re-traced *every* unresolved marker
-	// (4 complex traces each) on *every* tick, which is what made a pose cost ~40 s.
+	// Прив'язуємо маркери до поверхні тайлу, щоб їхні основи не залишалися на рівні
+	// еліпсоїда (під землею) — це давало б хибні box на екрані. Для власної цілі
+	// пострілу спроба виконується завжди — постріл, ціль якого так і не розв'язалася,
+	// нічого не зберігає. Усі інші маркери прив'язуються лише кількома за тік, по
+	// колу (round-robin), і відкидаються після MaxGroundResolveAttempts невдач; стара
+	// реалізація перетрасовувала *кожен* нерозв'язаний маркер (по 4 складні трасування
+	// кожен) на *кожному* тіку, через що одна поза коштувала ~40 с.
 	if (bSnapMarkersToTileSurface)
 	{
 		if (GroundResolveAttempts.Num() != Objects.Num())
@@ -226,13 +227,14 @@ void AYoloMarkerDatasetActor::ProcessCurrentShot()
 
 	PlaceCameraForShot(Target, Shot);
 
-	// Feed the new pose to Cesium every tick (including during the settle wait) so the
-	// tiles under it actively stream/refine rather than depending on another camera.
+	// Передаємо нову позу в Cesium кожен тік (включно з періодом стабілізації), щоб
+	// тайли під нею активно стрімилися/деталізувалися, а не залежали від іншої камери.
 	SyncCesiumCaptureCamera();
 
-	// Wait until the tileset reports it has finished loading for this view — a fixed
-	// frame count is not enough, tile streaming is async and pose-dependent. Keep a
-	// minimum hold, require the ready state to be stable, and cap the total wait.
+	// Чекаємо, поки набір тайлів не повідомить про завершення завантаження для цього
+	// вигляду — фіксованої кількості кадрів недостатньо, стрімінг тайлів асинхронний
+	// і залежить від пози. Тримаємо мінімальну затримку, вимагаємо стабільності стану
+	// готовності і обмежуємо загальний час очікування.
 	++SettleCounter;
 
 	const float  Progress   = MinTilesetLoadProgress();
@@ -255,7 +257,7 @@ void AYoloMarkerDatasetActor::ProcessCurrentShot()
 
 	TArray<FColor> Pixels;
 	if (FTextureRenderTargetResource* Res = RenderTarget->GameThread_GetRenderTargetResource())
-		Res->ReadPixels(Pixels); // flushes the render thread
+		Res->ReadPixels(Pixels); // синхронно очікує рендер-тред (flush)
 
 	if (Pixels.Num() == RenderWidth * RenderHeight)
 	{
@@ -264,8 +266,8 @@ void AYoloMarkerDatasetActor::ProcessCurrentShot()
 		const FVector CamCm = CaptureComp->GetComponentLocation();
 		for (const FCustomSurroundingObject& Object : Objects)
 		{
-			// No reliable ground height yet → its footprint is still at ellipsoid level;
-			// projecting it would drop a box in the wrong place. Skip until resolved.
+			// Ще немає надійної висоти від землі → основа все ще на рівні еліпсоїда;
+			// проєкція дала б box у неправильному місці. Пропускаємо, доки не розв'яжеться.
 			if (bSnapMarkersToTileSurface && !Object.bGroundHeightResolved)
 				continue;
 
@@ -302,16 +304,16 @@ void AYoloMarkerDatasetActor::ProcessCurrentShot()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Marker load — same JSON schema and winding order as UCustomSurroundingsScannerComponent.
+// Завантаження маркерів — та сама JSON-схема і порядок обходу, що й у UCustomSurroundingsScannerComponent.
 // ─────────────────────────────────────────────────────────────────────────────
 
 bool AYoloMarkerDatasetActor::LoadObjects()
 {
 	Objects.Reset();
 
-	// Resolve the marker source file: the configured path first, then the known
-	// fallback locations. The file was moved into the marker/ subfolder, so a level
-	// that still carries the old serialized ObjectsSourceFilePath keeps working.
+	// Визначаємо файл-джерело маркерів: спочатку налаштований шлях, потім відомі
+	// резервні розташування. Файл перенесли до підтеки marker/, тож рівень, що досі
+	// зберігає старий серіалізований ObjectsSourceFilePath, все одно продовжує працювати.
 	TArray<FString> Candidates;
 	if (!ObjectsSourceFilePath.IsEmpty())
 		Candidates.Add(ObjectsSourceFilePath);
@@ -347,7 +349,8 @@ bool AYoloMarkerDatasetActor::LoadObjects()
 		UE_LOG(LogUAV, Log, TEXT("YoloMarkerDataset: маркери з ObjectsJsonInline (%d символів)"), Json.Len());
 	}
 
-	// Accept either a bare top-level array or a { "objects": [...] } / { "markers": [...] } wrapper.
+	// Приймаємо або простий масив верхнього рівня, або обгортку
+	// { "objects": [...] } / { "markers": [...] }.
 	TArray<TSharedPtr<FJsonValue>> ParsedArray;
 	{
 		TSharedRef<TJsonReader<>> ArrayReader = TJsonReaderFactory<>::Create(Json);
@@ -483,8 +486,8 @@ void AYoloMarkerDatasetActor::BuildShots()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Geo → world + ground snapping — copied from UCustomSurroundingsScannerComponent
-// so the markers sit exactly where the runtime scanner would put them.
+// Geo → world та прив'язка до землі — скопійовано з UCustomSurroundingsScannerComponent,
+// щоб маркери опинялися точно там же, де їх розташував би сканер під час рантайму.
 // ─────────────────────────────────────────────────────────────────────────────
 
 FVector AYoloMarkerDatasetActor::GeoToWorldMeters(double LatitudeDeg, double LongitudeDeg, double HeightMeters) const
@@ -505,7 +508,7 @@ FVector AYoloMarkerDatasetActor::WorldMetersToGeographic(const FVector& WorldMet
 
 	const FVector LocalUnrealCm =
 		Georeference->GetActorTransform().InverseTransformPosition(WorldMeters * 100.0);
-	// Returns (longitude°, latitude°, height above ellipsoid in m).
+	// Повертає (довгота°, широта°, висота над еліпсоїдом у м).
 	return Georeference->TransformUnrealPositionToLongitudeLatitudeHeight(LocalUnrealCm);
 }
 
@@ -550,7 +553,7 @@ void AYoloMarkerDatasetActor::ResolveGroundHeights(FCustomSurroundingObject& Obj
 		for (const FHitResult& Hit : Hits)
 		{
 			const AActor* HitActor = Hit.GetActor();
-			// Accept any Cesium3DTileset hit; if the scene has none, accept any blocking geometry.
+			// Приймаємо будь-яке влучання в Cesium3DTileset; якщо на сцені їх немає — будь-яку блокуючу геометрію.
 			if (Tileset && (!HitActor || !HitActor->IsA<ACesium3DTileset>()))
 				continue;
 			Accepted = &Hit;
@@ -573,8 +576,8 @@ void AYoloMarkerDatasetActor::ResolveGroundHeights(FCustomSurroundingObject& Obj
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Camera placement — orbit in the marker's local ENU frame so azimuth/elevation
-// are geographically meaningful regardless of the georeference rotation.
+// Розташування камери — обхід у локальній системі координат ENU маркера, щоб
+// азимут/висота мали географічний сенс незалежно від обертання georeference.
 // ─────────────────────────────────────────────────────────────────────────────
 
 void AYoloMarkerDatasetActor::PlaceCameraForShot(const FCustomSurroundingObject& Target, const FShot& Shot)
@@ -596,8 +599,8 @@ void AYoloMarkerDatasetActor::PlaceCameraForShot(const FCustomSurroundingObject&
 	const FVector Dir = (FMath::Cos(ElRad) * (FMath::Cos(AzRad) * North + FMath::Sin(AzRad) * East)
 	                     + FMath::Sin(ElRad) * Up).GetSafeNormal();
 
-	// Orbit a dome lifted a fixed height above the marker (a raised hemisphere), then
-	// push the pose further up if it would still dip under / graze a Cesium tile.
+	// Обходимо купол, піднятий на фіксовану висоту над маркером (піднесена півсфера),
+	// а потім піднімаємо позу ще вище, якщо вона все одно занурювалась би/торкалася тайлу Cesium.
 	const FVector DomeCentreCm = TargetCm + Up * (FMath::Max(DomeLiftMeters, 0.0f) * 100.0);
 	FVector CamPos = DomeCentreCm + Dir * (Shot.RadiusMeters * 100.0);
 	CamPos = LiftAboveTileSurface(CamPos, Up);
@@ -613,9 +616,10 @@ void AYoloMarkerDatasetActor::PlaceCameraForShot(const FCustomSurroundingObject&
 	CaptureComp->SetWorldLocationAndRotation(CamPos, LookRot);
 }
 
-// Vertical (local-up) trace through the camera; if a Cesium tile surface is closer
-// than CameraGroundClearanceMeters — or above the camera, i.e. it spawned underground —
-// return a position sitting exactly that clearance above the highest such surface.
+// Вертикальне трасування (вздовж локальної вертикалі) крізь позицію камери; якщо
+// поверхня тайлу Cesium ближча за CameraGroundClearanceMeters — або взагалі над
+// камерою, тобто камера "заспавнилася" під землею — повертає позицію, що лежить
+// точно на цьому зазорі над найвищою такою поверхнею.
 FVector AYoloMarkerDatasetActor::LiftAboveTileSurface(const FVector& CamPosCm, const FVector& UpDir) const
 {
 	UWorld* World = GetWorld();
@@ -636,7 +640,7 @@ FVector AYoloMarkerDatasetActor::LiftAboveTileSurface(const FVector& CamPosCm, c
 	for (const FHitResult& Hit : Hits)
 	{
 		const AActor* HitActor = Hit.GetActor();
-		// Accept any Cesium3DTileset hit; if the scene has none, accept any blocking geometry.
+		// Приймаємо будь-яке влучання в Cesium3DTileset; якщо на сцені їх немає — будь-яку блокуючу геометрію.
 		if (Tileset && (!HitActor || !HitActor->IsA<ACesium3DTileset>()))
 			continue;
 		if (!Highest || FVector::DotProduct(Hit.ImpactPoint - Highest->ImpactPoint, UpDir) > 0.0)
@@ -652,9 +656,9 @@ FVector AYoloMarkerDatasetActor::LiftAboveTileSurface(const FVector& CamPosCm, c
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Projection — identical view/projection matrix setup to
-// UCustomSurroundingsScannerComponent::ProjectWorldToScreenUnclamped. Takes metres.
-// Returns false only when the point is behind the camera.
+// Проєкція — налаштування матриці вигляду/проєкції ідентичне до
+// UCustomSurroundingsScannerComponent::ProjectWorldToScreenUnclamped. Приймає метри.
+// Повертає false лише коли точка позаду камери.
 // ─────────────────────────────────────────────────────────────────────────────
 
 bool AYoloMarkerDatasetActor::ProjectMetersToPixels(const FVector& WorldMeters, FVector2D& OutPixels) const
@@ -713,9 +717,9 @@ bool AYoloMarkerDatasetActor::ProjectMetersToPixels(const FVector& WorldMeters, 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Marker → pixel bounding box. Projects the 4 footprint corners (plus 4 raised
-// corners when MarkerHeightMeters > 0), builds the axis-aligned bounds, clips to
-// the frame and applies the size / visibility filters.
+// Маркер → піксельний bounding box. Проєктує 4 кути основи (плюс 4 підняті кути,
+// якщо MarkerHeightMeters > 0), будує вирівняні по осях межі, обрізає по кадру
+// й застосовує фільтри розміру/видимості.
 // ─────────────────────────────────────────────────────────────────────────────
 
 bool AYoloMarkerDatasetActor::ComputeMarkerLabel(const FCustomSurroundingObject& Object, FLabel& OutLabel) const
@@ -787,8 +791,9 @@ bool AYoloMarkerDatasetActor::ComputeMarkerLabel(const FCustomSurroundingObject&
 	OutLabel.H               = ClipH;
 	OutLabel.VisibleFraction = VisibleFraction;
 
-	// Spatial coordinates of the marker centre (ground-snapped), so a detection can be
-	// tied back to a real place: Unreal world, geographic, and camera-relative.
+	// Просторові координати центру маркера (прив'язаного до землі), щоб детекцію
+	// можна було прив'язати до реального місця: світові Unreal, географічні та
+	// відносно камери.
 	const FVector CentreWorldM = Object.WorldLocationMeters;
 	OutLabel.CentreWorldM  = CentreWorldM;
 	OutLabel.CentreGeo     = WorldMetersToGeographic(CentreWorldM);
@@ -807,21 +812,22 @@ bool AYoloMarkerDatasetActor::ComputeMarkerLabel(const FCustomSurroundingObject&
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Line-of-sight test — projection alone boxes every marker inside the frustum,
-// including those hidden behind terrain or buildings. Trace from the camera to the
-// footprint centre + corners; the marker is visible if ANY ray reaches its point
-// without hitting geometry first (within a small tolerance for flush ground points).
+// Перевірка лінії видимості — сама лише проєкція позначає боксом кожен маркер
+// усередині фрустума, включно з тими, що приховані за рельєфом чи будівлями.
+// Трасуємо промінь від камери до центру основи + кутів; маркер вважається
+// видимим, якщо БУДЬ-ЯКИЙ промінь досягає його точки, не влучивши спершу в
+// геометрію (з невеликим допуском для точок, розташованих впритул до землі).
 // ─────────────────────────────────────────────────────────────────────────────
 
 bool AYoloMarkerDatasetActor::IsMarkerVisibleFromCamera(const FCustomSurroundingObject& Object) const
 {
 	UWorld* World = GetWorld();
 	if (!World || !CaptureComp)
-		return true; // nothing to test against — don't filter
+		return true; // нема з чим порівнювати — не фільтруємо
 
 	const FVector CamCm  = CaptureComp->GetComponentLocation();
 	const FVector UpDir  = GeographicUpMeters(Object.Latitude, Object.Longitude).GetSafeNormal();
-	const double  LiftCm = 50.0;                                   // 0.5 m off the surface
+	const double  LiftCm = 50.0;                                   // підняти на 0.5 м над поверхнею
 	const double  TolCm  = FMath::Max(LineOfSightToleranceMeters, 0.0f) * 100.0;
 
 	TArray<FVector, TInlineAllocator<12>> Points;
@@ -846,17 +852,17 @@ bool AYoloMarkerDatasetActor::IsMarkerVisibleFromCamera(const FCustomSurrounding
 		FCollisionQueryParams Params(TEXT("YoloMarkerLineOfSight"), /*bTraceComplex=*/true, this);
 		FHitResult Hit;
 		if (!World->LineTraceSingleByChannel(Hit, CamCm, Pt, GroundTraceChannel, Params))
-			return true; // clear ray
+			return true; // промінь без перешкод
 
 		if (FVector::Distance(CamCm, Hit.ImpactPoint) >= DistCm - TolCm)
-			return true; // blocker is at/behind the marker point
+			return true; // перешкода на рівні маркера або за ним
 	}
 
 	return false;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Frame output — PNG + YOLO .txt (+ optional annotated debug PNG) + manifest row.
+// Вивід кадру — PNG + YOLO .txt (+ опційний анотований debug PNG) + рядок маніфесту.
 // ─────────────────────────────────────────────────────────────────────────────
 
 bool AYoloMarkerDatasetActor::SaveFrame(const TArray<FColor>& Pixels, const TArray<FLabel>& Labels,
@@ -873,8 +879,8 @@ bool AYoloMarkerDatasetActor::SaveFrame(const TArray<FColor>& Pixels, const TArr
 	const FString LabelPath = LabelDir / (BaseName + TEXT(".txt"));
 	const FString MetaPath  = LabelDir / (BaseName + TEXT(".meta.json"));
 
-	// Encode via ImageWrapper, not cv::imwrite — the engine's bundled OpenCV has no JPEG
-	// codec (that is why UUAVCameraComponent also uses ImageWrapper). Pixels is BGRA8.
+	// Кодуємо через ImageWrapper, а не cv::imwrite — вбудований у рушій OpenCV не має
+	// кодека JPEG (саме тому UUAVCameraComponent теж використовує ImageWrapper). Pixels — BGRA8.
 	{
 		IImageWrapperModule& IWM =
 			FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
@@ -899,7 +905,7 @@ bool AYoloMarkerDatasetActor::SaveFrame(const TArray<FColor>& Pixels, const TArr
 		}
 	}
 
-	// Kept only for the optional annotated debug image below (drawn + written with OpenCV).
+	// Зберігається лише для опційного анотованого debug-зображення нижче (малюється й записується через OpenCV).
 	cv::Mat BGR;
 	if (bSaveDebugImages)
 	{
@@ -908,7 +914,7 @@ bool AYoloMarkerDatasetActor::SaveFrame(const TArray<FColor>& Pixels, const TArr
 		cv::cvtColor(BGRA, BGR, cv::COLOR_BGRA2BGR);
 	}
 
-	// ── YOLO label file: "<class> <cx> <cy> <w> <h>" normalised to [0,1] ──────
+	// ── Файл мітки YOLO: "<class> <cx> <cy> <w> <h>", нормалізовано до [0,1] ──────
 	FString LabelText;
 	for (const FLabel& Label : Labels)
 	{
@@ -920,8 +926,8 @@ bool AYoloMarkerDatasetActor::SaveFrame(const TArray<FColor>& Pixels, const TArr
 	}
 	FFileHelper::SaveStringToFile(LabelText, *LabelPath);
 
-	// ── Per-frame .meta.json (same object order as the .txt above) — matches the
-	//    custom_objects_dataset schema so the positioning pipeline reads it as-is ──
+	// ── Файл .meta.json для кадру (той самий порядок об'єктів, що й у .txt вище) —
+	//    відповідає схемі custom_objects_dataset, тож пайплайн позиціонування читає його як є ──
 	{
 		TSharedRef<FJsonObject> Meta = MakeShared<FJsonObject>();
 		Meta->SetStringField(TEXT("image"), ImageName);
@@ -934,7 +940,7 @@ bool AYoloMarkerDatasetActor::SaveFrame(const TArray<FColor>& Pixels, const TArr
 			O->SetStringField(TEXT("type"),  Label.Type);
 			O->SetNumberField(TEXT("class"), Label.ClassId);
 
-			TArray<TSharedPtr<FJsonValue>> Px;  // [x1, y1, x2, y2] pixels (clipped box, == the .txt line)
+			TArray<TSharedPtr<FJsonValue>> Px;  // [x1, y1, x2, y2] у пікселях (обрізаний box, == рядок у .txt)
 			Px.Add(MakeShared<FJsonValueNumber>(Label.X));
 			Px.Add(MakeShared<FJsonValueNumber>(Label.Y));
 			Px.Add(MakeShared<FJsonValueNumber>(Label.X + Label.W));
@@ -954,16 +960,16 @@ bool AYoloMarkerDatasetActor::SaveFrame(const TArray<FColor>& Pixels, const TArr
 		FFileHelper::SaveStringToFile(MetaOut, *MetaPath);
 	}
 
-	// ── Camera geo-position for this frame → exp_geo_position.txt at flush time ──
+	// ── Гео-позиція камери для цього кадру → exp_geo_position.txt у момент запису ──
 	if (CaptureComp)
 	{
 		const FVector CamWorldM = CaptureComp->GetComponentLocation() * 0.01;
-		const FVector CamGeo    = WorldMetersToGeographic(CamWorldM);  // (lon, lat, height)
+		const FVector CamGeo    = WorldMetersToGeographic(CamWorldM);  // (довгота, широта, висота)
 		GeoPositionLines.Add(FString::Printf(TEXT("%s %.10f %.10f %.4f"),
 			*BaseName, CamGeo.Y, CamGeo.X, CamGeo.Z));
 	}
 
-	// ── Optional annotated debug image ──────────────────────────────────────
+	// ── Опційне анотоване debug-зображення ──────────────────────────────────────
 	if (bSaveDebugImages)
 	{
 		cv::Mat Dbg = BGR.clone();
@@ -989,7 +995,7 @@ bool AYoloMarkerDatasetActor::SaveFrame(const TArray<FColor>& Pixels, const TArr
 		cv::imwrite(TCHAR_TO_UTF8(*(DebugDir / (BaseName + TEXT(".png")))), Dbg);
 	}
 
-	// ── Manifest row ────────────────────────────────────────────────────────
+	// ── Рядок маніфесту ────────────────────────────────────────────────────────
 	auto Vec3 = [](const FVector& V) -> TSharedPtr<FJsonValue>
 	{
 		TArray<TSharedPtr<FJsonValue>> A;
@@ -1007,8 +1013,9 @@ bool AYoloMarkerDatasetActor::SaveFrame(const TArray<FColor>& Pixels, const TArr
 	FrameObj->SetNumberField(TEXT("azimuth_deg"),   Shot.AzimuthDeg);
 	FrameObj->SetNumberField(TEXT("elevation_deg"), Shot.ElevationDeg);
 
-	// Camera pose this frame was rendered from — enough to turn any pixel back into a
-	// world ray and, with the per-object coords below, recover a marker's position.
+	// Поза камери, з якої відрендерено цей кадр, — достатньо, щоб перетворити будь-
+	// який піксель назад у світовий промінь і, разом із координатами об'єктів нижче,
+	// відновити позицію маркера.
 	if (CaptureComp)
 	{
 		const FTransform CamXf = CaptureComp->GetComponentTransform();
@@ -1050,14 +1057,14 @@ bool AYoloMarkerDatasetActor::SaveFrame(const TArray<FColor>& Pixels, const TArr
 
 		ObjJson->SetNumberField(TEXT("visible_fraction"), Label.VisibleFraction);
 
-		// Spatial coordinates of the marker centre (ground-snapped).
+		// Просторові координати центру маркера (прив'язаного до землі).
 		ObjJson->SetField(TEXT("centre_world_m"), Vec3(Label.CentreWorldM));
 		TSharedRef<FJsonObject> GeoJson = MakeShared<FJsonObject>();
 		GeoJson->SetNumberField(TEXT("latitude"),  Label.CentreGeo.Y);
 		GeoJson->SetNumberField(TEXT("longitude"), Label.CentreGeo.X);
 		GeoJson->SetNumberField(TEXT("height_m"),  Label.CentreGeo.Z);
 		ObjJson->SetObjectField(TEXT("centre_geographic"), GeoJson);
-		ObjJson->SetField(TEXT("centre_camera_m"), Vec3(Label.CentreCameraM)); // X fwd, Y right, Z up
+		ObjJson->SetField(TEXT("centre_camera_m"), Vec3(Label.CentreCameraM)); // X вперед, Y вправо, Z вгору
 		ObjJson->SetNumberField(TEXT("range_m"), Label.RangeM);
 
 		ObjectsJson.Add(MakeShared<FJsonValueObject>(ObjJson));
@@ -1114,7 +1121,7 @@ void AYoloMarkerDatasetActor::WriteManifest() const
 	}
 	Root->SetArrayField(TEXT("classes"), ClassesJson);
 
-	// How to read the spatial coordinates that accompany every label.
+	// Пояснення, як читати просторові координати, що супроводжують кожну мітку.
 	TSharedRef<FJsonObject> CoordsDoc = MakeShared<FJsonObject>();
 	CoordsDoc->SetStringField(TEXT("meta_json"),   TEXT("labels/<split>/<stem>.meta.json: per object id/type/class, bbox_px [x1,y1,x2,y2], latitude, longitude, altitude — object order matches the YOLO .txt"));
 	CoordsDoc->SetStringField(TEXT("virtual_map"), TEXT("virtual_map.json: markerId -> {latitude, longitude} for every marker"));
@@ -1134,7 +1141,7 @@ void AYoloMarkerDatasetActor::WriteManifest() const
 
 void AYoloMarkerDatasetActor::WriteReferenceFiles() const
 {
-	// classes.json : name -> class id
+	// classes.json : назва -> id класу
 	{
 		TSharedRef<FJsonObject> C = MakeShared<FJsonObject>();
 		for (int32 i = 0; i < ClassNames.Num(); ++i)
@@ -1145,8 +1152,8 @@ void AYoloMarkerDatasetActor::WriteReferenceFiles() const
 		FFileHelper::SaveStringToFile(Out, *(OutputRootDir / TEXT("classes.json")));
 	}
 
-	// virtual_map.json : markerId -> { latitude, longitude }  (every marker, ground-snapped
-	// centre where resolved, otherwise the marker's map lat/lon)
+	// virtual_map.json : markerId -> { latitude, longitude } (для кожного маркера — центр,
+	// прив'язаний до землі, там де це розв'язано, інакше — вихідні lat/lon маркера з карти)
 	{
 		TSharedRef<FJsonObject> Map = MakeShared<FJsonObject>();
 		for (const FCustomSurroundingObject& Obj : Objects)
@@ -1157,7 +1164,7 @@ void AYoloMarkerDatasetActor::WriteReferenceFiles() const
 			double Lon = Obj.Longitude;
 			if (Obj.bGroundHeightResolved)
 			{
-				const FVector Geo = WorldMetersToGeographic(Obj.WorldLocationMeters); // (lon, lat, h)
+				const FVector Geo = WorldMetersToGeographic(Obj.WorldLocationMeters); // (довгота, широта, висота)
 				Lat = Geo.Y;
 				Lon = Geo.X;
 			}
@@ -1172,7 +1179,7 @@ void AYoloMarkerDatasetActor::WriteReferenceFiles() const
 		FFileHelper::SaveStringToFile(Out, *(OutputRootDir / TEXT("virtual_map.json")));
 	}
 
-	// exp_geo_position.txt : "<frame_stem> <lat> <lon> <alt_m>" per saved frame
+	// exp_geo_position.txt : "<frame_stem> <lat> <lon> <alt_m>" на кожен збережений кадр
 	FFileHelper::SaveStringToFile(
 		FString::Join(GeoPositionLines, TEXT("\n")),
 		*(OutputRootDir / TEXT("exp_geo_position.txt")));
@@ -1197,9 +1204,10 @@ void AYoloMarkerDatasetActor::FinishGeneration(bool bCancelled)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Cesium camera registration — see GenerateDataset() for why this is needed.
-// Mirrors ACesium3DTileset::GetSceneCaptures gating (perspective, sized RT, valid FOV)
-// and the stable-id ACesiumCameraManager API used by AAirplane's onboard camera.
+// Реєстрація камери в Cesium — чому це потрібно, дивись у GenerateDataset().
+// Дзеркалить умови ACesium3DTileset::GetSceneCaptures (перспективна проєкція, RT
+// з розміром, валідний FOV) та API ACesiumCameraManager зі стабільним id, який
+// використовує бортова камера AAirplane.
 // ─────────────────────────────────────────────────────────────────────────────
 
 void AYoloMarkerDatasetActor::SyncCesiumCaptureCamera()
@@ -1216,9 +1224,10 @@ void AYoloMarkerDatasetActor::SyncCesiumCaptureCamera()
 	if (!Mgr)
 		return;
 
-	// FOVAngle is horizontal degrees. Register a WIDER frustum than we render
-	// (× CesiumFrustumMargin, capped at 170°) so Cesium also loads/refines the tiles just
-	// past the frame edge — otherwise those edge tiles lag a frame or two and show as gaps.
+	// FOVAngle — горизонтальні градуси. Реєструємо ШИРШИЙ фрустум, ніж рендеримо
+	// (× CesiumFrustumMargin, з обмеженням у 170°), щоб Cesium також вантажив/деталізував
+	// тайли одразу за межею кадру — інакше ці крайові тайли відстають на кадр-два й
+	// виглядають як прогалини.
 	const float RegisterFov = FMath::Min(CaptureComp->FOVAngle * FMath::Max(CesiumFrustumMargin, 1.0f), 170.0f);
 	const FCesiumCamera Cam(
 		FVector2D(RenderTarget->SizeX, RenderTarget->SizeY),
@@ -1229,7 +1238,7 @@ void AYoloMarkerDatasetActor::SyncCesiumCaptureCamera()
 	if (CesiumCameraId == INDEX_NONE)
 		CesiumCameraId = Mgr->AddCamera(Cam);
 	else if (!Mgr->UpdateCamera(CesiumCameraId, Cam))
-		CesiumCameraId = Mgr->AddCamera(Cam); // manager recreated / id lost — re-add
+		CesiumCameraId = Mgr->AddCamera(Cam); // менеджер перестворено / id втрачено — додаємо знову
 }
 
 void AYoloMarkerDatasetActor::UnregisterCesiumCaptureCamera()
@@ -1241,8 +1250,8 @@ void AYoloMarkerDatasetActor::UnregisterCesiumCaptureCamera()
 	CesiumCameraId = INDEX_NONE;
 }
 
-// updateTilesetOptionsFromProperties() copies these members into the native tileset
-// options every tick, so setting them directly takes effect next frame — no refresh.
+// updateTilesetOptionsFromProperties() копіює ці поля в нативні опції набору тайлів
+// кожен тік, тож пряме присвоєння набуває чинності вже наступного кадру — без оновлення вручну.
 void AYoloMarkerDatasetActor::BeginTilesetCaptureMode()
 {
 	SavedTilesetCulling.Reset();
@@ -1261,15 +1270,16 @@ void AYoloMarkerDatasetActor::BeginTilesetCaptureMode()
 			T->EnforceCulledScreenSpaceError,
 			T->CulledScreenSpaceError });
 
-		T->ForbidHoles                   = true;   // unrefine to a loaded parent, never a black gap
-		T->EnableFogCulling              = false;  // keep horizon / frame-edge tiles in the working set
-		T->EnableFrustumCulling          = false;  // out-of-frustum tiles stay selected — no culling holes
-		T->EnforceCulledScreenSpaceError = true;   // ...but only as a coarse shell, so the cost stays bounded
+		T->ForbidHoles                   = true;   // деталізація "вниз" до завантаженого батька, ніколи чорна прогалина
+		T->EnableFogCulling              = false;  // залишає тайли горизонту/краю кадру в робочому наборі
+		T->EnableFrustumCulling          = false;  // тайли поза фрустумом лишаються вибраними — без прогалин від відсікання
+		T->EnforceCulledScreenSpaceError = true;   // ...але лише як груба "оболонка", щоб вартість була обмеженою
 		T->CulledScreenSpaceError        = FMath::Max(CulledTileScreenSpaceError, 1.0);
 
-		// Deterministic offline tile selection: GetLoadProgress() actually converges to
-		// 100 for a static pose instead of hovering at 96-99 while async streaming churns,
-		// so each shot hits the "ready" gate quickly instead of running to MaxSettleFrames.
+		// Детермінований офлайн-вибір тайлів: GetLoadProgress() дійсно сходиться до
+		// 100 для статичної пози, замість того щоб коливатися в межах 96-99 під час
+		// асинхронного стрімінгу, тож кожен постріл швидко проходить поріг "готовності"
+		// замість того, щоб чекати до MaxSettleFrames.
 		T->PlayMovieSequencer();
 	}
 }

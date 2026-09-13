@@ -39,7 +39,7 @@ void UCesiumSurroundingsScannerComponent::BeginPlay()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tick
+// Тік
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UCesiumSurroundingsScannerComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -52,10 +52,10 @@ void UCesiumSurroundingsScannerComponent::TickComponent(float DeltaTime, ELevelT
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sweep scan — a HorizontalRays x VerticalLayers grid of directions spanning exactly the
-// camera's HorizontalFOVDeg x VerticalFOVDeg, each swept as a thick sphere
-// (SweepMultiByChannel) instead of a zero-width line trace so gaps between angularly-
-// adjacent rays don't let objects slip through at range.
+// Розгортка сканування — сітка напрямків HorizontalRays x VerticalLayers, що охоплює точно
+// HorizontalFOVDeg x VerticalFOVDeg камери, кожен напрямок розгортається як товста сфера
+// (SweepMultiByChannel) замість трасування лінією нульової товщини, тому проміжки між
+// сусідніми за кутом променями не дають об'єктам "проскочити" на дальності.
 // ─────────────────────────────────────────────────────────────────────────────
 
 TArray<FHitResult> UCesiumSurroundingsScannerComponent::SweepScan(const FTransform& OriginTransform, AActor* ActorToIgnore) const
@@ -69,10 +69,10 @@ TArray<FHitResult> UCesiumSurroundingsScannerComponent::SweepScan(const FTransfo
 
 	FCollisionQueryParams QueryParams;
 	if (ActorToIgnore) QueryParams.AddIgnoredActor(ActorToIgnore);
-	// bTraceComplex=true is required here: FHitResult::FaceIndex (needed by
-	// GetPropertyTableValuesFromHit to resolve a non-instanced feature's ID) is
-	// only populated for complex-collision hits — simple collision shapes have
-	// no per-triangle mapping to the tileset's visual mesh and always report -1.
+	// bTraceComplex=true тут обов'язковий: FHitResult::FaceIndex (потрібен
+	// GetPropertyTableValuesFromHit для визначення ID неінстансованого об'єкта)
+	// заповнюється лише для влучань зі складною колізією — прості форми колізії
+	// не мають поточкового зв'язку з візуальним мешем тайлсету й завжди повертають -1.
 	QueryParams.bTraceComplex    = true;
 	QueryParams.bReturnFaceIndex = true;
 
@@ -82,26 +82,27 @@ TArray<FHitResult> UCesiumSurroundingsScannerComponent::SweepScan(const FTransfo
 	const float HalfHFovRad = FMath::DegreesToRadians(CameraComponent->HorizontalFOVDeg * 0.5f);
 	const float HalfVFovRad = FMath::DegreesToRadians(CameraComponent->VerticalFOVDeg * 0.5f);
 
-	// After the configured number of scans, stop sweeping the lower half of the vertical FOV
-	// (everything below the camera's forward axis) entirely — ScanCount is bumped once per
-	// Scan() call, see Scan().
+	// Після заданої кількості сканувань повністю припиняємо сканувати нижню половину
+	// вертикального FOV (усе нижче поздовжньої осі камери) — ScanCount збільшується на одиницю
+	// за кожен виклик Scan(), див. Scan().
 	const bool bCutoffLowerHalf = FramesBeforeLowerHalfCutoff > 0 && ScanCount > FramesBeforeLowerHalfCutoff;
 
-	// Debug wireframe switches off together with the component — only drawn while bSensorEnabled.
+	// Відладочний каркас вимикається разом із компонентом — малюється лише поки bSensorEnabled.
 	if (bDrawScanArea && bSensorEnabled)
 	{
 		DrawScanAreaDebug(OriginTransform, Range, HalfHFovRad, bCutoffLowerHalf ? 0.0f : -HalfVFovRad, HalfVFovRad);
 	}
 
-	// Broad-phase: narrow the grid down to cells that could plausibly hit an already-loaded
-	// Cesium tile before paying for a single physics query. Unset (not just empty) means "no
-	// Tileset found" — fall back to sweeping every cell, same as before this optimization.
+	// Широкофазний прохід: звужує сітку до клітинок, що потенційно можуть влучити у вже
+	// завантажений тайл Cesium, перш ніж витрачати ресурси на хоча б один фізичний запит.
+	// Unset (а не просто порожній набір) означає "тайлсет не знайдено" — тоді повертаємось до
+	// сканування кожної клітинки, як і до цієї оптимізації.
 	TOptional<TSet<int32>> ActiveCells;
 	if (Tileset)
 	{
 		const TArray<UPrimitiveComponent*> Candidates = GatherNearbyTileComponents(Origin, Range);
 		if (Candidates.Num() == 0)
-			return ScanResults; // nothing Cesium-related loaded within range — nothing to sweep for
+			return ScanResults; // у межах дальності немає нічого пов'язаного з Cesium — сканувати нема сенсу
 
 		ActiveCells = BuildActiveCellSet(OriginTransform, Candidates, HalfHFovRad, HalfVFovRad);
 	}
@@ -124,10 +125,11 @@ TArray<FHitResult> UCesiumSurroundingsScannerComponent::SweepScan(const FTransfo
 			if (HorizontalRays > 1)
 				HAngleRad = -HalfHFovRad + H * (2.0f * HalfHFovRad / (HorizontalRays - 1));
 
-			// Rectangular (perspective-projection) direction grid: atan2(Y,X) == HAngleRad and
-			// atan2(Z,X) == VAngleRad exactly after normalization, so every generated ray falls
-			// precisely inside the camera's frustum — the same independent horizontal/vertical
-			// angle test a perspective camera uses — with nothing outside it ever swept.
+			// Прямокутна (перспективно-проєкційна) сітка напрямків: atan2(Y,X) == HAngleRad і
+			// atan2(Z,X) == VAngleRad точно після нормалізації, тож кожен згенерований промінь
+			// потрапляє точно всередину фрустуму камери — та сама незалежна перевірка
+			// горизонтального/вертикального кута, яку використовує перспективна камера — і ніщо
+			// поза ним ніколи не сканується.
 			const FVector LocalDir(1.0f, FMath::Tan(HAngleRad), FMath::Tan(VAngleRad));
 			const FVector WorldDir = OriginTransform.TransformVectorNoScale(LocalDir).GetSafeNormal();
 
@@ -146,9 +148,9 @@ TArray<FHitResult> UCesiumSurroundingsScannerComponent::SweepScan(const FTransfo
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Scan-area wireframe — a cheap 8-line frustum outline (not one line per grid cell) showing
-// exactly what SweepScan is currently covering, redrawn fresh every scan (LifeTime -1.f, same
-// single-frame-refresh convention as the per-feature rays in Scan()).
+// Каркас зони сканування — дешевий контур фрустуму з 8 ліній (а не по лінії на кожну клітинку
+// сітки), що показує точно те, що зараз охоплює SweepScan, перемальовується заново щоскану
+// (LifeTime -1.f, та сама угода про оновлення в один кадр, що й у променях об'єктів у Scan()).
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UCesiumSurroundingsScannerComponent::DrawScanAreaDebug(const FTransform& OriginTransform, float Range,
@@ -169,13 +171,13 @@ void UCesiumSurroundingsScannerComponent::DrawScanAreaDebug(const FTransform& Or
 	const FVector BottomLeft  = Origin + DirAt(-HalfHFovRad, VMinRad) * Range;
 	const FVector BottomRight = Origin + DirAt(+HalfHFovRad, VMinRad) * Range;
 
-	// Four edges from the origin to the far corners.
+	// Чотири ребра від початку координат до дальніх кутів.
 	DrawDebugLine(World, Origin, TopLeft,     ScanAreaDebugColor, false, -1.0f);
 	DrawDebugLine(World, Origin, TopRight,    ScanAreaDebugColor, false, -1.0f);
 	DrawDebugLine(World, Origin, BottomLeft,  ScanAreaDebugColor, false, -1.0f);
 	DrawDebugLine(World, Origin, BottomRight, ScanAreaDebugColor, false, -1.0f);
 
-	// Far rectangle connecting the four corners.
+	// Дальній прямокутник, що з'єднує чотири кути.
 	DrawDebugLine(World, TopLeft,     TopRight,    ScanAreaDebugColor, false, -1.0f);
 	DrawDebugLine(World, TopRight,    BottomRight, ScanAreaDebugColor, false, -1.0f);
 	DrawDebugLine(World, BottomRight, BottomLeft,  ScanAreaDebugColor, false, -1.0f);
@@ -183,8 +185,9 @@ void UCesiumSurroundingsScannerComponent::DrawScanAreaDebug(const FTransform& Or
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Broad-phase — cheap bounds checks over already-loaded Cesium tile components,
-// no physics involved, used to skip SweepScan grid cells that can't hit anything.
+// Широкофазний прохід — дешеві перевірки меж по вже завантажених компонентах тайлів Cesium,
+// без залучення фізики, використовується, щоб пропускати клітинки сітки SweepScan, які нічого
+// не можуть влучити.
 // ─────────────────────────────────────────────────────────────────────────────
 
 TArray<UPrimitiveComponent*> UCesiumSurroundingsScannerComponent::GatherNearbyTileComponents(const FVector& Origin, float RangeCm) const
@@ -228,8 +231,8 @@ TSet<int32> UCesiumSurroundingsScannerComponent::BuildActiveCellSet(const FTrans
 		const FBoxSphereBounds& Bounds = Primitive->Bounds;
 		const FVector LocalOrigin = OriginTransform.InverseTransformPosition(Bounds.Origin);
 
-		// Straddling/behind the camera plane — atan2-based angles become unreliable here, so
-		// conservatively sweep the whole grid this scan rather than risk silently dropping it.
+		// Охоплює або лежить позаду площини камери — кути на основі atan2 тут ненадійні, тож
+		// обережно скануємо всю сітку цього скану, щоб не ризикувати мовчазно втратити об'єкт.
 		if (LocalOrigin.X <= KINDA_SMALL_NUMBER)
 		{
 			ActivateFullGrid();
@@ -246,7 +249,7 @@ TSet<int32> UCesiumSurroundingsScannerComponent::BuildActiveCellSet(const FTrans
 		const float RawVMax = VAngle + AngularRadius;
 
 		if (RawHMax < -HalfHFovRad || RawHMin > HalfHFovRad || RawVMax < -HalfVFovRad || RawVMin > HalfVFovRad)
-			continue; // angular footprint entirely outside the camera's FOV
+			continue; // кутовий відбиток повністю поза FOV камери
 
 		const float HMin = FMath::Clamp(RawHMin, -HalfHFovRad, HalfHFovRad);
 		const float HMax = FMath::Clamp(RawHMax, -HalfHFovRad, HalfHFovRad);
@@ -267,8 +270,9 @@ TSet<int32> UCesiumSurroundingsScannerComponent::BuildActiveCellSet(const FTrans
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Feature identity — same actor/component + identical metadata means "same feature",
-// used both to merge duplicate hits within a scan and as the ObjectStorage key.
+// Ідентичність об'єкта — той самий актор/компонент + однакові метадані означають "той самий
+// об'єкт", використовується як для об'єднання дублікатів влучань у межах скану, так і як
+// ключ ObjectStorage.
 // ─────────────────────────────────────────────────────────────────────────────
 
 FString UCesiumSurroundingsScannerComponent::BuildFeatureKey(const FCesiumSurroundingObject& Entry)
@@ -285,8 +289,8 @@ FString UCesiumSurroundingsScannerComponent::BuildFeatureKey(const FCesiumSurrou
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Merge — collapses multiple hits on the same feature (same actor/component and
-// identical metadata) into a single entry, averaging their hit locations.
+// Об'єднання — згортає кілька влучань на той самий об'єкт (той самий актор/компонент і
+// однакові метадані) в один запис, усереднюючи їхні позиції влучання.
 // ─────────────────────────────────────────────────────────────────────────────
 
 TArray<FCesiumSurroundingObject> UCesiumSurroundingsScannerComponent::MergeDuplicateHits(const TArray<FCesiumSurroundingObject>& RawEntries)
@@ -332,7 +336,7 @@ TArray<FCesiumSurroundingObject> UCesiumSurroundingsScannerComponent::MergeDupli
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ObjectStorage — the only two operations that mutate it.
+// ObjectStorage — єдині дві операції, що його змінюють.
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UCesiumSurroundingsScannerComponent::AddObject(const FString& Key, const FCesiumSurroundingObject& Entry)
@@ -349,8 +353,6 @@ void UCesiumSurroundingsScannerComponent::AddObject(const FString& Key, const FC
 	}
 
 	const AActor* Owner = GetOwner();
-	/*UE_LOG(LogUAV, Log, TEXT("CesiumSurroundingsScanner: у полі зору з'явився %s (%s) — %.1f м від %s: %s"),
-		*Entry.ActorName, *Entry.ComponentName, Entry.DistanceMeters, Owner ? *Owner->GetName() : TEXT("?"), *MetadataLine);*/
 }
 
 void UCesiumSurroundingsScannerComponent::RemoveObject(const FString& Key)
@@ -359,12 +361,12 @@ void UCesiumSurroundingsScannerComponent::RemoveObject(const FString& Key)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Scan — runs SweepScan, reads the Cesium property table of every hit feature via
-// GetPropertyTableValuesFromHit, merges duplicate hits on the same feature, then
-// reconciles the result against ObjectStorage: newly-seen features are added, features
-// still hit (or missed but still projecting inside the camera's frame) are left
-// untouched, and only features whose frozen position has actually left the frame are
-// removed. LatestScanResults and the debug rays are driven from ObjectStorage.
+// Scan — виконує SweepScan, зчитує таблицю властивостей Cesium кожного враженого об'єкта
+// через GetPropertyTableValuesFromHit, об'єднує дублікати влучань на той самий об'єкт, потім
+// звіряє результат з ObjectStorage: щойно побачені об'єкти додаються, об'єкти, у які й далі
+// влучають (або пропущені, але все ще проєктуються в кадр камери), залишаються незмінними, а
+// видаляються лише ті, чия заморожена позиція справді покинула кадр. LatestScanResults і
+// відладочні промені керуються з ObjectStorage.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Scan()
@@ -395,8 +397,9 @@ const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Sca
 
 		for (const TPair<FString, FCesiumMetadataValue>& Pair : Values)
 		{
-			// "no data" sentinel values decode to an empty FCesiumMetadataValue — skip those,
-			// and skip anything that still stringifies to "" (e.g. array-typed properties).
+			// Сигнальні значення "немає даних" декодуються в порожній FCesiumMetadataValue —
+			// пропускаємо їх, а також усе, що все одно перетворюється на рядок "" (наприклад,
+			// властивості типу масив).
 			if (UCesiumMetadataValueBlueprintLibrary::IsEmpty(Pair.Value)) continue;
 
 			FString ValueString = UCesiumMetadataValueBlueprintLibrary::GetString(Pair.Value, FString());
@@ -411,8 +414,8 @@ const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Sca
 
 	const TArray<FCesiumSurroundingObject> CurrentlyVisible = MergeDuplicateHits(RawEntries);
 
-	// Reconcile: add whatever just became visible (skip anything already stored — its data
-	// stays frozen), then remove whatever dropped out of view.
+	// Звірка: додаємо все, що щойно стало видимим (пропускаючи те, що вже збережено — його
+	// дані залишаються замороженими), потім видаляємо все, що випало з поля зору.
 	TSet<FString> CurrentKeys;
 	CurrentKeys.Reserve(CurrentlyVisible.Num());
 	for (const FCesiumSurroundingObject& Entry : CurrentlyVisible)
@@ -423,10 +426,11 @@ const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Sca
 			AddObject(Key, Entry);
 	}
 
-	// A feature this scan's sweep didn't hit isn't necessarily gone — a momentary gap between
-	// rays or a brief occlusion shouldn't make it flicker out. Re-project its frozen position
-	// onto the camera and only drop it once that position has actually left the frame (or
-	// fallen behind the camera); otherwise keep reproducing it from its last-known location.
+	// Об'єкт, у який розгортка цього скану не влучила, не обов'язково зник — миттєвий проміжок
+	// між променями чи коротка оклюзія не повинні змушувати його блимати. Перепроєктовуємо
+	// його заморожену позицію на камеру й видаляємо лише тоді, коли ця позиція справді покинула
+	// кадр (або опинилась позаду камери); інакше продовжуємо відтворювати його з останньої
+	// відомої позиції.
 	TArray<FString> KeysNoLongerVisible;
 	for (const TPair<FString, FCesiumSurroundingObject>& Pair : ObjectStorage)
 	{
@@ -441,21 +445,21 @@ const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Sca
 	for (const FString& Key : KeysNoLongerVisible)
 		RemoveObject(Key);
 
-	// LatestScanResults reflects ObjectStorage's frozen data, not this scan's fresh hits.
+	// LatestScanResults відображає заморожені дані ObjectStorage, а не свіжі влучання цього скану.
 	LatestScanResults.Reset();
 	LatestScanResults.Reserve(ObjectStorage.Num());
 	for (const TPair<FString, FCesiumSurroundingObject>& Pair : ObjectStorage)
 		LatestScanResults.Add(Pair.Value);
 
-	// Debug rays switch off together with the component — only drawn while bSensorEnabled.
+	// Відладочні промені вимикаються разом із компонентом — малюються лише поки bSensorEnabled.
 	if (bSensorEnabled)
 	{
 		for (const TPair<FString, FCesiumSurroundingObject>& Pair : ObjectStorage)
 		{
-			// One ray per tracked feature, redrawn fresh every tick (LifeTime -1.f, same
-			// single-frame-refresh convention as USubAerodynamicSurfaceSC's force arrows) so it
-			// never accumulates into a trailing fan of past positions — it always points from the
-			// airplane's current position to the feature.
+			// По одному променю на кожен відстежуваний об'єкт, перемальовується заново щотіку
+			// (LifeTime -1.f, та сама угода про оновлення в один кадр, що й у стрілках сил
+			// USubAerodynamicSurfaceSC), тому він ніколи не накопичується у "віяло" минулих
+			// позицій — завжди вказує від поточної позиції літака до об'єкта.
 			DrawDebugLine(World, Owner->GetActorLocation(), Pair.Value.HitLocationMeters * 100.0, RayDebugColor, false, -1.0f);
 		}
 	}
@@ -478,14 +482,14 @@ bool UCesiumSurroundingsScannerComponent::GetLatestFrame(FSensorFrame& OutFrame)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sensor payload — one JSON object per currently-visible feature (ObjectStorage),
-// re-projected onto the camera every tick since the camera (not the static world
-// feature) is what moves. See BuildSensorFrame()'s header doc for the field list.
+// Корисне навантаження сенсора — один JSON-об'єкт на кожен наразі видимий об'єкт
+// (ObjectStorage), перепроєктований на камеру щотіку, оскільки рухається саме камера (а не
+// статичний об'єкт світу). Перелік полів — див. документацію заголовка BuildSensorFrame().
 // ─────────────────────────────────────────────────────────────────────────────
 
 void UCesiumSurroundingsScannerComponent::UpdateSensorSize()
 {
-	// UAVCameraComponent assigns TextureTarget in its own BeginPlay; re-read until valid.
+	// UAVCameraComponent призначає TextureTarget у власному BeginPlay; перечитуємо, доки не буде дійсним.
 	if (SceneCaptureComponent && (SensorSizeX <= 0 || SensorSizeY <= 0) && SceneCaptureComponent->TextureTarget)
 	{
 		SensorSizeX = SceneCaptureComponent->TextureTarget->SizeX;
@@ -546,7 +550,7 @@ void UCesiumSurroundingsScannerComponent::BuildSensorFrame()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Projection — identical view/projection setup to
+// Проєкція — ідентичне налаштування вигляду/проєкції до
 // UKeyPointDetectionComponent::ProjectWorldToScreen.
 // ─────────────────────────────────────────────────────────────────────────────
 

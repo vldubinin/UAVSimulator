@@ -6,13 +6,13 @@
 
 void FZeroMQModule::StartupModule()
 {
-	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
+	// Цей код виконається після завантаження модуля в пам'ять; точний момент задається в .uplugin для кожного модуля окремо
 }
 
 void FZeroMQModule::ShutdownModule()
 {
-	// This function may be called during shutdown to clean up your module.  For modules that support dynamic reloading,
-	// we call this function before unloading the module.
+	// Цю функцію може бути викликано під час завершення роботи для очищення модуля. Для модулів, що підтримують
+	// динамічне перезавантаження, ця функція викликається перед вивантаженням модуля.
 }
 
 #undef LOCTEXT_NAMESPACE

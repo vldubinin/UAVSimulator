@@ -19,7 +19,7 @@ protected:
 	virtual void NativeConstruct() override;
 	virtual void OnSectionActivated_Implementation() override;
 
-	// — CesiumGeoreference ————————————————————————————————————————————————————
+	// — CesiumGeoreference (початок координат) ——————————————————————————————————
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<USpinBox> SpinBoxOriginLatitude;
@@ -30,7 +30,7 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<USpinBox> SpinBoxOriginHeight;
 
-	// — CesiumSunSky ——————————————————————————————————————————————————————————
+	// — CesiumSunSky (сонце/небо) ————————————————————————————————————————————————
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<USpinBox> SpinBoxTimeZone;
@@ -38,12 +38,12 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<USpinBox> SpinBoxSolarTime;
 
-	// — Cesium3DTileset ——————————————————————————————————————————————————————
+	// — Cesium3DTileset (тайли ландшафту) ————————————————————————————————————————
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UCheckBox> TerrainSurfaceCB;
 
-	// — Fallback sky/sun shown while the Cesium terrain is disabled ————————————
+	// — Резервні небо/сонце, що показуються, поки ландшафт Cesium вимкнено ————————
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Environment|DefaultSky")
 	TSubclassOf<AActor> DefaultSkyboxClass;

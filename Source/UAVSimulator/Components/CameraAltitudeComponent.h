@@ -7,13 +7,13 @@
 #include "CameraAltitudeComponent.generated.h"
 
 /**
- * Camera altitude sensor: reads the world-space Z position of the onboard
- * USceneCaptureComponent2D each tick and publishes it in metres.
+ * Сенсор висоти камери: читає світову позицію Z бортового
+ * USceneCaptureComponent2D щотіку і публікує її в метрах.
  *
- * Implements IUAVSensorInterface — SensorBusComponent auto-discovers this
- * component and calls GetLatestFrame() each bus tick.
+ * Реалізує IUAVSensorInterface — SensorBusComponent автоматично знаходить цей
+ * компонент і викликає GetLatestFrame() на кожному тіку шини.
  *
- * Payload format: {"altitude_m": <float>}
+ * Формат корисного навантаження: {"altitude_m": <float>}
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API UCameraAltitudeComponent : public UActorComponent, public IUAVSensorInterface
@@ -30,7 +30,7 @@ public:
 	virtual FString GetSensorTopic() const override { return TEXT("camera_altitude"); }
 	virtual bool GetLatestFrame(FSensorFrame& OutFrame) override;
 
-	/** Current camera altitude in metres (world-space Z), updated every tick. */
+	/** Поточна висота камери в метрах (світова координата Z), оновлюється щотіку. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera Altitude")
 	float LatestAltitudeMeters = 0.0f;
 

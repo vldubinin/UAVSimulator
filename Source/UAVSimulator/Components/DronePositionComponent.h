@@ -6,14 +6,14 @@
 #include "DronePositionComponent.generated.h"
 
 /**
- * Position sensor: reads the aircraft's world-space location and publishes
- * it as a JSON payload each tick.
+ * Сенсор позиції: читає світову позицію літака і щотіку публікує
+ * її як JSON-корисне навантаження.
  *
- * Implements IUAVSensorInterface — SensorBusComponent auto-discovers this
- * component and calls GetLatestFrame() each bus tick.
+ * Реалізує IUAVSensorInterface — SensorBusComponent автоматично знаходить цей
+ * компонент і викликає GetLatestFrame() на кожному тіку шини.
  *
- * Payload format: {"x_m": <float>, "y_m": <float>, "z_m": <float>}
- * Values are in metres (converted from Unreal cm).
+ * Формат корисного навантаження: {"x_m": <float>, "y_m": <float>, "z_m": <float>}
+ * Значення у метрах (конвертовані з см Unreal).
  */
 UCLASS(ClassGroup = (UAV), meta = (BlueprintSpawnableComponent))
 class UAVSIMULATOR_API UDronePositionComponent : public UActorComponent, public IUAVSensorInterface
@@ -29,7 +29,7 @@ public:
 	virtual FString GetSensorTopic() const override { return TEXT("drone_position"); }
 	virtual bool GetLatestFrame(FSensorFrame& OutFrame) override;
 
-	/** Current world-space position in metres, updated every tick. */
+	/** Поточна позиція у світових координатах в метрах, оновлюється щотіку. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Drone Position")
 	FVector LatestPositionMeters = FVector::ZeroVector;
 

@@ -8,15 +8,15 @@ struct UAVSIMULATOR_API FSensorFrame
 {
 	GENERATED_BODY()
 
-	/** Identifies the sensor: "camera", "imu", "gps", etc. Used as ZMQ topic. */
+	/** Ідентифікує сенсор: "camera", "imu", "gps" тощо. Використовується як топік ZMQ. */
 	UPROPERTY(BlueprintReadOnly)
 	FString Topic;
 
-	/** Ready-to-send serialized payload (JPEG bytes for camera, packed floats for others). */
+	/** Готовий до відправки серіалізований payload (байти JPEG для камери, упаковані float для решти). */
 	UPROPERTY()
 	TArray<uint8> Payload;
 
-	/** World time in seconds when the frame was produced. */
+	/** Час світу в секундах, коли кадр було сформовано. */
 	UPROPERTY(BlueprintReadOnly)
 	double Timestamp = 0.0;
 };

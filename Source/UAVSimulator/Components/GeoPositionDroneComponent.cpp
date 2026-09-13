@@ -90,7 +90,7 @@ void UGeoPositionDroneComponent::TickComponent(float DeltaTime, ELevelTick TickT
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// IUAVSensorInterface — called on game thread by SensorBusComponent
+// IUAVSensorInterface — викликається в ігровому потоці з SensorBusComponent
 // ─────────────────────────────────────────────────────────────────────────────
 
 bool UGeoPositionDroneComponent::GetLatestFrame(FSensorFrame& OutFrame)
