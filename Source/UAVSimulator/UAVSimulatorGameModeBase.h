@@ -100,6 +100,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Simulation|Sensors")
 	void UpdateSensorSettings();
 
+	/** Чи активна зона перешкод РЕБ (Electronic Warfare). Розташування й радіус беруться
+	 *  напряму з AEWZoneActor, розміщеного в рівні (World Position). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|EW")
+	bool bEWInterferenceEnabled = false;
+
+	/** Читає AEWZoneActor з рівня і надсилає поточні налаштування РЕБ у UUAVSimulationSubsystem. */
+	UFUNCTION(BlueprintCallable, Category = "Simulation|EW")
+	void UpdateEWSettings();
+
 	/**
 	 * Кількість кадрів, протягом яких сенсори мають "прогріватися" перед публікацією. Поки що
 	 * лише налаштування тут — сама логіка прогріву ще не реалізована.

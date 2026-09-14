@@ -15,6 +15,7 @@
 #include "UAVCameraComponent.generated.h"
 
 class ACesiumCameraManager;
+class UMaterialInstanceDynamic;
 
 /**
  * Керує бортовою камерою: RGB-захопленням, обробкою OpenCV, опційним захопленням маски
@@ -97,6 +98,23 @@ private:
 	void MaskEncoderLoop();
 	void ComputeFOV(float HFovDeg);
 	void LogCameraIntrinsics() const;
+
+	// ── Перешкоди РЕБ (Electronic Warfare) ────────────────────────────────────
+	/** Перетворює всі матеріали пост-процесу, вручну додані в PostProcessMaterials
+	 *  CaptureComponent (напр. M_EW_Interference), на MID для щотікового керування параметрами. */
+	void InitEWInterferenceMIDs();
+	/** Рахує відстань до зони РЕБ і виставляє Interference_Intensity/Distortion_Strength/
+	 *  Noise_Intensity пропорційно близькості до її центру. */
+	void UpdateEWInterference();
+
+	UPROPERTY()
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> EWInterferenceMIDs;
+
+	bool      bEWEnabled = false;
+	FVector2D EWLocation = FVector2D::ZeroVector;
+	float     EWRadius   = 0.0f;
+
+	FDelegateHandle EWSettingsChangedHandle;
 
 	// ── Реєстрація камери захоплення сцени Cesium ─────────────────────────────
 	/** Знаходить або спавнить менеджер камер Cesium для цього (ігрового) світу. */

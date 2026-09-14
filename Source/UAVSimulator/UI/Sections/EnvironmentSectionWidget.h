@@ -9,6 +9,8 @@ class UCheckBox;
 class ACesiumGeoreference;
 class ACesiumSunSky;
 class ACesium3DTileset;
+class AUAVSimulatorGameModeBase;
+class AEWZoneActor;
 
 UCLASS()
 class UAVSIMULATOR_API UEnvironmentSectionWidget : public USimulatorSectionWidget
@@ -43,6 +45,24 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UCheckBox> TerrainSurfaceCB;
 
+	// — EW (Electronic Warfare) перешкоди ——————————————————————————————————————
+	// OptionalWidget = true: якщо в UMG Blueprint ще не додано (або неточно названо) один
+	// із цих віджетів, секція не повинна падати на BindWidget і ламати решту (Cesium тощо) —
+	// кожне використання нижче захищене перевіркою на null, як CesiumSurroundingsCB в
+	// SensorsSectionWidget.
+
+	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
+	TObjectPtr<UCheckBox> IsEnabledEWCB;
+
+	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
+	TObjectPtr<USpinBox> SpinBoxEWLocationX;
+
+	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
+	TObjectPtr<USpinBox> SpinBoxEWLocationY;
+
+	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
+	TObjectPtr<USpinBox> SpinBoxEWRadius;
+
 	// — Резервні небо/сонце, що показуються, поки ландшафт Cesium вимкнено ————————
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Environment|DefaultSky")
@@ -54,12 +74,15 @@ protected:
 private:
 	void SyncFromWorld();
 	void ApplyTerrainSurfaceState(bool bEnabled);
+	void ApplyEWZoneVisualState(bool bEnabled);
 	void LoadAndApplySavedSettings();
 	void SaveCurrentSettings();
 
 	ACesiumGeoreference* GetGeoreference() const;
 	ACesiumSunSky*       GetSunSky() const;
 	ACesium3DTileset*    GetTileset() const;
+	AUAVSimulatorGameModeBase* GetGameMode() const;
+	AEWZoneActor*        GetEWZone() const;
 
 	static const FString EnvironmentSaveSlotName;
 
@@ -69,6 +92,16 @@ private:
 	UFUNCTION() void OnTimeZoneCommitted(float Value, ETextCommit::Type CommitType);
 	UFUNCTION() void OnSolarTimeCommitted(float Value, ETextCommit::Type CommitType);
 	UFUNCTION() void OnTerrainSurfaceChanged(bool bIsChecked);
+	UFUNCTION() void OnEWEnabledChanged(bool bIsChecked);
+	UFUNCTION() void OnEWLocationXCommitted(float Value, ETextCommit::Type CommitType);
+	UFUNCTION() void OnEWLocationYCommitted(float Value, ETextCommit::Type CommitType);
+	UFUNCTION() void OnEWRadiusCommitted(float Value, ETextCommit::Type CommitType);
+
+	/** OnValueChanged (а не лише Committed) — щоб сфера рухалась одразу під час
+	 *  перетягування повзунка, ще до Enter/втрати фокуса й ще до Start Simulation. */
+	UFUNCTION() void OnEWLocationXChanged(float Value);
+	UFUNCTION() void OnEWLocationYChanged(float Value);
+	UFUNCTION() void OnEWRadiusChanged(float Value);
 
 	UPROPERTY(Transient)
 	TObjectPtr<AActor> SpawnedDefaultSkybox;

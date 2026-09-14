@@ -30,4 +30,18 @@ public:
 
 	UPROPERTY(BlueprintReadWrite)
 	bool bTerrainSurfaceEnabled = true;
+
+	UPROPERTY(BlueprintReadWrite)
+	bool bEWInterferenceEnabled = false;
+
+	/** Довгота зони РЕБ, градуси (глобальна геокоордината, не Unreal-одиниці). */
+	UPROPERTY(BlueprintReadWrite)
+	double EWLongitude = 0.0;
+
+	/** Широта зони РЕБ, градуси (глобальна геокоордината, не Unreal-одиниці). */
+	UPROPERTY(BlueprintReadWrite)
+	double EWLatitude = 0.0;
+
+	UPROPERTY(BlueprintReadWrite)
+	double EWRadius = 5000.0;
 };

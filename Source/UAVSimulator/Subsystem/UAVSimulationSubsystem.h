@@ -11,6 +11,7 @@
 DECLARE_MULTICAST_DELEGATE(FOnVisualSettingsChanged);
 DECLARE_MULTICAST_DELEGATE(FOnCameraSettingsChanged);
 DECLARE_MULTICAST_DELEGATE(FOnSensorSettingsChanged);
+DECLARE_MULTICAST_DELEGATE(FOnEWSettingsChanged);
 
 UCLASS()
 class UAVSIMULATOR_API UUAVSimulationSubsystem : public UWorldSubsystem
@@ -42,11 +43,22 @@ public:
 	bool bEnableSensorCesiumSurroundings = true;
 	bool bEnableSensorCustomSurroundings = true;
 
+	/** Чи активна зона перешкод РЕБ (Electronic Warfare). */
+	bool bEWInterferenceEnabled = false;
+
+	/** Світові координати (X, Y, см) центру зони дії РЕБ. */
+	FVector2D EWLocation = FVector2D::ZeroVector;
+
+	/** Радіус дії РЕБ, см. */
+	float EWRadius = 5000.0f;
+
 	FOnVisualSettingsChanged OnVisualSettingsChanged;
 	FOnCameraSettingsChanged OnCameraSettingsChanged;
 	FOnSensorSettingsChanged OnSensorSettingsChanged;
+	FOnEWSettingsChanged     OnEWSettingsChanged;
 
 	void SetVisualSettings(bool bInPlayer, bool bInTarget);
 	void SetOnboardCameraMode(EOnboardTargetMode Mode);
 	void SetSensorSettings(EOnboardTargetMode InSensorsMode, bool bAltimeter, bool bAttitudeIndicator, bool bCameraInclination, bool bLidar, bool bCameraFrame, bool bCameraAltitude, bool bSegmentationMask, bool bBBoxDetection, bool bPosition, bool bGeoPosition, bool bCesiumSurroundings, bool bCustomSurroundings);
+	void SetEWSettings(bool bEnabled, FVector2D Location, float Radius);
 };

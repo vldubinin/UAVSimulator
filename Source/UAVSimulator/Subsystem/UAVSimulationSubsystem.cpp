@@ -32,3 +32,11 @@ void UUAVSimulationSubsystem::SetSensorSettings(EOnboardTargetMode InSensorsMode
 	bEnableSensorCustomSurroundings = bCustomSurroundings;
 	OnSensorSettingsChanged.Broadcast();
 }
+
+void UUAVSimulationSubsystem::SetEWSettings(bool bEnabled, FVector2D Location, float Radius)
+{
+	bEWInterferenceEnabled = bEnabled;
+	EWLocation             = Location;
+	EWRadius               = Radius;
+	OnEWSettingsChanged.Broadcast();
+}

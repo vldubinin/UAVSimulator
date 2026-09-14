@@ -7,6 +7,9 @@
 #include "Components/CheckBox.h"
 #include "Kismet/GameplayStatics.h"
 #include "UAVSimulator/Save/EnvironmentSettingsSave.h"
+#include "UAVSimulator/UAVSimulatorGameModeBase.h"
+#include "UAVSimulator/Actor/EWZoneActor.h"
+#include "UAVSimulator/UAVSimulator.h"
 
 const FString UEnvironmentSectionWidget::EnvironmentSaveSlotName = TEXT("EnvironmentSettings");
 
@@ -20,6 +23,27 @@ void UEnvironmentSectionWidget::NativeConstruct()
 	SpinBoxTimeZone->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnTimeZoneCommitted);
 	SpinBoxSolarTime->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnSolarTimeCommitted);
 	TerrainSurfaceCB->OnCheckStateChanged.AddDynamic(this, &UEnvironmentSectionWidget::OnTerrainSurfaceChanged);
+
+	if (IsEnabledEWCB)
+		IsEnabledEWCB->OnCheckStateChanged.AddDynamic(this, &UEnvironmentSectionWidget::OnEWEnabledChanged);
+
+	if (SpinBoxEWLocationX)
+	{
+		SpinBoxEWLocationX->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnEWLocationXCommitted);
+		SpinBoxEWLocationX->OnValueChanged.AddDynamic(this, &UEnvironmentSectionWidget::OnEWLocationXChanged);
+	}
+
+	if (SpinBoxEWLocationY)
+	{
+		SpinBoxEWLocationY->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnEWLocationYCommitted);
+		SpinBoxEWLocationY->OnValueChanged.AddDynamic(this, &UEnvironmentSectionWidget::OnEWLocationYChanged);
+	}
+
+	if (SpinBoxEWRadius)
+	{
+		SpinBoxEWRadius->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnEWRadiusCommitted);
+		SpinBoxEWRadius->OnValueChanged.AddDynamic(this, &UEnvironmentSectionWidget::OnEWRadiusChanged);
+	}
 
 	LoadAndApplySavedSettings();
 	SyncFromWorld();
@@ -51,6 +75,76 @@ void UEnvironmentSectionWidget::SyncFromWorld()
 		TerrainSurfaceCB->SetIsChecked(bEnabled);
 		ApplyTerrainSurfaceState(bEnabled);
 	}
+
+	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
+	{
+		if (IsEnabledEWCB)
+			IsEnabledEWCB->SetIsChecked(GM->bEWInterferenceEnabled);
+		ApplyEWZoneVisualState(GM->bEWInterferenceEnabled);
+	}
+
+	if (AEWZoneActor* Zone = GetEWZone())
+	{
+		// X = широта, Y = довгота (звичний людський запис "Lat, Long").
+		if (SpinBoxEWLocationX) SpinBoxEWLocationX->SetValue((float)Zone->GetLatitude());
+		if (SpinBoxEWLocationY) SpinBoxEWLocationY->SetValue((float)Zone->GetLongitude());
+		if (SpinBoxEWRadius)    SpinBoxEWRadius->SetValue(Zone->Radius);
+	}
+}
+
+void UEnvironmentSectionWidget::OnEWEnabledChanged(bool bIsChecked)
+{
+	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
+		GM->bEWInterferenceEnabled = bIsChecked;
+	ApplyEWZoneVisualState(bIsChecked);
+	SaveCurrentSettings();
+}
+
+void UEnvironmentSectionWidget::OnEWLocationXCommitted(float Value, ETextCommit::Type /*CommitType*/)
+{
+	UE_LOG(LogUAV, Log, TEXT("EnvironmentSectionWidget::OnEWLocationXCommitted (Latitude): Value=%f"), Value);
+	if (AEWZoneActor* Zone = GetEWZone())
+		Zone->SetLatitude((double)Value);
+	SaveCurrentSettings();
+}
+
+void UEnvironmentSectionWidget::OnEWLocationYCommitted(float Value, ETextCommit::Type /*CommitType*/)
+{
+	UE_LOG(LogUAV, Log, TEXT("EnvironmentSectionWidget::OnEWLocationYCommitted (Longitude): Value=%f"), Value);
+	if (AEWZoneActor* Zone = GetEWZone())
+		Zone->SetLongitude((double)Value);
+	SaveCurrentSettings();
+}
+
+void UEnvironmentSectionWidget::OnEWRadiusCommitted(float Value, ETextCommit::Type /*CommitType*/)
+{
+	if (AEWZoneActor* Zone = GetEWZone())
+		Zone->SetRadius(Value);
+	SaveCurrentSettings();
+}
+
+void UEnvironmentSectionWidget::OnEWLocationXChanged(float Value)
+{
+	if (AEWZoneActor* Zone = GetEWZone())
+		Zone->SetLatitude((double)Value);
+}
+
+void UEnvironmentSectionWidget::OnEWLocationYChanged(float Value)
+{
+	if (AEWZoneActor* Zone = GetEWZone())
+		Zone->SetLongitude((double)Value);
+}
+
+void UEnvironmentSectionWidget::OnEWRadiusChanged(float Value)
+{
+	if (AEWZoneActor* Zone = GetEWZone())
+		Zone->SetRadius(Value);
+}
+
+void UEnvironmentSectionWidget::ApplyEWZoneVisualState(bool bEnabled)
+{
+	if (AEWZoneActor* Zone = GetEWZone())
+		Zone->SetActorHiddenInGame(!bEnabled);
 }
 
 void UEnvironmentSectionWidget::OnOriginLatitudeCommitted(float Value, ETextCommit::Type /*CommitType*/)
@@ -160,9 +254,10 @@ void UEnvironmentSectionWidget::LoadAndApplySavedSettings()
 
 	if (ACesiumGeoreference* Geo = GetGeoreference())
 	{
-		Geo->SetOriginLatitude(Save->OriginLatitude);
-		Geo->SetOriginLongitude(Save->OriginLongitude);
-		Geo->SetOriginHeight(Save->OriginHeight);
+		// Один атомарний виклик замість трьох послідовних SetOrigin* — уникає проміжного
+		// перерахунку georeference зі старими значеннями двох ще не застосованих полів.
+		Geo->SetOriginLongitudeLatitudeHeight(
+			FVector(Save->OriginLongitude, Save->OriginLatitude, Save->OriginHeight));
 	}
 
 	if (ACesiumSunSky* SunSky = GetSunSky())
@@ -173,6 +268,18 @@ void UEnvironmentSectionWidget::LoadAndApplySavedSettings()
 	}
 
 	ApplyTerrainSurfaceState(Save->bTerrainSurfaceEnabled);
+
+	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
+		GM->bEWInterferenceEnabled = Save->bEWInterferenceEnabled;
+
+	if (AEWZoneActor* Zone = GetEWZone())
+	{
+		Zone->SetLongitude(Save->EWLongitude);
+		Zone->SetLatitude(Save->EWLatitude);
+		Zone->SetRadius((float)Save->EWRadius);
+	}
+
+	ApplyEWZoneVisualState(Save->bEWInterferenceEnabled);
 }
 
 void UEnvironmentSectionWidget::SaveCurrentSettings()
@@ -198,14 +305,38 @@ void UEnvironmentSectionWidget::SaveCurrentSettings()
 		Save->bTerrainSurfaceEnabled = !Tileset->IsHidden();
 	}
 
+	if (AUAVSimulatorGameModeBase* GM = GetGameMode())
+		Save->bEWInterferenceEnabled = GM->bEWInterferenceEnabled;
+
+	if (AEWZoneActor* Zone = GetEWZone())
+	{
+		Save->EWLongitude = Zone->GetLongitude();
+		Save->EWLatitude  = Zone->GetLatitude();
+		Save->EWRadius    = Zone->Radius;
+	}
+
 	UGameplayStatics::SaveGameToSlot(Save, EnvironmentSaveSlotName, /*UserIndex=*/0);
 }
 
 ACesiumGeoreference* UEnvironmentSectionWidget::GetGeoreference() const
 {
-	if (UWorld* World = GetWorld())
-		return Cast<ACesiumGeoreference>(UGameplayStatics::GetActorOfClass(World, ACesiumGeoreference::StaticClass()));
-	return nullptr;
+	UWorld* World = GetWorld();
+	if (!World)
+		return nullptr;
+
+	TArray<AActor*> AllGeoreferences;
+	UGameplayStatics::GetAllActorsOfClass(World, ACesiumGeoreference::StaticClass(), AllGeoreferences);
+	if (AllGeoreferences.Num() > 1)
+	{
+		UE_LOG(LogUAV, Warning, TEXT("EnvironmentSectionWidget::GetGeoreference: %d ACesiumGeoreference actors found in level (expected 1) — using the first one, which may NOT be the one your map/tileset actually uses:"), AllGeoreferences.Num());
+		for (AActor* A : AllGeoreferences)
+		{
+			if (ACesiumGeoreference* G = Cast<ACesiumGeoreference>(A))
+				UE_LOG(LogUAV, Warning, TEXT("  - %s OriginLLH=(%f,%f,%f)"), *G->GetName(), G->GetOriginLongitude(), G->GetOriginLatitude(), G->GetOriginHeight());
+		}
+	}
+
+	return AllGeoreferences.Num() > 0 ? Cast<ACesiumGeoreference>(AllGeoreferences[0]) : nullptr;
 }
 
 ACesiumSunSky* UEnvironmentSectionWidget::GetSunSky() const
@@ -220,4 +351,32 @@ ACesium3DTileset* UEnvironmentSectionWidget::GetTileset() const
 	if (UWorld* World = GetWorld())
 		return Cast<ACesium3DTileset>(UGameplayStatics::GetActorOfClass(World, ACesium3DTileset::StaticClass()));
 	return nullptr;
+}
+
+AUAVSimulatorGameModeBase* UEnvironmentSectionWidget::GetGameMode() const
+{
+	if (UWorld* World = GetWorld())
+		return Cast<AUAVSimulatorGameModeBase>(World->GetAuthGameMode());
+	return nullptr;
+}
+
+AEWZoneActor* UEnvironmentSectionWidget::GetEWZone() const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+		return nullptr;
+
+	if (AEWZoneActor* Existing = Cast<AEWZoneActor>(UGameplayStatics::GetActorOfClass(World, AEWZoneActor::StaticClass())))
+	{
+		UE_LOG(LogUAV, Verbose, TEXT("EnvironmentSectionWidget::GetEWZone: found existing %s at %s"),
+			*Existing->GetName(), *Existing->GetActorLocation().ToString());
+		return Existing;
+	}
+
+	// У рівні ще немає вручну розміщеного маркера зони РЕБ — створюємо один, інакше
+	// координатам/радіусу з конфігурації нема куди (і звідки) зберігатися.
+	AEWZoneActor* Spawned = World->SpawnActor<AEWZoneActor>();
+	UE_LOG(LogUAV, Log, TEXT("EnvironmentSectionWidget::GetEWZone: no AEWZoneActor in level — spawned %s"),
+		Spawned ? *Spawned->GetName() : TEXT("FAILED"));
+	return Spawned;
 }

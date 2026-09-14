@@ -2,6 +2,7 @@
 
 #include "UAVSimulatorGameModeBase.h"
 #include "UAVSimulator/Actor/Airplane.h"
+#include "UAVSimulator/Actor/EWZoneActor.h"
 #include "UAVSimulator/Components/FlightRecorderComponent.h"
 #include "UAVSimulator/Components/FlightPlaybackComponent.h"
 #include "UAVSimulator/Components/AttitudeControlComponent.h"
@@ -32,6 +33,24 @@ void AUAVSimulatorGameModeBase::UpdateSensorSettings()
 	{
 		Subsystem->SetSensorSettings(SensorsMode, bEnableSensorAltimeter, bEnableSensorAttitudeIndicator, bEnableSensorCameraInclination, bEnableSensorLidar, bEnableSensorCameraFrame, bEnableSensorCameraAltitude, bEnableSensorSegmentationMask, bEnableSensorBBoxDetection, bEnableSensorPosition, bEnableSensorGeoPosition, bEnableSensorCesiumSurroundings, bEnableSensorCustomSurroundings);
 	}
+}
+
+void AUAVSimulatorGameModeBase::UpdateEWSettings()
+{
+	UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>();
+	if (!Subsystem) return;
+
+	FVector2D Location = FVector2D::ZeroVector;
+	float     Radius   = 0.0f;
+
+	if (AEWZoneActor* Zone = Cast<AEWZoneActor>(UGameplayStatics::GetActorOfClass(GetWorld(), AEWZoneActor::StaticClass())))
+	{
+		const FVector ZoneLocation = Zone->GetActorLocation();
+		Location = FVector2D(ZoneLocation.X, ZoneLocation.Y);
+		Radius   = Zone->Radius;
+	}
+
+	Subsystem->SetEWSettings(bEWInterferenceEnabled, Location, Radius);
 }
 
 void AUAVSimulatorGameModeBase::StopSimulation()
@@ -76,6 +95,9 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 		Subsystem->bEnableSensorCesiumSurroundings = bEnableSensorCesiumSurroundings;
 		Subsystem->bEnableSensorCustomSurroundings = bEnableSensorCustomSurroundings;
 	}
+
+	// Розташування/радіус беруться з AEWZoneActor у рівні — читаємо його тут же.
+	UpdateEWSettings();
 }
 
 void AUAVSimulatorGameModeBase::StartSimulation()
@@ -328,4 +350,5 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 	UpdateCameraSettings();
 	UpdateVisualSettings();
 	UpdateSensorSettings();
+	UpdateEWSettings();
 }

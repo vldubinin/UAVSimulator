@@ -9,6 +9,10 @@
 #include "Components/LineBatchComponent.h"
 #include "CesiumCameraManager.h"
 #include "CesiumCamera.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "UAVSimulator/Subsystem/UAVSimulationSubsystem.h"
+#include "UAVSimulator/Actor/EWZoneActor.h"
+#include "Kismet/GameplayStatics.h"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Мінімальна обгортка FRunnable
@@ -102,6 +106,14 @@ void UUAVCameraComponent::BeginPlay()
 			CaptureComponent->HideComponent(PersistentLineBatcher);
 		if (ULineBatchComponent* ForegroundLineBatcher = World->GetLineBatcher(UWorld::ELineBatcherType::Foreground))
 			CaptureComponent->HideComponent(ForegroundLineBatcher);
+
+		// Маркер зони РЕБ (AEWZoneActor) має бути видимим лише в основній камері —
+		// ховаємо його сферу саме з цього захоплення сцени.
+		if (AEWZoneActor* EWZone = Cast<AEWZoneActor>(UGameplayStatics::GetActorOfClass(World, AEWZoneActor::StaticClass())))
+		{
+			if (EWZone->SphereVisual)
+				CaptureComponent->HideComponent(EWZone->SphereVisual);
+		}
 	}
 
 	// RGB рендер-таргет
@@ -151,10 +163,35 @@ void UUAVCameraComponent::BeginPlay()
 	// незалежно від фрустуму основної камери гравця (SyncCesiumSceneCaptureCamera повторно
 	// розв'язує менеджер, якщо це зараз не вдасться).
 	ResolveCesiumCameraManager();
+
+	InitEWInterferenceMIDs();
+
+	if (UWorld* World = GetWorld())
+	{
+		if (UUAVSimulationSubsystem* Subsystem = World->GetSubsystem<UUAVSimulationSubsystem>())
+		{
+			bEWEnabled = Subsystem->bEWInterferenceEnabled;
+			EWLocation = Subsystem->EWLocation;
+			EWRadius   = Subsystem->EWRadius;
+
+			EWSettingsChangedHandle = Subsystem->OnEWSettingsChanged.AddLambda([this, Subsystem]()
+			{
+				bEWEnabled = Subsystem->bEWInterferenceEnabled;
+				EWLocation = Subsystem->EWLocation;
+				EWRadius   = Subsystem->EWRadius;
+			});
+		}
+	}
 }
 
 void UUAVCameraComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	if (UWorld* World = GetWorld())
+	{
+		if (UUAVSimulationSubsystem* Subsystem = World->GetSubsystem<UUAVSimulationSubsystem>())
+			Subsystem->OnEWSettingsChanged.Remove(EWSettingsChangedHandle);
+	}
+
 	UnregisterCesiumSceneCaptureCamera();
 
 	if (RGBEncoderThread)
@@ -281,6 +318,7 @@ void UUAVCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 	if (!bIsProcessingEnabled) return;
 
 	SyncCesiumSceneCaptureCamera();
+	UpdateEWInterference();
 
 	// Знімаємо останні закодовані результати у стабільні в межах тіку кеші перед обробкою.
 	// Споживачі, що викликають GetRGBFrame() / GetMaskFrame() цього тіку, бачать узгоджений знімок.
@@ -547,6 +585,58 @@ void UUAVCameraComponent::LogCameraIntrinsics() const
 	UE_LOG(LogUAV, Log, TEXT("  [%.4f %.4f %.4f %.4f]"), ProjectionMatrix.M[1][0], ProjectionMatrix.M[1][1], ProjectionMatrix.M[1][2], ProjectionMatrix.M[1][3]);
 	UE_LOG(LogUAV, Log, TEXT("  [%.4f %.4f %.4f %.4f]"), ProjectionMatrix.M[2][0], ProjectionMatrix.M[2][1], ProjectionMatrix.M[2][2], ProjectionMatrix.M[2][3]);
 	UE_LOG(LogUAV, Log, TEXT("  [%.4f %.4f %.4f %.4f]"), ProjectionMatrix.M[3][0], ProjectionMatrix.M[3][1], ProjectionMatrix.M[3][2], ProjectionMatrix.M[3][3]);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Перешкоди РЕБ (Electronic Warfare)
+// ─────────────────────────────────────────────────────────────────────────────
+
+void UUAVCameraComponent::InitEWInterferenceMIDs()
+{
+	if (!CaptureComponent) return;
+
+	// Матеріали пост-процесу, вручну додані в PostProcessMaterials цього
+	// CaptureComponent (напр. M_EW_Interference), перетворюємо на MID, щоб
+	// щотіку керувати їхніми скалярними параметрами (сила перешкод залежно
+	// від відстані до зони РЕБ), не чіпаючи спільний CDO-матеріал.
+	for (FWeightedBlendable& Blendable : CaptureComponent->PostProcessSettings.WeightedBlendables.Array)
+	{
+		if (UMaterialInstanceDynamic* AlreadyMID = Cast<UMaterialInstanceDynamic>(Blendable.Object))
+		{
+			EWInterferenceMIDs.Add(AlreadyMID);
+		}
+		else if (UMaterialInterface* Mat = Cast<UMaterialInterface>(Blendable.Object))
+		{
+			if (UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Mat, this))
+			{
+				Blendable.Object = MID;
+				EWInterferenceMIDs.Add(MID);
+			}
+		}
+	}
+}
+
+void UUAVCameraComponent::UpdateEWInterference()
+{
+	if (EWInterferenceMIDs.Num() == 0) return;
+
+	float Intensity = 0.0f;
+	if (bEWEnabled && EWRadius > 0.0f)
+	{
+		const AActor* Owner = GetOwner();
+		const float Distance = Owner
+			? FVector::Dist2D(Owner->GetActorLocation(), FVector(EWLocation.X, EWLocation.Y, 0.0f))
+			: EWRadius;
+		Intensity = FMath::Clamp(1.0f - Distance / EWRadius, 0.0f, 1.0f);
+	}
+
+	for (UMaterialInstanceDynamic* MID : EWInterferenceMIDs)
+	{
+		if (!MID) continue;
+		MID->SetScalarParameterValue(TEXT("Interference_Intensity"), Intensity);
+		MID->SetScalarParameterValue(TEXT("Distortion_Strength"), Intensity);
+		MID->SetScalarParameterValue(TEXT("Noise_Intensity"), Intensity);
+	}
 }
 
 void UUAVCameraComponent::UploadToTexture()
