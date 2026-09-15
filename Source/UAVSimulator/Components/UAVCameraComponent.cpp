@@ -107,12 +107,17 @@ void UUAVCameraComponent::BeginPlay()
 		if (ULineBatchComponent* ForegroundLineBatcher = World->GetLineBatcher(UWorld::ELineBatcherType::Foreground))
 			CaptureComponent->HideComponent(ForegroundLineBatcher);
 
-		// Маркер зони РЕБ (AEWZoneActor) має бути видимим лише в основній камері —
-		// ховаємо його сферу саме з цього захоплення сцени.
-		if (AEWZoneActor* EWZone = Cast<AEWZoneActor>(UGameplayStatics::GetActorOfClass(World, AEWZoneActor::StaticClass())))
+		// Маркери зон РЕБ (AEWZoneActor) мають бути видимими лише в основній камері —
+		// ховаємо сферу кожної з них саме з цього захоплення сцени (зон може бути кілька).
+		TArray<AActor*> EWZoneActors;
+		UGameplayStatics::GetAllActorsOfClass(World, AEWZoneActor::StaticClass(), EWZoneActors);
+		for (AActor* ZoneActor : EWZoneActors)
 		{
-			if (EWZone->SphereVisual)
-				CaptureComponent->HideComponent(EWZone->SphereVisual);
+			if (AEWZoneActor* EWZone = Cast<AEWZoneActor>(ZoneActor))
+			{
+				if (EWZone->SphereVisual)
+					CaptureComponent->HideComponent(EWZone->SphereVisual);
+			}
 		}
 	}
 
@@ -170,15 +175,13 @@ void UUAVCameraComponent::BeginPlay()
 	{
 		if (UUAVSimulationSubsystem* Subsystem = World->GetSubsystem<UUAVSimulationSubsystem>())
 		{
-			bEWEnabled = Subsystem->bEWInterferenceEnabled;
-			EWLocation = Subsystem->EWLocation;
-			EWRadius   = Subsystem->EWRadius;
+			EWLocations = Subsystem->EWLocations;
+			EWRadii     = Subsystem->EWRadii;
 
 			EWSettingsChangedHandle = Subsystem->OnEWSettingsChanged.AddLambda([this, Subsystem]()
 			{
-				bEWEnabled = Subsystem->bEWInterferenceEnabled;
-				EWLocation = Subsystem->EWLocation;
-				EWRadius   = Subsystem->EWRadius;
+				EWLocations = Subsystem->EWLocations;
+				EWRadii     = Subsystem->EWRadii;
 			});
 		}
 	}
@@ -621,13 +624,19 @@ void UUAVCameraComponent::UpdateEWInterference()
 	if (EWInterferenceMIDs.Num() == 0) return;
 
 	float Intensity = 0.0f;
-	if (bEWEnabled && EWRadius > 0.0f)
+	const AActor* Owner = GetOwner();
+	const FVector OwnerLocation = Owner ? Owner->GetActorLocation() : FVector::ZeroVector;
+
+	// Кілька зон РЕБ можуть перекриватися — рахуємо інтенсивність від кожної й беремо
+	// максимум (найближча/найсильніша зона домінує), а не суму (щоб не перевищити 1.0).
+	// Перешкоди активні автоматично, якщо є хоч одна зона в радіусі дії.
+	for (int32 i = 0; i < EWLocations.Num(); ++i)
 	{
-		const AActor* Owner = GetOwner();
-		const float Distance = Owner
-			? FVector::Dist2D(Owner->GetActorLocation(), FVector(EWLocation.X, EWLocation.Y, 0.0f))
-			: EWRadius;
-		Intensity = FMath::Clamp(1.0f - Distance / EWRadius, 0.0f, 1.0f);
+		const float Radius = EWRadii.IsValidIndex(i) ? EWRadii[i] : 0.0f;
+		if (Radius <= 0.0f) continue;
+
+		const float Distance = FVector::Dist2D(OwnerLocation, FVector(EWLocations[i].X, EWLocations[i].Y, 0.0f));
+		Intensity = FMath::Max(Intensity, FMath::Clamp(1.0f - Distance / Radius, 0.0f, 1.0f));
 	}
 
 	for (UMaterialInstanceDynamic* MID : EWInterferenceMIDs)

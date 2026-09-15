@@ -100,12 +100,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Simulation|Sensors")
 	void UpdateSensorSettings();
 
-	/** Чи активна зона перешкод РЕБ (Electronic Warfare). Розташування й радіус беруться
-	 *  напряму з AEWZoneActor, розміщеного в рівні (World Position). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation|EW")
-	bool bEWInterferenceEnabled = false;
-
-	/** Читає AEWZoneActor з рівня і надсилає поточні налаштування РЕБ у UUAVSimulationSubsystem. */
+	/** Читає всі AEWZoneActor з рівня (World Position + Radius) і надсилає їх у
+	 *  UUAVSimulationSubsystem. Перешкоди активні автоматично для будь-якого літака в
+	 *  радіусі дії хоча б однієї зони — окремого глобального вмикача немає. */
 	UFUNCTION(BlueprintCallable, Category = "Simulation|EW")
 	void UpdateEWSettings();
 

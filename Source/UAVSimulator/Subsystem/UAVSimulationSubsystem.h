@@ -43,14 +43,13 @@ public:
 	bool bEnableSensorCesiumSurroundings = true;
 	bool bEnableSensorCustomSurroundings = true;
 
-	/** Чи активна зона перешкод РЕБ (Electronic Warfare). */
-	bool bEWInterferenceEnabled = false;
+	/** Світові координати (X, Y, см) центрів усіх зон дії РЕБ на сцені. Перешкоди активні
+	 *  автоматично для будь-якого літака в радіусі дії хоча б однієї зони — окремого
+	 *  глобального вмикача немає. */
+	TArray<FVector2D> EWLocations;
 
-	/** Світові координати (X, Y, см) центру зони дії РЕБ. */
-	FVector2D EWLocation = FVector2D::ZeroVector;
-
-	/** Радіус дії РЕБ, см. */
-	float EWRadius = 5000.0f;
+	/** Радіуси дії РЕБ (см), паралельно до EWLocations. */
+	TArray<float> EWRadii;
 
 	FOnVisualSettingsChanged OnVisualSettingsChanged;
 	FOnCameraSettingsChanged OnCameraSettingsChanged;
@@ -60,5 +59,5 @@ public:
 	void SetVisualSettings(bool bInPlayer, bool bInTarget);
 	void SetOnboardCameraMode(EOnboardTargetMode Mode);
 	void SetSensorSettings(EOnboardTargetMode InSensorsMode, bool bAltimeter, bool bAttitudeIndicator, bool bCameraInclination, bool bLidar, bool bCameraFrame, bool bCameraAltitude, bool bSegmentationMask, bool bBBoxDetection, bool bPosition, bool bGeoPosition, bool bCesiumSurroundings, bool bCustomSurroundings);
-	void SetEWSettings(bool bEnabled, FVector2D Location, float Radius);
+	void SetEWSettings(const TArray<FVector2D>& Locations, const TArray<float>& Radii);
 };

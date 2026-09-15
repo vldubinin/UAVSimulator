@@ -32,6 +32,14 @@ class ACesiumGeoreference;
  *
  * Приховується з кожного онбордового SceneCaptureComponent2D через
  * UUAVCameraComponent::HideComponent (лишається видимою лише в основній камері).
+ *
+ * Підписується на ACesiumGeoreference::OnGeoreferenceUpdated і перераховує позицію з
+ * поточного StoredLLH щоразу, коли origin georeference змінюється. Це критично на старті
+ * гри: якщо цю зону спавнять (напр. AEnvironmentActorManager::RefreshEWZones) РАНІШЕ, ніж
+ * інший актор (UEnvironmentSectionWidget у NativeConstruct) застосує збережений origin —
+ * BeginPlay різних акторів виконується в незагарантованому порядку — то ApplyGeoPosition()
+ * одразу після спавну порахує позицію зі старого/дефолтного origin і зона опиниться не там.
+ * Підписка сама себе виправляє щойно origin таки виставлять правильно.
  */
 UCLASS()
 class UAVSIMULATOR_API AEWZoneActor : public AActor
@@ -72,12 +80,24 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "EW Zone")
 	void SetLatitude(double NewLatitude);
 
+	/** Атомарно задає довготу/широту/висоту одним викликом і застосовує позицію одним
+	 *  перерахунком — на відміну від послідовних SetLongitude/SetLatitude/SetHeight, тут
+	 *  немає проміжного стану з невалідним (частково старим) LLH-набором. Використовується
+	 *  AEnvironmentActorManager при синхронізації з EWConfigurations. */
+	UFUNCTION(BlueprintCallable, Category = "EW Zone")
+	void SetGeoPosition(double NewLongitude, double NewLatitude, double NewHeight);
+
 protected:
 	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual void BeginPlay() override;
 
 private:
 	void ApplyRadius();
+
+	/** ACesiumGeoreference::OnGeoreferenceUpdated — перераховує позицію з поточного
+	 *  StoredLLH проти щойно оновленого origin (див. коментар класу). */
+	UFUNCTION()
+	void OnGeoreferenceUpdated();
 
 	ACesiumGeoreference* ResolveGeoreference() const;
 

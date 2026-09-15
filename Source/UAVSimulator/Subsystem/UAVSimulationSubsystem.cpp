@@ -33,10 +33,9 @@ void UUAVSimulationSubsystem::SetSensorSettings(EOnboardTargetMode InSensorsMode
 	OnSensorSettingsChanged.Broadcast();
 }
 
-void UUAVSimulationSubsystem::SetEWSettings(bool bEnabled, FVector2D Location, float Radius)
+void UUAVSimulationSubsystem::SetEWSettings(const TArray<FVector2D>& Locations, const TArray<float>& Radii)
 {
-	bEWInterferenceEnabled = bEnabled;
-	EWLocation             = Location;
-	EWRadius               = Radius;
+	EWLocations = Locations;
+	EWRadii     = Radii;
 	OnEWSettingsChanged.Broadcast();
 }

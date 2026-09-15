@@ -103,16 +103,20 @@ private:
 	/** Перетворює всі матеріали пост-процесу, вручну додані в PostProcessMaterials
 	 *  CaptureComponent (напр. M_EW_Interference), на MID для щотікового керування параметрами. */
 	void InitEWInterferenceMIDs();
-	/** Рахує відстань до зони РЕБ і виставляє Interference_Intensity/Distortion_Strength/
-	 *  Noise_Intensity пропорційно близькості до її центру. */
+	/** Рахує відстань до кожної зони РЕБ і виставляє Interference_Intensity/Distortion_Strength/
+	 *  Noise_Intensity пропорційно близькості до найближчої/найсильнішої з них (максимум
+	 *  інтенсивності серед усіх зон). Перешкоди активні автоматично, якщо є хоч одна зона в
+	 *  радіусі дії — окремого глобального вмикача немає. */
 	void UpdateEWInterference();
 
 	UPROPERTY()
 	TArray<TObjectPtr<UMaterialInstanceDynamic>> EWInterferenceMIDs;
 
-	bool      bEWEnabled = false;
-	FVector2D EWLocation = FVector2D::ZeroVector;
-	float     EWRadius   = 0.0f;
+	/** Світові координати (X, Y, см) центрів усіх зон РЕБ; паралельно до EWRadii. */
+	TArray<FVector2D> EWLocations;
+
+	/** Радіуси дії РЕБ (см), паралельно до EWLocations. */
+	TArray<float> EWRadii;
 
 	FDelegateHandle EWSettingsChangedHandle;
 

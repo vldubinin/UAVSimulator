@@ -40,17 +40,25 @@ void AUAVSimulatorGameModeBase::UpdateEWSettings()
 	UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>();
 	if (!Subsystem) return;
 
-	FVector2D Location = FVector2D::ZeroVector;
-	float     Radius   = 0.0f;
+	TArray<AActor*> Zones;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AEWZoneActor::StaticClass(), Zones);
 
-	if (AEWZoneActor* Zone = Cast<AEWZoneActor>(UGameplayStatics::GetActorOfClass(GetWorld(), AEWZoneActor::StaticClass())))
+	TArray<FVector2D> Locations;
+	TArray<float>     Radii;
+	Locations.Reserve(Zones.Num());
+	Radii.Reserve(Zones.Num());
+
+	for (AActor* ZoneActor : Zones)
 	{
-		const FVector ZoneLocation = Zone->GetActorLocation();
-		Location = FVector2D(ZoneLocation.X, ZoneLocation.Y);
-		Radius   = Zone->Radius;
+		if (AEWZoneActor* Zone = Cast<AEWZoneActor>(ZoneActor))
+		{
+			const FVector ZoneLocation = Zone->GetActorLocation();
+			Locations.Add(FVector2D(ZoneLocation.X, ZoneLocation.Y));
+			Radii.Add(Zone->Radius);
+		}
 	}
 
-	Subsystem->SetEWSettings(bEWInterferenceEnabled, Location, Radius);
+	Subsystem->SetEWSettings(Locations, Radii);
 }
 
 void AUAVSimulatorGameModeBase::StopSimulation()

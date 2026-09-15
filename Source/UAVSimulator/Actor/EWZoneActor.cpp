@@ -51,6 +51,11 @@ void AEWZoneActor::BeginPlay()
 		return;
 	}
 
+	// Порядок BeginPlay між акторами не гарантований — якщо origin ще застосують ПІЗНІШЕ
+	// (напр. UEnvironmentSectionWidget::LoadAndApplySavedSettings у своєму NativeConstruct),
+	// ця підписка перерахує позицію заново з актуальним origin (див. коментар класу).
+	Geo->OnGeoreferenceUpdated.AddDynamic(this, &AEWZoneActor::OnGeoreferenceUpdated);
+
 	const FVector StartLocation = GetActorLocation();
 	const FVector LocalPosition = Geo->GetActorTransform().InverseTransformPosition(StartLocation);
 	const FVector LLH = Geo->TransformUnrealPositionToLongitudeLatitudeHeight(LocalPosition);
@@ -65,6 +70,13 @@ void AEWZoneActor::BeginPlay()
 		*Geo->GetActorTransform().GetLocation().ToString(),
 		*StartLocation.ToString(), *LocalPosition.ToString(),
 		StoredLongitude, StoredLatitude, StoredHeight);
+}
+
+void AEWZoneActor::OnGeoreferenceUpdated()
+{
+	UE_LOG(LogUAV, Log, TEXT("EWZoneActor[%s]::OnGeoreferenceUpdated: origin changed — reapplying StoredLLH=(%f,%f,%f)"),
+		*GetName(), StoredLongitude, StoredLatitude, StoredHeight);
+	ApplyGeoPosition();
 }
 
 void AEWZoneActor::SetRadius(float NewRadius)
@@ -134,5 +146,15 @@ void AEWZoneActor::SetLatitude(double NewLatitude)
 {
 	UE_LOG(LogUAV, Log, TEXT("EWZoneActor[%s]::SetLatitude: %f -> %f"), *GetName(), StoredLatitude, NewLatitude);
 	StoredLatitude = NewLatitude;
+	ApplyGeoPosition();
+}
+
+void AEWZoneActor::SetGeoPosition(double NewLongitude, double NewLatitude, double NewHeight)
+{
+	UE_LOG(LogUAV, Log, TEXT("EWZoneActor[%s]::SetGeoPosition: LLH (%f,%f,%f) -> (%f,%f,%f)"),
+		*GetName(), StoredLongitude, StoredLatitude, StoredHeight, NewLongitude, NewLatitude, NewHeight);
+	StoredLongitude = NewLongitude;
+	StoredLatitude  = NewLatitude;
+	StoredHeight    = NewHeight;
 	ApplyGeoPosition();
 }
