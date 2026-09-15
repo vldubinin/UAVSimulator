@@ -13,9 +13,13 @@ class ACesiumGeoreference;
 /**
  * Наочний маркер зони дії РЕБ (Electronic Warfare) у персистентному рівні: прозора сфера
  * без колізії, що показує розташування й радіус дії глушіння. Розміщується вручну в
- * рівні — так само, як ACesiumGeoreference/ACesiumSunSky — і читається звідти
- * UEnvironmentSectionWidget (Longitude/Latitude/Radius) та
- * AUAVSimulatorGameModeBase::UpdateEWSettings().
+ * рівні — так само, як ACesiumGeoreference/ACesiumSunSky.
+ *
+ * Сама зона рахує, наскільки сильно вона глушить задану світову точку —
+ * GetInterferenceIntensity() — щоб цю формулу не дублювали й не тримали в синку з Radius/
+ * позицією консюменти на кшталт UUAVCameraComponent::UpdateEWInterference() (яка лише бере
+ * максимум інтенсивності серед усіх зон, повернутих AUAVSimulatorGameModeBase::UpdateEWSettings()
+ * через UUAVSimulationSubsystem::EWZones).
  *
  * Longitude/Latitude/Height зберігаються як єдине джерело правди (StoredLongitude/
  * StoredLatitude/StoredHeight, градуси/метри) — а НЕ вираховуються щоразу назад із
@@ -27,8 +31,8 @@ class ACesiumGeoreference;
  * (як робилося раніше), актор на секунду опиняється дуже далеко від точки дотику
  * тангенціальної площини Cesium — і зворотне перетворення звідти вже дає сміття
  * (сотні мільйонів см). Зберігання LLH окремо від Unreal-позиції усуває цей клас багів.
- * GetActorLocation() лишається справжньою Unreal world-позицією, яку й далі читає
- * AUAVSimulatorGameModeBase::UpdateEWSettings() для рахунку відстані до літака.
+ * GetActorLocation() лишається справжньою Unreal world-позицією, яку й використовує
+ * GetInterferenceIntensity() для рахунку відстані до довільної точки (напр. літака).
  *
  * Приховується з кожного онбордового SceneCaptureComponent2D через
  * UUAVCameraComponent::HideComponent (лишається видимою лише в основній камері).
@@ -86,6 +90,13 @@ public:
 	 *  AEnvironmentActorManager при синхронізації з EWConfigurations. */
 	UFUNCTION(BlueprintCallable, Category = "EW Zone")
 	void SetGeoPosition(double NewLongitude, double NewLatitude, double NewHeight);
+
+	/** Інтенсивність перешкод РЕБ у заданій світовій точці, [0,1]: 1.0 у центрі зони,
+	 *  лінійно спадає до 0.0 на межі Radius і лишається 0.0 за нею. Єдине місце, де рахується
+	 *  ця формула — консюменти (напр. UUAVCameraComponent) лише викликають її для кожної
+	 *  зони й беруть максимум. */
+	UFUNCTION(BlueprintPure, Category = "EW Zone")
+	float GetInterferenceIntensity(const FVector& WorldLocation) const;
 
 protected:
 	virtual void OnConstruction(const FTransform& Transform) override;

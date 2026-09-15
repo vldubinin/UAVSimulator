@@ -43,22 +43,15 @@ void AUAVSimulatorGameModeBase::UpdateEWSettings()
 	TArray<AActor*> Zones;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AEWZoneActor::StaticClass(), Zones);
 
-	TArray<FVector2D> Locations;
-	TArray<float>     Radii;
-	Locations.Reserve(Zones.Num());
-	Radii.Reserve(Zones.Num());
-
+	TArray<TWeakObjectPtr<AEWZoneActor>> ZonePtrs;
+	ZonePtrs.Reserve(Zones.Num());
 	for (AActor* ZoneActor : Zones)
 	{
 		if (AEWZoneActor* Zone = Cast<AEWZoneActor>(ZoneActor))
-		{
-			const FVector ZoneLocation = Zone->GetActorLocation();
-			Locations.Add(FVector2D(ZoneLocation.X, ZoneLocation.Y));
-			Radii.Add(Zone->Radius);
-		}
+			ZonePtrs.Add(Zone);
 	}
 
-	Subsystem->SetEWSettings(Locations, Radii);
+	Subsystem->SetEWSettings(ZonePtrs);
 }
 
 void AUAVSimulatorGameModeBase::StopSimulation()

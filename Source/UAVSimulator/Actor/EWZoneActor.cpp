@@ -72,6 +72,15 @@ void AEWZoneActor::BeginPlay()
 		StoredLongitude, StoredLatitude, StoredHeight);
 }
 
+float AEWZoneActor::GetInterferenceIntensity(const FVector& WorldLocation) const
+{
+	if (Radius <= 0.0f)
+		return 0.0f;
+
+	const float Distance = FVector::Dist2D(WorldLocation, GetActorLocation());
+	return FMath::Clamp(1.0f - Distance / Radius, 0.0f, 1.0f);
+}
+
 void AEWZoneActor::OnGeoreferenceUpdated()
 {
 	UE_LOG(LogUAV, Log, TEXT("EWZoneActor[%s]::OnGeoreferenceUpdated: origin changed — reapplying StoredLLH=(%f,%f,%f)"),

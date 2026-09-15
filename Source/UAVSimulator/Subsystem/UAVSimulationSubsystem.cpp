@@ -33,9 +33,8 @@ void UUAVSimulationSubsystem::SetSensorSettings(EOnboardTargetMode InSensorsMode
 	OnSensorSettingsChanged.Broadcast();
 }
 
-void UUAVSimulationSubsystem::SetEWSettings(const TArray<FVector2D>& Locations, const TArray<float>& Radii)
+void UUAVSimulationSubsystem::SetEWSettings(const TArray<TWeakObjectPtr<AEWZoneActor>>& Zones)
 {
-	EWLocations = Locations;
-	EWRadii     = Radii;
+	EWZones = Zones;
 	OnEWSettingsChanged.Broadcast();
 }

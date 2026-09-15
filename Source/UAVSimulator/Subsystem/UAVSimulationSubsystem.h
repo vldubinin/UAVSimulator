@@ -8,6 +8,8 @@
 #include "UAVSimulator/Entity/OnboardTargetMode.h"
 #include "UAVSimulationSubsystem.generated.h"
 
+class AEWZoneActor;
+
 DECLARE_MULTICAST_DELEGATE(FOnVisualSettingsChanged);
 DECLARE_MULTICAST_DELEGATE(FOnCameraSettingsChanged);
 DECLARE_MULTICAST_DELEGATE(FOnSensorSettingsChanged);
@@ -43,13 +45,12 @@ public:
 	bool bEnableSensorCesiumSurroundings = true;
 	bool bEnableSensorCustomSurroundings = true;
 
-	/** Світові координати (X, Y, см) центрів усіх зон дії РЕБ на сцені. Перешкоди активні
-	 *  автоматично для будь-якого літака в радіусі дії хоча б однієї зони — окремого
-	 *  глобального вмикача немає. */
-	TArray<FVector2D> EWLocations;
-
-	/** Радіуси дії РЕБ (см), паралельно до EWLocations. */
-	TArray<float> EWRadii;
+	/** Усі AEWZoneActor на сцені. Кожна зона сама рахує свою інтенсивність перешкод
+	 *  (AEWZoneActor::GetInterferenceIntensity) — тут лише список, без копій позиції/радіуса,
+	 *  щоб ті не застарівали. TWeakObjectPtr — зони можуть бути переспавнені
+	 *  (AEnvironmentActorManager::RefreshEWZones). Перешкоди активні автоматично для будь-якого
+	 *  літака в радіусі дії хоча б однієї зони — окремого глобального вмикача немає. */
+	TArray<TWeakObjectPtr<AEWZoneActor>> EWZones;
 
 	FOnVisualSettingsChanged OnVisualSettingsChanged;
 	FOnCameraSettingsChanged OnCameraSettingsChanged;
@@ -59,5 +60,5 @@ public:
 	void SetVisualSettings(bool bInPlayer, bool bInTarget);
 	void SetOnboardCameraMode(EOnboardTargetMode Mode);
 	void SetSensorSettings(EOnboardTargetMode InSensorsMode, bool bAltimeter, bool bAttitudeIndicator, bool bCameraInclination, bool bLidar, bool bCameraFrame, bool bCameraAltitude, bool bSegmentationMask, bool bBBoxDetection, bool bPosition, bool bGeoPosition, bool bCesiumSurroundings, bool bCustomSurroundings);
-	void SetEWSettings(const TArray<FVector2D>& Locations, const TArray<float>& Radii);
+	void SetEWSettings(const TArray<TWeakObjectPtr<AEWZoneActor>>& Zones);
 };

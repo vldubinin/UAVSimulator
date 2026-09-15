@@ -16,6 +16,7 @@
 
 class ACesiumCameraManager;
 class UMaterialInstanceDynamic;
+class AEWZoneActor;
 
 /**
  * Керує бортовою камерою: RGB-захопленням, обробкою OpenCV, опційним захопленням маски
@@ -103,20 +104,18 @@ private:
 	/** Перетворює всі матеріали пост-процесу, вручну додані в PostProcessMaterials
 	 *  CaptureComponent (напр. M_EW_Interference), на MID для щотікового керування параметрами. */
 	void InitEWInterferenceMIDs();
-	/** Рахує відстань до кожної зони РЕБ і виставляє Interference_Intensity/Distortion_Strength/
-	 *  Noise_Intensity пропорційно близькості до найближчої/найсильнішої з них (максимум
-	 *  інтенсивності серед усіх зон). Перешкоди активні автоматично, якщо є хоч одна зона в
-	 *  радіусі дії — окремого глобального вмикача немає. */
+	/** Виставляє Interference_Intensity/Distortion_Strength/Noise_Intensity на максимум
+	 *  AEWZoneActor::GetInterferenceIntensity() серед усіх зон РЕБ (найближча/найсильніша
+	 *  домінує). Перешкоди активні автоматично, якщо є хоч одна зона в радіусі дії — окремого
+	 *  глобального вмикача немає. */
 	void UpdateEWInterference();
 
 	UPROPERTY()
 	TArray<TObjectPtr<UMaterialInstanceDynamic>> EWInterferenceMIDs;
 
-	/** Світові координати (X, Y, см) центрів усіх зон РЕБ; паралельно до EWRadii. */
-	TArray<FVector2D> EWLocations;
-
-	/** Радіуси дії РЕБ (см), паралельно до EWLocations. */
-	TArray<float> EWRadii;
+	/** Усі зони РЕБ на сцені (синхронізується з UUAVSimulationSubsystem::EWZones) — кожна
+	 *  сама рахує свою інтенсивність у AEWZoneActor::GetInterferenceIntensity(). */
+	TArray<TWeakObjectPtr<AEWZoneActor>> EWZones;
 
 	FDelegateHandle EWSettingsChangedHandle;
 

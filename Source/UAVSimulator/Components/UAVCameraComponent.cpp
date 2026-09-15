@@ -175,13 +175,11 @@ void UUAVCameraComponent::BeginPlay()
 	{
 		if (UUAVSimulationSubsystem* Subsystem = World->GetSubsystem<UUAVSimulationSubsystem>())
 		{
-			EWLocations = Subsystem->EWLocations;
-			EWRadii     = Subsystem->EWRadii;
+			EWZones = Subsystem->EWZones;
 
 			EWSettingsChangedHandle = Subsystem->OnEWSettingsChanged.AddLambda([this, Subsystem]()
 			{
-				EWLocations = Subsystem->EWLocations;
-				EWRadii     = Subsystem->EWRadii;
+				EWZones = Subsystem->EWZones;
 			});
 		}
 	}
@@ -624,19 +622,18 @@ void UUAVCameraComponent::UpdateEWInterference()
 	if (EWInterferenceMIDs.Num() == 0) return;
 
 	float Intensity = 0.0f;
-	const AActor* Owner = GetOwner();
-	const FVector OwnerLocation = Owner ? Owner->GetActorLocation() : FVector::ZeroVector;
-
-	// Кілька зон РЕБ можуть перекриватися — рахуємо інтенсивність від кожної й беремо
-	// максимум (найближча/найсильніша зона домінує), а не суму (щоб не перевищити 1.0).
-	// Перешкоди активні автоматично, якщо є хоч одна зона в радіусі дії.
-	for (int32 i = 0; i < EWLocations.Num(); ++i)
+	if (const AActor* Owner = GetOwner())
 	{
-		const float Radius = EWRadii.IsValidIndex(i) ? EWRadii[i] : 0.0f;
-		if (Radius <= 0.0f) continue;
+		const FVector OwnerLocation = Owner->GetActorLocation();
 
-		const float Distance = FVector::Dist2D(OwnerLocation, FVector(EWLocations[i].X, EWLocations[i].Y, 0.0f));
-		Intensity = FMath::Max(Intensity, FMath::Clamp(1.0f - Distance / Radius, 0.0f, 1.0f));
+		// Кілька зон РЕБ можуть перекриватися — кожна сама рахує свою інтенсивність
+		// (AEWZoneActor::GetInterferenceIntensity), беремо максимум серед усіх (найближча/
+		// найсильніша зона домінує), а не суму (щоб не перевищити 1.0).
+		for (const TWeakObjectPtr<AEWZoneActor>& ZonePtr : EWZones)
+		{
+			if (AEWZoneActor* Zone = ZonePtr.Get())
+				Intensity = FMath::Max(Intensity, Zone->GetInterferenceIntensity(OwnerLocation));
+		}
 	}
 
 	for (UMaterialInstanceDynamic* MID : EWInterferenceMIDs)
