@@ -1,6 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "UAVSimulationSubsystem.h"
+#include "UAVSimulator/Actor/WindActor.h"
 
 void UUAVSimulationSubsystem::SetVisualSettings(bool bInPlayer, bool bInTarget)
 {
@@ -37,4 +38,21 @@ void UUAVSimulationSubsystem::SetEWSettings(const TArray<TWeakObjectPtr<AEWZoneA
 {
 	EWZones = Zones;
 	OnEWSettingsChanged.Broadcast();
+}
+
+void UUAVSimulationSubsystem::SetWindSettings(const TArray<TWeakObjectPtr<AWindActor>>& Vectors)
+{
+	WindVectors = Vectors;
+	OnWindSettingsChanged.Broadcast();
+}
+
+FVector UUAVSimulationSubsystem::GetWindVelocityAtLocation(const FVector& WorldLocation) const
+{
+	FVector TotalWind = FVector::ZeroVector;
+	for (const TWeakObjectPtr<AWindActor>& WindPtr : WindVectors)
+	{
+		if (AWindActor* Wind = WindPtr.Get())
+			TotalWind += Wind->GetWindVelocityAtLocation(WorldLocation);
+	}
+	return TotalWind;
 }

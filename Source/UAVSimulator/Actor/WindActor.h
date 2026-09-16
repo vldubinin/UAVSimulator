@@ -14,7 +14,11 @@ class ACesiumGeoreference;
  * куб), що з'єднує початкову й кінцеву геоточки вектора. Спавниться і позиціюється
  * виключно через AEnvironmentActorManager::RefreshWindVectors() з
  * AEnvironmentActorManager::WindConfigurations — так само, як AEWZoneActor для
- * EWConfigurations. Наразі суто візуальний — жодного впливу на політ літака.
+ * EWConfigurations. Впливає на політ літака через GetWindVelocityAtLocation() —
+ * її щотіку опитує USubAerodynamicSurfaceSC (для кожного сегмента поверхні окремо,
+ * у власній точці центру тиску) через UUAVSimulationSubsystem::GetWindVelocityAtLocation(),
+ * яка сумує внесок усіх AWindActor на сцені. Сам актор — єдине джерело правди щодо
+ * того, чи впливає він на задану світову точку, з яким напрямком і величиною.
  *
  * StoredStart.../StoredEnd... (Longitude/Latitude/Height, градуси/метри) — єдине джерело
  * правди для положення, за тим самим принципом, що й StoredLongitude/Latitude/Height
@@ -50,6 +54,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wind")
 	float Radius = 5000.0f;
 
+	/** Швидкість вітру, см/с (Unreal-native) — НЕ ті самі одиниці, що
+	 *  FWindVectorConfiguration::Speed (м/с); конвертація ×100 відбувається в
+	 *  AEnvironmentActorManager::RefreshWindVectors(), за тим самим принципом, що й для
+	 *  Radius/Config.Radius. Напрямок — GetActorForwardVector() (Start->End, вже
+	 *  виставляється ApplyTransform()). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wind")
+	float Speed = 0.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wind")
 	TObjectPtr<UMaterialInterface> WindMaterial;
 
@@ -73,6 +85,21 @@ public:
 	/** Задає радіус (см) і одразу перераховує переріз BoxVisual. */
 	UFUNCTION(BlueprintCallable, Category = "Wind")
 	void SetRadius(float NewRadius);
+
+	/** Задає швидкість вітру (см/с). Перерахунку геометрії не потребує. */
+	UFUNCTION(BlueprintCallable, Category = "Wind")
+	void SetSpeed(float NewSpeed);
+
+	/** Внесок цього вектора у швидкість вітру в заданій світовій точці, см/с. Сам актор —
+	 *  єдине джерело правди щодо належності точки до зони (BoxVisual — root-компонент,
+	 *  тож GetActorTransform() уже включає його нерівномірний масштаб — переведена в
+	 *  локальний простір точка одразу опиняється в НЕмасштабованому просторі куба,
+	 *  півсторона = BaseCubeSizeCm*0.5), напрямку (GetActorForwardVector()) і плавного
+	 *  загасання біля межі (щоб уникнути стрибка сили, коли сегмент перетинає межу
+	 *  зони) — ніхто зовні не дублює цю формулу. Повертає FVector::ZeroVector поза
+	 *  зоною (і поза її пом'якшеною межею). */
+	UFUNCTION(BlueprintPure, Category = "Wind")
+	FVector GetWindVelocityAtLocation(const FVector& WorldLocation) const;
 
 protected:
 	virtual void OnConstruction(const FTransform& Transform) override;
@@ -113,4 +140,8 @@ private:
 
 	/** Розмір /Engine/BasicShapes/Cube.Cube при масштабі (1,1,1), см. */
 	static constexpr float BaseCubeSizeCm = 100.0f;
+
+	/** Частка (від півдовжини кожної осі, у нормалізованому локальному просторі), на якій
+	 *  внесок вітру плавно згасає до нуля біля межі боксу — не для UI. */
+	static constexpr float EdgeSoftnessFrac = 0.15f;
 };

@@ -75,7 +75,6 @@ private:
 	UDataTable* AerodynamicTable;
 
 	static constexpr float AirDensity = 1.225f;
-	const FVector Wind = FVector();
 	bool IsMirror = false;
 	EFlapType FlapType;
 	UControlSurfaceSC* ControlSurface;

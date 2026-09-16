@@ -1,22 +1,15 @@
 {
-  "electronic_warfare": [
-    {
-      "latitude": 50.04407461181961,
-      "longitude": 36.29288074609377,
-      "height": 500.0,
-      "radius": 100.0
-    }
-  ],
+  "electronic_warfare": [],
   "wind": [
     {
-      "start_latitude": 50.048212493221165,
-      "start_longitude": 36.29472173703189,
+      "start_latitude": 50.04773689812996,
+      "start_longitude": 36.28992146152444,
       "start_height": 200.0,
-      "end_latitude": 50.046235181883596,
-      "end_longitude": 36.29329480183597,
-      "end_height": 400.0,
-      "speed": 5.0,
-      "radius": 50.0
+      "end_latitude": 50.0432860664439,
+      "end_longitude": 36.292603670539336,
+      "end_height": 800.0,
+      "speed": 20.0,
+      "radius": 200.0
     }
   ]
 }

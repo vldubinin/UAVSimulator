@@ -125,3 +125,40 @@ void AWindActor::SetRadius(float NewRadius)
 	Radius = NewRadius;
 	ApplyTransform();
 }
+
+void AWindActor::SetSpeed(float NewSpeed)
+{
+	Speed = NewSpeed;
+}
+
+FVector AWindActor::GetWindVelocityAtLocation(const FVector& WorldLocation) const
+{
+	if (Speed <= 0.0f)
+		return FVector::ZeroVector;
+
+	// GetActorTransform() уже включає нерівномірний RelativeScale3D BoxVisual (він —
+	// root-компонент), тож ця точка одразу опиняється в НЕмасштабованому просторі куба —
+	// півсторона = BaseCubeSizeCm*0.5 на кожній осі, окремо кешувати Length/Radius не треба.
+	const FVector Local = GetActorTransform().InverseTransformPosition(WorldLocation);
+	const float HalfSize = BaseCubeSizeCm * 0.5f;
+
+	// Відстань Чебишева в нормалізованих (по кожній осі) одиницях: 1.0 — точно на грані боксу.
+	const float Nx = FMath::Abs(Local.X) / HalfSize;
+	const float Ny = FMath::Abs(Local.Y) / HalfSize;
+	const float Nz = FMath::Abs(Local.Z) / HalfSize;
+	const float D  = FMath::Max3(Nx, Ny, Nz);
+
+	if (D >= 1.0f)
+		return FVector::ZeroVector;
+
+	const float InnerEdge = 1.0f - EdgeSoftnessFrac;
+	float Factor = 1.0f;
+	if (D > InnerEdge)
+	{
+		// Класичний smoothstep(0,1,t) — 3t² - 2t³, t = наскільки глибоко в пом'якшеній смузі.
+		const float T = FMath::Clamp((D - InnerEdge) / EdgeSoftnessFrac, 0.0f, 1.0f);
+		Factor = 1.0f - (T * T * (3.0f - 2.0f * T));
+	}
+
+	return GetActorForwardVector() * Speed * Factor;
+}

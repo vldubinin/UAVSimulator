@@ -262,6 +262,8 @@ void AEnvironmentActorManager::RefreshWindVectors()
 			Config.EndLongitude, Config.EndLatitude, Config.EndHeight);
 		// Метри -> сантиметри (Unreal-одиниці) — AWindActor::Radius очікує см.
 		Wind->SetRadius(Config.Radius * 100.0f);
+		// Метри/с -> см/с (Unreal-одиниці) — AWindActor::Speed очікує см/с.
+		Wind->SetSpeed(Config.Speed * 100.0f);
 
 		SpawnedWindVectors.Add(Wind);
 	}

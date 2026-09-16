@@ -106,6 +106,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Simulation|EW")
 	void UpdateEWSettings();
 
+	/** Читає всі AWindActor з рівня і надсилає їх у UUAVSimulationSubsystem. Кожен вектор
+	 *  сам рахує свій внесок у будь-яку світову точку — окремого глобального вмикача немає. */
+	UFUNCTION(BlueprintCallable, Category = "Simulation|Wind")
+	void UpdateWindSettings();
+
 	/**
 	 * Кількість кадрів, протягом яких сенсори мають "прогріватися" перед публікацією. Поки що
 	 * лише налаштування тут — сама логіка прогріву ще не реалізована.

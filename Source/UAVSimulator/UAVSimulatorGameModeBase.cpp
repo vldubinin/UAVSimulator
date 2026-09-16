@@ -3,6 +3,7 @@
 #include "UAVSimulatorGameModeBase.h"
 #include "UAVSimulator/Actor/Airplane.h"
 #include "UAVSimulator/Actor/EWZoneActor.h"
+#include "UAVSimulator/Actor/WindActor.h"
 #include "UAVSimulator/Components/FlightRecorderComponent.h"
 #include "UAVSimulator/Components/FlightPlaybackComponent.h"
 #include "UAVSimulator/Components/AttitudeControlComponent.h"
@@ -54,6 +55,25 @@ void AUAVSimulatorGameModeBase::UpdateEWSettings()
 	Subsystem->SetEWSettings(ZonePtrs);
 }
 
+void AUAVSimulatorGameModeBase::UpdateWindSettings()
+{
+	UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>();
+	if (!Subsystem) return;
+
+	TArray<AActor*> Vectors;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AWindActor::StaticClass(), Vectors);
+
+	TArray<TWeakObjectPtr<AWindActor>> VectorPtrs;
+	VectorPtrs.Reserve(Vectors.Num());
+	for (AActor* VectorActor : Vectors)
+	{
+		if (AWindActor* Wind = Cast<AWindActor>(VectorActor))
+			VectorPtrs.Add(Wind);
+	}
+
+	Subsystem->SetWindSettings(VectorPtrs);
+}
+
 void AUAVSimulatorGameModeBase::StopSimulation()
 {
 	if (!bSimulationStarted) return;
@@ -99,6 +119,7 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 
 	// Розташування/радіус беруться з AEWZoneActor у рівні — читаємо його тут же.
 	UpdateEWSettings();
+	UpdateWindSettings();
 }
 
 void AUAVSimulatorGameModeBase::StartSimulation()
@@ -352,4 +373,5 @@ void AUAVSimulatorGameModeBase::StartSimulation()
 	UpdateVisualSettings();
 	UpdateSensorSettings();
 	UpdateEWSettings();
+	UpdateWindSettings();
 }

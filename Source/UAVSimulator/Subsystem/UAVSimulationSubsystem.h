@@ -9,11 +9,13 @@
 #include "UAVSimulationSubsystem.generated.h"
 
 class AEWZoneActor;
+class AWindActor;
 
 DECLARE_MULTICAST_DELEGATE(FOnVisualSettingsChanged);
 DECLARE_MULTICAST_DELEGATE(FOnCameraSettingsChanged);
 DECLARE_MULTICAST_DELEGATE(FOnSensorSettingsChanged);
 DECLARE_MULTICAST_DELEGATE(FOnEWSettingsChanged);
+DECLARE_MULTICAST_DELEGATE(FOnWindSettingsChanged);
 
 UCLASS()
 class UAVSIMULATOR_API UUAVSimulationSubsystem : public UWorldSubsystem
@@ -52,13 +54,27 @@ public:
 	 *  літака в радіусі дії хоча б однієї зони — окремого глобального вмикача немає. */
 	TArray<TWeakObjectPtr<AEWZoneActor>> EWZones;
 
+	/** Усі AWindActor на сцені. Кожен вектор сам рахує свій внесок у задану світову точку
+	 *  (AWindActor::GetWindVelocityAtLocation) — тут лише список, без копій позиції/швидкості,
+	 *  щоб ті не застарівали. TWeakObjectPtr — вектори можуть бути переспавнені
+	 *  (AEnvironmentActorManager::RefreshWindVectors). */
+	TArray<TWeakObjectPtr<AWindActor>> WindVectors;
+
 	FOnVisualSettingsChanged OnVisualSettingsChanged;
 	FOnCameraSettingsChanged OnCameraSettingsChanged;
 	FOnSensorSettingsChanged OnSensorSettingsChanged;
 	FOnEWSettingsChanged     OnEWSettingsChanged;
+	FOnWindSettingsChanged   OnWindSettingsChanged;
 
 	void SetVisualSettings(bool bInPlayer, bool bInTarget);
 	void SetOnboardCameraMode(EOnboardTargetMode Mode);
 	void SetSensorSettings(EOnboardTargetMode InSensorsMode, bool bAltimeter, bool bAttitudeIndicator, bool bCameraInclination, bool bLidar, bool bCameraFrame, bool bCameraAltitude, bool bSegmentationMask, bool bBBoxDetection, bool bPosition, bool bGeoPosition, bool bCesiumSurroundings, bool bCustomSurroundings);
 	void SetEWSettings(const TArray<TWeakObjectPtr<AEWZoneActor>>& Zones);
+	void SetWindSettings(const TArray<TWeakObjectPtr<AWindActor>>& Vectors);
+
+	/** Сумарна швидкість вітру у заданій світовій точці, см/с — векторна сума внесків усіх
+	 *  WindVectors (на відміну від EW-перешкод, які беруть максимум: вітер — фізична
+	 *  швидкість, тож перекриваючі поля мають складатися, як і в наявній системі вихрового
+	 *  сліду, UFlightDynamicsComponent::GetInducedVelocity, а не РЕБ-абстракція [0,1]). */
+	FVector GetWindVelocityAtLocation(const FVector& WorldLocation) const;
 };

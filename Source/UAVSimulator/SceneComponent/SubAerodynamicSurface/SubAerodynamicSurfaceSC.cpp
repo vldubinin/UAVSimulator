@@ -7,6 +7,7 @@
 #include "UAVSimulator/Util/AerodynamicDebugRenderer.h"
 #include "UAVSimulator/Util/ControlInputMapper.h"
 #include "UAVSimulator/Util/AerodynamicUtil.h"
+#include "UAVSimulator/Subsystem/UAVSimulationSubsystem.h"
 #include "DrawDebugHelpers.h"
 
 USubAerodynamicSurfaceSC::USubAerodynamicSurfaceSC()
@@ -103,6 +104,13 @@ FAerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(
 	FVector RelativePosition    = CenterOfPressureInWorld - GlobalCenterOfMassInWorld;
 	// Швидкість від обертального руху секції відносно центру мас (ω × r)
 	FVector RotationalVelocity  = FVector::CrossProduct(AngularVelocity, RelativePosition);
+
+	// Вітер у точці центру тиску цього сегмента — своя точка для кожного сегмента, тож
+	// крило в пориві й фюзеляж поза ним отримують коректно різний внесок.
+	FVector Wind = FVector::ZeroVector;
+	if (UUAVSimulationSubsystem* Subsystem = GetWorld()->GetSubsystem<UUAVSimulationSubsystem>())
+		Wind = Subsystem->GetWindVelocityAtLocation(CenterOfPressureInWorld);
+
 	// Результуюча швидкість повітря відносно поверхні = -V_linear + Wind - V_rotational
 	FVector WorldAirVelocity    = -LinearVelocity + Wind - RotationalVelocity;
 
@@ -151,6 +159,14 @@ FAerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(
 	
 	if (bVisualizeForces) {
 		DrawDebugDirectionalArrow(GetWorld(), CenterOfPressureInWorld, MidPoint, 25.0f, FColor::Green, false, -1.f, 0, 5.0f);
+
+		// Блакитна стрілка вітру в цій самій точці — дозволяє перевірити ефект на око,
+		// без реального польоту (напрямок/загасання біля межі AWindActor).
+		if (!Wind.IsNearlyZero())
+		{
+			AerodynamicDebugRenderer::DrawForceArrow(GetWorld(), CenterOfPressureInWorld, Wind,
+				FColor::Cyan, 0.05f, 25.0f, 3.0f, -1.f);
+		}
 	}
 	return Result;
 }
