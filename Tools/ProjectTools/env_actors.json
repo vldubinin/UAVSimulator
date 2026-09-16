@@ -1,15 +1,4 @@
 {
   "electronic_warfare": [],
-  "wind": [
-    {
-      "start_latitude": 50.04773689812996,
-      "start_longitude": 36.28992146152444,
-      "start_height": 200.0,
-      "end_latitude": 50.0432860664439,
-      "end_longitude": 36.292603670539336,
-      "end_height": 800.0,
-      "speed": 20.0,
-      "radius": 200.0
-    }
-  ]
+  "wind": []
 }

@@ -105,10 +105,24 @@ TotalInducedVelocity = InducedVelocity;```
 ---
 
 ## Крок 7 — Підключення до літака
-Відкрий Blueprint літака (BP_UAV).
-Додай компонент Niagara Particle System і назви його FlowVisualizerComp.
-В його налаштуваннях у Niagara System Asset обери NS_VLMFlow.
-Відкрий вкладку Event Graph.
-Від вузла Event BeginPlay витягни ноду Set Flow Visualizer (викликавши її з компонента, що рахує VLM, наприклад PhysicalAirplane або FlightDynamicsComponent).
-Підключи FlowVisualizerComp у вхід цієї ноди.
-Компілюй і запускай симуляцію. Частинки будуть закручуватися слідом за літаком згідно з математикою!
+
+Ручного Blueprint-wiring (окремий `NiagaraComponent` + нода `Set Flow
+Visualizer` в `Event Graph`) **більше не потрібно** — весь зв'язок з `NS_VLMFlow`
+автоматизований у C++ через `UAeroVisualizerComponent`
+(`SceneComponent/AeroVisualizer/AeroVisualizerComponent.h/.cpp`, детально —
+`02-FlightDynamics.md`). Достатньо:
+
+1. Переконайся, що на Blueprint-літаку (напр. `Content/Airplanes/Cessna_172`)
+   є компонент `UAeroVisualizerComponent`.
+2. У його властивостях задай `FlowVisualizerSystem` (`EditAnywhere`) — обери
+   щойно збережену `NS_VLMFlow`.
+3. Назви кожної `UAerodynamicSurfaceSC`, для якої треба слід, мають містити
+   `Wing` або `TailHorizontal` — лише такі поверхні `BeginPlay()` компонента
+   бере в обробку.
+
+Далі все автоматично: `BeginPlay()` спавнить `UNiagaraComponent` (`NS_VLMFlow`,
+`bAutoActivate = false`) для кожної відповідної поверхні, кожен тік
+`UpdateNiagaraWakeData()` штовхає `WakePositions`/`WakeGammas` через
+`UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector/Float`.
+Компілюй і запускай симуляцію — частинки закручуватимуться слідом за літаком
+згідно з математикою кроків 1–6 вище.

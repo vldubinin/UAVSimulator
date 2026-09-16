@@ -94,8 +94,36 @@ standalone-акторів `ASceneCapture2D`). Тому:
   **Не відкочувати**, поки `USegmentationMaskCameraComponent` у вжитку.
 - Актори, які треба бачити на масці, мають писати Custom Stencil; матеріал
   `MaskPostProcessMaterial` конвертує його у Ч/Б.
-- Новий матеріал у репо: `Content/Materials/M_EW_Interference.uasset` (заготовка
-  ефекту завад РЕБ для камери).
+
+## Перешкоди РЕБ (пост-процес)
+
+Не заготовка — активний, підключений конвеєр. Матеріал
+`Content/Materials/M_EW_Interference.uasset` додається вручну до
+`CaptureComponent->PostProcessMaterials`.
+
+- `InitEWInterferenceMIDs()` (`BeginPlay`) — конвертує кожен пост-процес
+  матеріал захоплення в `UMaterialInstanceDynamic`, щоб можна було міняти
+  скалярні параметри рантаймом.
+- `EWZones : TArray<TWeakObjectPtr<AEWZoneActor>>` — кешується з
+  `UUAVSimulationSubsystem::EWZones`, оновлюється підпискою на
+  `OnEWSettingsChanged` (`EWSettingsChangedHandle`).
+- `UpdateEWInterference()` (щокадру) — бере **максимум**
+  `AEWZoneActor::GetInterferenceIntensity(OwnerLocation)` серед `EWZones`,
+  виставляє `Interference_Intensity`/`Distortion_Strength`/`Noise_Intensity` на
+  кожному MID. Активно автоматично для будь-якого літака в радіусі дії хоча б
+  однієї зони — окремого вмикача немає. Деталі формули — `13-Environment-Actors.md`.
+
+## Приховане з бортової камери
+
+`BeginPlay` явно ховає з `CaptureComponent` (`HideComponent`) те, що не має
+з'являтись у потоці бортової камери, лишаючись видимим лише в основній камері
+редактора/гравця:
+
+- усі три line-batcher світу (`World`/`WorldPersistent`/`Foreground`) — інакше
+  будь-яка відладочна візуалізація (`DrawDebugLine`/`Box`/`Sphere`,
+  напр. промені сканерів оточення) протікала б у кадр камери;
+- `AEWZoneActor::SphereVisual` кожної зони РЕБ на сцені;
+- `AWindActor::BoxVisual` і `AWindActor::ArrowVisual` кожного вітрового вектора.
 
 ## UI камери — `UCameraViewWidget`
 

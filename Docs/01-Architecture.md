@@ -147,14 +147,24 @@ AAirplane::Tick
 | `OnboardCameraMode` | `EOnboardTargetMode` | На якій ролі активна бортова камера |
 | `SensorsMode` | `EOnboardTargetMode` | На якій ролі активна сенсорна шина |
 | `bEnableSensor*` (12 прапорців) | `bool` | Індивідуальні перемикачі типів сенсорів |
+| `EWZones` | `TArray<TWeakObjectPtr<AEWZoneActor>>` | Усі зони РЕБ на сцені (слабкі вказівники, без кешу позиції/радіуса) |
+| `WindVectors` | `TArray<TWeakObjectPtr<AWindActor>>` | Усі вітрові вектори на сцені (те саме) |
 | `OnVisualSettingsChanged` | делегат | Broadcast зі `SetVisualSettings()` |
 | `OnCameraSettingsChanged` | делегат | Broadcast зі `SetOnboardCameraMode()` |
 | `OnSensorSettingsChanged` | делегат | Broadcast зі `SetSensorSettings()` |
+| `OnEWSettingsChanged` | делегат | Broadcast зі `SetEWSettings()` |
+| `OnWindSettingsChanged` | делегат | Broadcast зі `SetWindSettings()` |
 
-Сеттери (`SetVisualSettings`, `SetOnboardCameraMode`, `SetSensorSettings`)
-оновлюють поля й одразу роблять broadcast. Кожен `AAirplane` підписаний у
-`BeginPlay`, тож broadcast має відбуватись **після** спавну й опанування всіх
-акторів.
+Сеттери (`SetVisualSettings`, `SetOnboardCameraMode`, `SetSensorSettings`,
+`SetEWSettings`, `SetWindSettings`) оновлюють поля й одразу роблять broadcast.
+Кожен `AAirplane` підписаний у `BeginPlay`, тож broadcast має відбуватись
+**після** спавну й опанування всіх акторів.
+
+`GetWindVelocityAtLocation(WorldLocation) → FVector` (см/с) — векторна сума
+внеску всіх `WindVectors` у заданій точці (не максимум, як у РЕБ — вітер
+фізична швидкість, поля мають складатися). Використовується
+`USubAerodynamicSurfaceSC` для впливу вітру на аеродинаміку — див.
+`13-Environment-Actors.md` і `02-FlightDynamics.md`.
 
 12 прапорців сенсорів: `Altimeter`, `AttitudeIndicator`, `CameraInclination`,
 `Lidar`, `CameraFrame`, `CameraAltitude`, `SegmentationMask`, `BBoxDetection`,
@@ -183,15 +193,38 @@ AAirplane::Tick
 
 ### Потік
 
-- `BeginPlay()` — лише штовхає всі поля в підсистему (щоб UI мав готовий стан).
-  **Акторів не спавнить.**
+- `BeginPlay()` — штовхає всі прапорці в підсистему (щоб UI мав готовий стан),
+  **і** одразу викликає `UpdateEWSettings()` + `UpdateWindSettings()` — обидва
+  сканують рівень (`GetAllActorsOfClass`) і наповнюють `EWZones`/`WindVectors`
+  підсистеми вже наявними в рівні зонами/векторами (`AEnvironmentActorManager`
+  сам підсистему ніколи не чіпає, див. `13-Environment-Actors.md`). **Літаки
+  (`AAirplane`) при цьому не спавнить.**
 - `StartSimulation()` (BlueprintCallable, викликається з меню) — повторно штовхає
   налаштування (могли змінити в UI), спавнить актори за `CurrentSimulatorMode`,
   наприкінці робить `UpdateCameraSettings()` + `UpdateVisualSettings()` +
-  `UpdateSensorSettings()` (broadcast після спавну).
+  `UpdateSensorSettings()` + `UpdateEWSettings()` + `UpdateWindSettings()`
+  (broadcast після спавну).
 - `StopSimulation()` — знищує всі `AAirplane`, кожному спершу `CleanupWidgets()`.
 - `UpdateVisualSettings()` / `UpdateCameraSettings()` / `UpdateSensorSettings()` —
-  штовхають відповідну групу полів у підсистему через її сеттери (з broadcast).
+  штовхають відповідну групу EditAnywhere-полів у підсистему через її сеттери
+  (з broadcast).
+- `UpdateEWSettings()` / `UpdateWindSettings()` — без власних EditAnywhere-полів:
+  свіжий `GetAllActorsOfClass(AEWZoneActor::StaticClass())` /
+  `GetAllActorsOfClass(AWindActor::StaticClass())` по всьому рівні (бачить і
+  вручну розміщені актори, і спавнені `AEnvironmentActorManager`) →
+  `Subsystem->SetEWSettings(...)` / `SetWindSettings(...)`.
+
+## Об'єкти середовища (РЕБ, вітер)
+
+`AEnvironmentActorManager` (`Actor/EnvironmentActorManager.h/.cpp`) — окрема
+сцена-актор, що спавнить і персистить `AEWZoneActor` (зони перешкод РЕБ) і
+`AWindActor` (вітрові вектори, реально впливають на аеродинаміку через
+`UUAVSimulationSubsystem::GetWindVelocityAtLocation`). Налаштовується вручну в
+редакторі або через зовнішній Python-інструмент карти
+(`Tools/ProjectTools/configurate_env_actors.py`, кнопка `ConfigurateEnvActorsBtn`
+у `UEnvironmentSectionWidget`). Ніколи не торкається `UUAVSimulationSubsystem`
+сам — це робить `AUAVSimulatorGameModeBase::UpdateEWSettings()`/
+`UpdateWindSettings()` (вище). Детально — `13-Environment-Actors.md`.
 
 ## Режими симуляції (`ESimulatorMode`)
 

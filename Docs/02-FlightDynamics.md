@@ -59,7 +59,19 @@ UControlSurfaceSC                     # елерони, рулі висоти/н
 AirflowDirection, ControlState, bVisualizeForces, DeltaTime)`** за кадр:
 1. Переводить збережені локальні хорди у світ; усереднює напрямок хорди.
 2. `RelativePosition = CoP_world − CoM_world`; `RotationalVelocity = ω × r`;
+   **`Wind`** — живе значення (не заглушка): запит до
+   `GetWorld()->GetSubsystem<UUAVSimulationSubsystem>()->GetWindVelocityAtLocation(
+   CenterOfPressureInWorld)` **саме в точці цього сегмента** — крило в пориві й
+   фюзеляж поза ним отримують коректно різний внесок. Єдине місце в
+   аеродинамічному конвеєрі, що знає про вітер — деталі формування `Wind`
+   (зона/напрямок/загасання на `AWindActor`, векторна сума кількох векторів на
+   підсистемі) — в `13-Environment-Actors.md`.
    `WorldAirVelocity = −V_linear + Wind − RotationalVelocity`.
+
+   (Не плутати з параметром `AirflowDirection`, що теж приходить у цю функцію
+   від `UUAVPhysicsStateComponent::GetAirflowDirection()` — він тут **мертвий**,
+   ніде в тілі не читається; реальний вплив на політ — лише через локальний
+   `Wind` вище.)
 3. `Speed` (м/с), `AoA` (`CalculateAngleOfAttack`, `atan2` проекцій потоку на
    up- та chord-вектори), `q = 0.5·ρ·V²` (ρ = 1.225, `static constexpr`).
 4. `CommandedAngle = ControlInputMapper::ResolveFlapAngle(FlapType, IsMirror,
@@ -203,7 +215,10 @@ Z=рискання), `IsMirror : bool`, `IsReverseDirection : bool`,
 ### Прапорці Simulation Settings
 
 - `DebugSimulatorSpeed` (1.0) — множник глобального `TimeDilation`.
-- `bVisualizeForces` — Debug Arrows векторів сил/моментів.
+- `bVisualizeForces` — Debug Arrows векторів сил/моментів (зелена стрілка
+  результуючої сили на кожному сегменті, `DrawDebugDirectionalArrow`) **плюс**
+  блакитна стрілка вітру в тій самій точці, якщо там ненульовий `Wind`
+  (`AerodynamicDebugRenderer::DrawForceArrow`).
 - `bLogFlightDebug` (true) — діагностичний лог розгону (див. вище).
 - `GenerateAerodynamicPhysicalConfigutation()` (`CallInEditor`, «Розрахувати
   поляри для ЛА») → `AerodynamicPhysicalCalculationUtil::...` (див. `10-Aero-Data-Pipeline.md`).
@@ -278,4 +293,4 @@ CoM (`Mesh->GetCenterOfMass()` в редакторі — 0), малює пере
   `UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector/Float`.
 
 Ручне налаштування самої Niagara-системи (GPU, Custom HLSL Біо-Савара) — у
-[Niagara_VLM_Setup.md](Niagara_VLM_Setup.md).
+[12-Niagara_VLM_Setup.md](12-Niagara_VLM_Setup.md).

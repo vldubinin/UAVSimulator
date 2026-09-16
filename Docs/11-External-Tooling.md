@@ -1,8 +1,15 @@
-# 11 — Зовнішні Python-інструменти (`Tools/TestingPlatform/`)
+# 11 — Зовнішні Python-інструменти
 
-Окремі Python-процеси, що спілкуються з симулятором **лише** через ZeroMQ:
-сенсорна шина PUB `tcp://*:5555`, приймач команд атитюду PULL `tcp://*:5556`.
-Не частина збірки UE.
+Два незалежні сімейства зовнішніх Python-скриптів, жодне не частина збірки UE.
+
+**`Tools/TestingPlatform/`** — окремі процеси, що спілкуються з симулятором
+**лише** через ZeroMQ: сенсорна шина PUB `tcp://*:5555`, приймач команд
+атитюду PULL `tcp://*:5556`.
+
+**`Tools/ProjectTools/`** — навпаки, без жодного ZMQ: `configurate_env_actors.py`
+спілкується з Unreal виключно через файл `env_actors.json`, синхронно (запускає
+його `AerodynamicToolRunner::RunPythonScript`, блокуючи гру, доки вікно карти не
+закриють) — див. окремий розділ унизу файлу.
 
 ## `attitude_control/` — керування автопілотом ззовні
 
@@ -52,6 +59,13 @@ Dual-Loop асинхронна система реального часу для
 | `collect_dataset.py` | ZMQ SUB `tcp://127.0.0.1:5555`, зберігає кадри + bbox у YOLO-форматі (топік `bbox`) |
 | `train_yolo.py` | `ultralytics` YOLO: `yolov8n.pt`, `data.yaml`, 100 епох, `imgsz=640`, ваги → `runs/detect/train/weights/best.pt` |
 | `data.yaml` | Конфіг датасету для тренування |
+
+## `Tools/ProjectTools/` — інструмент карти (без ZMQ)
+
+| Файл | Призначення |
+|------|-------------|
+| `configurate_env_actors.py` | Tkinter-вікно з інтерактивною картою (`tkintermapview`) для розміщення зон РЕБ і вітрових векторів. Запускається виключно з `AEnvironmentActorManager::OpenConfigurationTool()`; читає/пише `env_actors.json` поруч із собою. Детально — `13-Environment-Actors.md` |
+| `env_actors.json` | Персистентний стан — масиви `"electronic_warfare"` і `"wind"`, синхронізовані двобічно з `AEnvironmentActorManager::EWConfigurations`/`WindConfigurations` |
 
 ## Зведення ZMQ-портів
 

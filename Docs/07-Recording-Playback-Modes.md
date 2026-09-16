@@ -79,5 +79,6 @@
 | `Free` | Free | 1× `TargetAirplaneClass`, тег `Player` | Вільний ручний політ. PC опановує |
 
 Після спавну всіх акторів GameMode робить `UpdateCameraSettings()` +
-`UpdateVisualSettings()` + `UpdateSensorSettings()` — broadcast делегатів
-підсистеми, коли всі `AAirplane` уже підписані в `BeginPlay`.
+`UpdateVisualSettings()` + `UpdateSensorSettings()` + `UpdateEWSettings()` +
+`UpdateWindSettings()` — broadcast делегатів підсистеми, коли всі `AAirplane`
+уже підписані в `BeginPlay`.

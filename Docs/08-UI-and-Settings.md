@@ -80,6 +80,11 @@
 - `TerrainSurfaceCB` — `ACesium3DTileset` вкл/викл; при вимкненому Cesium-рельєфі
   спавнить fallback `DefaultSkyboxClass` / `DefaultSunClass`
   (`ApplyTerrainSurfaceState`).
+- `ConfigurateEnvActorsBtn` (`OptionalWidget = true`) → `OnConfigurateEnvActorsBtnClicked()`:
+  знаходить наявний `AEnvironmentActorManager` у рівні (`GetEnvironmentActorManager()`,
+  спавнить, якщо нема) і викликає `Manager->OpenConfigurationTool()` — синхронно
+  відкриває Python-інструмент карти (`Tools/ProjectTools/configurate_env_actors.py`)
+  для розміщення зон РЕБ і вітрових векторів. Детально — `13-Environment-Actors.md`.
 
 ### `USyntheticDataSectionWidget`
 

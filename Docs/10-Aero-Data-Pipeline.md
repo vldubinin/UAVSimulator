@@ -1,8 +1,10 @@
 # 10 — Конвеєр аеродинамічних даних
 
 Мета: із геометрії профілю крила отримати `DataTable` рядків `FAerodynamicProfileRow`
-(криві CL/CD/Cm від кута атаки, ключовані за кутом закрилка), які читає
-`USubAerodynamicSurfaceSC` під час польоту.
+(`DataAsset/AerodynamicProfileRow.h` — криві CL/CD/Cm від кута атаки, ключовані
+за кутом закрилка), які читає `USubAerodynamicSurfaceSC` під час польоту.
+`FAerodynamicProfileAndFlapRow` (той самий файл) обгортає рядок разом із
+`FlapAngle`.
 
 ## Два шляхи
 

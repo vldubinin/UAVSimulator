@@ -25,8 +25,9 @@
 | [08-UI-and-Settings.md](08-UI-and-Settings.md) | Меню симулятора: `USimulatorMenuWidget`, секції налаштувань, персистентність через `USaveGame`, `AUAVSimulatorPlayerController`, HUD-віджети |
 | [09-Dataset-Generation.md](09-Dataset-Generation.md) | Редакторні інструменти генерації синтетичних даних: силует дрона, ключові точки, об'єкти сцени, YOLO-датасет маркерів мапи |
 | [10-Aero-Data-Pipeline.md](10-Aero-Data-Pipeline.md) | Конвеєр аеродинамічних полярів: OpenVSP → XFoil / SU2 → екстраполяція 360° → плагін `AirfoilImporter` → `DataTable` |
-| [11-External-Tooling.md](11-External-Tooling.md) | Зовнішні Python-інструменти в `Tools/TestingPlatform/`: наведення на слабкому залізі, автопілот «коло», розмітка мапи, запис датасетів позиціонування |
-| [12-Niagara_VLM_Setup.md](Niagara_VLM_Setup.md) | Покрокове налаштування Niagara-системи візуалізації вихорового сліду (VLM / Біо-Савар на GPU) |
+| [11-External-Tooling.md](11-External-Tooling.md) | Зовнішні Python-інструменти: ZMQ-сімейство `Tools/TestingPlatform/` (наведення на слабкому залізі, автопілот «коло», розмітка мапи, запис датасетів позиціонування) і файлове `Tools/ProjectTools/` (інструмент карти) |
+| [12-Niagara_VLM_Setup.md](12-Niagara_VLM_Setup.md) | Покрокове налаштування Niagara-системи візуалізації вихорового сліду (VLM / Біо-Савар на GPU) |
+| [13-Environment-Actors.md](13-Environment-Actors.md) | Об'єкти середовища: `AEnvironmentActorManager`, зони РЕБ (`AEWZoneActor`), вітрові вектори (`AWindActor`, реально впливають на аеродинаміку), інструмент карти `configurate_env_actors.py`, формат `env_actors.json` |
 
 ## Швидкий старт для читача коду
 
