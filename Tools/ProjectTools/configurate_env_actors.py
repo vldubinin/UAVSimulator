@@ -18,11 +18,23 @@ marker (default height=0m, radius=50m) there. Clicking a marker opens a modal to
 edit its Latitude/Longitude/Height/Radius, save the changes (moves/resizes the
 marker), or delete it.
 
-The "SAVE" button writes every object array (currently just "electronic_warfare")
-to env_actors.json next to this script, keyed by object type so further arrays
+It also lets the user place wind vectors: click "Add Wind", then click twice on
+the map - the first click sets the vector's start point, the second its end
+point. A blue arrow (line + rotated arrowhead) is drawn from start to end, plus
+a rectangle around it - the arrow is the rectangle's long axis, and Radius
+(default 50m) is how far the rectangle extends to either side of it (so its
+width is 2*Radius). Clicking the arrow or the rectangle opens a modal with a
+Start group (Latitude/Longitude/Height), an End group (Latitude/Longitude/
+Height), Speed (m/s) and Radius (m) fields, a small side-view canvas that
+redraws live as the Height fields change (showing the vector's vertical tilt),
+and Save/Close/Delete buttons - same interaction pattern as EW.
+
+The "SAVE" button writes every object array ("electronic_warfare", "wind") to
+env_actors.json next to this script, keyed by object type so further arrays
 (roads, buildings, ...) can be added later without breaking the format.
-AEnvironmentActorManager::LoadConfigurationsFromFile reads it back once this
-script's window is closed and (re)spawns AEWZoneActor accordingly.
+AEnvironmentActorManager::LoadConfigurationsFromFile reads both arrays back
+once this script's window is closed and (re)spawns AEWZoneActor / AWindActor
+accordingly.
 
 Standalone - no dependency on map_object_marker.py.
 
@@ -75,6 +87,20 @@ EW_ZONE_OUTLINE_COLOR = "#d62728"
 DEFAULT_EW_HEIGHT = 0.0
 DEFAULT_EW_RADIUS = 50.0
 
+WIND_ARROW_SIZE = 30
+WIND_ARROW_FILL = (31, 119, 180, 255)
+WIND_ARROW_OUTLINE = (10, 60, 100, 255)
+WIND_LINE_COLOR = "#1f77b4"
+WIND_LINE_WIDTH = 4
+WIND_ZONE_OUTLINE_COLOR = "#1f77b4"
+
+DEFAULT_WIND_HEIGHT = 0.0
+DEFAULT_WIND_SPEED = 5.0
+DEFAULT_WIND_RADIUS = 50.0
+
+SIDE_VIEW_WIDTH = 240
+SIDE_VIEW_HEIGHT = 110
+
 # Where SAVE writes the object arrays for Unreal to pick up later. Sits next to this
 # script, same convention as map_object_marker.py's map_objects.json.
 OUTPUT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "env_actors.json")
@@ -111,6 +137,64 @@ def make_ew_icon(size: int = EW_MARKER_SIZE) -> "ImageTk.PhotoImage":
     return ImageTk.PhotoImage(image)
 
 
+def bearing_deg(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Compass heading (degrees, clockwise from north) from (lat1, lon1) to (lat2, lon2)."""
+    lat1_rad, lat2_rad = math.radians(lat1), math.radians(lat2)
+    d_lon = math.radians(lon2 - lon1)
+    x = math.sin(d_lon) * math.cos(lat2_rad)
+    y = math.cos(lat1_rad) * math.sin(lat2_rad) - math.sin(lat1_rad) * math.cos(lat2_rad) * math.cos(d_lon)
+    return (math.degrees(math.atan2(x, y)) + 360.0) % 360.0
+
+
+def make_wind_arrow_icon(heading_deg: float, size: int = WIND_ARROW_SIZE) -> "ImageTk.PhotoImage":
+    """Builds a small blue triangular arrowhead icon, pre-rotated to point along heading_deg."""
+    base = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(base)
+
+    tip = (size * 0.5, size * 0.06)
+    left = (size * 0.2, size * 0.9)
+    right = (size * 0.8, size * 0.9)
+    mid_back = (size * 0.5, size * 0.62)
+    draw.polygon([tip, right, mid_back, left], fill=WIND_ARROW_FILL, outline=WIND_ARROW_OUTLINE)
+
+    # base image points north (up); rotate clockwise by the heading to match it.
+    rotated = base.rotate(-heading_deg, resample=Image.BICUBIC, expand=False)
+    return ImageTk.PhotoImage(rotated)
+
+
+def draw_side_view(canvas: "tk.Canvas", start_height: float, end_height: float):
+    """Redraws the side-view canvas: a small arrow from (0, start_height) to (L, end_height)."""
+    canvas.delete("all")
+    width, height = SIDE_VIEW_WIDTH, SIDE_VIEW_HEIGHT
+    margin_x, margin_y = 24, 16
+
+    min_h = min(0.0, start_height, end_height)
+    max_h = max(0.0, start_height, end_height)
+    if max_h - min_h < 1e-6:
+        min_h -= 1.0
+        max_h += 1.0
+    pad = (max_h - min_h) * 0.15
+    min_h -= pad
+    max_h += pad
+
+    def map_y(h):
+        t = (h - min_h) / (max_h - min_h)
+        return height - margin_y - t * (height - 2 * margin_y)
+
+    ground_y = map_y(0.0)
+    canvas.create_line(margin_x, ground_y, width - margin_x, ground_y, fill="#aaaaaa", dash=(3, 2))
+    canvas.create_text(4, ground_y, text="0m", anchor="w", fill="#888888", font=("Segoe UI", 7))
+
+    x0, x1 = margin_x, width - margin_x
+    y0, y1 = map_y(start_height), map_y(end_height)
+
+    canvas.create_line(x0, y0, x1, y1, fill=WIND_LINE_COLOR, width=3, arrow=tk.LAST, arrowshape=(10, 12, 4))
+    canvas.create_oval(x0 - 3, y0 - 3, x0 + 3, y0 + 3, fill=WIND_LINE_COLOR, outline="")
+
+    canvas.create_text(x0, max(10, y0 - 8), text=f"{start_height:g}m", fill=WIND_LINE_COLOR, font=("Segoe UI", 8))
+    canvas.create_text(x1, max(10, y1 - 8), text=f"{end_height:g}m", fill=WIND_LINE_COLOR, font=("Segoe UI", 8))
+
+
 def circle_points(latitude: float, longitude: float, radius_m: float, num_points: int = CIRCLE_POINT_COUNT) -> list:
     """Approximates a geographic circle of the given radius (metres) around (latitude, longitude)."""
     lat_rad = math.radians(latitude)
@@ -125,6 +209,35 @@ def circle_points(latitude: float, longitude: float, radius_m: float, num_points
     return points
 
 
+def offset_point(latitude: float, longitude: float, heading_deg: float, distance_m: float) -> tuple:
+    """Moves (latitude, longitude) by distance_m metres along compass heading heading_deg."""
+    lat_rad = math.radians(latitude)
+    heading_rad = math.radians(heading_deg)
+    east_m = distance_m * math.sin(heading_rad)
+    north_m = distance_m * math.cos(heading_rad)
+    d_lat = (north_m / EARTH_RADIUS_M) * (180.0 / math.pi)
+    d_lon = (east_m / (EARTH_RADIUS_M * max(math.cos(lat_rad), 1e-9))) * (180.0 / math.pi)
+    return latitude + d_lat, longitude + d_lon
+
+
+def wind_rectangle_points(start_latitude: float, start_longitude: float,
+                           end_latitude: float, end_longitude: float, radius_m: float) -> list:
+    """
+    A rectangle around the Start->End segment: the segment is its long axis, radius_m is
+    how far the rectangle extends to the left and right of that axis (so its width is
+    2*radius_m). Returns a closed ring of 5 (lat, lon) points for set_polygon.
+    """
+    heading = bearing_deg(start_latitude, start_longitude, end_latitude, end_longitude)
+    right, left = heading + 90.0, heading - 90.0
+
+    start_left = offset_point(start_latitude, start_longitude, left, radius_m)
+    start_right = offset_point(start_latitude, start_longitude, right, radius_m)
+    end_left = offset_point(end_latitude, end_longitude, left, radius_m)
+    end_right = offset_point(end_latitude, end_longitude, right, radius_m)
+
+    return [start_left, end_left, end_right, start_right, start_left]
+
+
 class ConfigurateEnvActorsApp:
     def __init__(self, root: tk.Tk, start_lat: float, start_lon: float):
         self.root = root
@@ -132,6 +245,14 @@ class ConfigurateEnvActorsApp:
         self.next_ew_id = 0
         self.placing_ew = False
         self.ew_icon = make_ew_icon()
+
+        # id -> {"start_latitude", "start_longitude", "start_height",
+        #        "end_latitude", "end_longitude", "end_height", "speed",
+        #        "path", "arrow_marker", "arrow_icon"}
+        self.wind_objects = {}
+        self.next_wind_id = 0
+        self.placing_wind = False
+        self.wind_click_start = None   # (latitude, longitude) of the first of the two placement clicks
 
         root.title("Environment actors map")
         root.geometry("1000x700")
@@ -141,6 +262,9 @@ class ConfigurateEnvActorsApp:
 
         self.add_ew_button = tk.Button(panel, text="Add Electronic warfare", command=self.start_add_ew)
         self.add_ew_button.pack(side="left", padx=8, pady=6)
+
+        self.add_wind_button = tk.Button(panel, text="Add Wind", command=self.start_add_wind)
+        self.add_wind_button.pack(side="left", padx=8, pady=6)
 
         self.status_var = tk.StringVar(value="")
         tk.Label(panel, textvariable=self.status_var, fg="#555555").pack(side="left", padx=8)
@@ -155,18 +279,19 @@ class ConfigurateEnvActorsApp:
         self.map_widget.set_zoom(START_ZOOM)
         self.map_widget.add_left_click_map_command(self.on_map_left_click)
 
-        self.load_existing_ew_objects()
+        self.load_existing_objects()
 
     # ------------------------------------------------------------------ #
     # Load (pick up whatever Unreal last wrote/saved)
     # ------------------------------------------------------------------ #
 
-    def load_existing_ew_objects(self):
+    def load_existing_objects(self):
         """
-        Loads env_actors.json if present and re-creates its "electronic_warfare"
-        entries on the map. AEnvironmentActorManager::OpenConfigurationTool writes
-        this file (from its EWConfigurations array) right before launching this
-        script, so whatever is already configured in Unreal shows up immediately.
+        Loads env_actors.json if present and re-creates its "electronic_warfare" and
+        "wind" entries on the map. AEnvironmentActorManager::OpenConfigurationTool
+        writes this file (from its current EWConfigurations/WindConfigurations arrays)
+        right before launching this script, so whatever is already configured in
+        Unreal shows up immediately.
         """
         if not os.path.exists(OUTPUT_FILE):
             return
@@ -187,22 +312,58 @@ class ConfigurateEnvActorsApp:
                 continue
             self.add_ew_object(latitude, longitude, height, radius)
 
+        for entry in data.get("wind", []):
+            try:
+                start_latitude = float(entry["start_latitude"])
+                start_longitude = float(entry["start_longitude"])
+                end_latitude = float(entry["end_latitude"])
+                end_longitude = float(entry["end_longitude"])
+                start_height = float(entry.get("start_height", DEFAULT_WIND_HEIGHT))
+                end_height = float(entry.get("end_height", DEFAULT_WIND_HEIGHT))
+                speed = float(entry.get("speed", DEFAULT_WIND_SPEED))
+                radius = float(entry.get("radius", DEFAULT_WIND_RADIUS))
+            except (KeyError, TypeError, ValueError):
+                continue
+            self.add_wind_object(start_latitude, start_longitude, end_latitude, end_longitude,
+                                  start_height, end_height, speed, radius)
+
     # ------------------------------------------------------------------ #
     # Placement
     # ------------------------------------------------------------------ #
 
     def start_add_ew(self):
+        self.placing_wind = False
+        self.wind_click_start = None
         self.placing_ew = True
         self.status_var.set("Click on the map to place the EW object...")
 
-    def on_map_left_click(self, coordinate_tuple):
-        if not self.placing_ew:
-            return
+    def start_add_wind(self):
         self.placing_ew = False
-        self.status_var.set("")
+        self.placing_wind = True
+        self.wind_click_start = None
+        self.status_var.set("Click on the map to place the START of the wind vector...")
 
-        latitude, longitude = coordinate_tuple
-        self.add_ew_object(latitude, longitude)
+    def on_map_left_click(self, coordinate_tuple):
+        if self.placing_ew:
+            self.placing_ew = False
+            self.status_var.set("")
+
+            latitude, longitude = coordinate_tuple
+            self.add_ew_object(latitude, longitude)
+            return
+
+        if self.placing_wind:
+            latitude, longitude = coordinate_tuple
+
+            if self.wind_click_start is None:
+                self.wind_click_start = (latitude, longitude)
+                self.status_var.set("Click on the map to place the END of the wind vector...")
+            else:
+                start_latitude, start_longitude = self.wind_click_start
+                self.wind_click_start = None
+                self.placing_wind = False
+                self.status_var.set("")
+                self.add_wind_object(start_latitude, start_longitude, latitude, longitude)
 
     def add_ew_object(self, latitude: float, longitude: float,
                        height: float = DEFAULT_EW_HEIGHT, radius: float = DEFAULT_EW_RADIUS) -> int:
@@ -226,6 +387,48 @@ class ConfigurateEnvActorsApp:
             "radius": radius,
             "marker": marker,
             "zone": zone,
+        }
+        return obj_id
+
+    def add_wind_object(self, start_latitude: float, start_longitude: float,
+                         end_latitude: float, end_longitude: float,
+                         start_height: float = DEFAULT_WIND_HEIGHT, end_height: float = DEFAULT_WIND_HEIGHT,
+                         speed: float = DEFAULT_WIND_SPEED, radius: float = DEFAULT_WIND_RADIUS) -> int:
+        obj_id = self.next_wind_id
+        self.next_wind_id += 1
+
+        heading = bearing_deg(start_latitude, start_longitude, end_latitude, end_longitude)
+        arrow_icon = make_wind_arrow_icon(heading)
+
+        # The rectangle is drawn first so the arrow (path + arrowhead) renders on top of it.
+        zone = self.map_widget.set_polygon(
+            wind_rectangle_points(start_latitude, start_longitude, end_latitude, end_longitude, radius),
+            outline_color=WIND_ZONE_OUTLINE_COLOR, fill_color=None, border_width=2,
+            command=self.on_wind_object_clicked, data=obj_id)
+
+        path = self.map_widget.set_path(
+            [(start_latitude, start_longitude), (end_latitude, end_longitude)],
+            color=WIND_LINE_COLOR, width=WIND_LINE_WIDTH,
+            command=self.on_wind_object_clicked, data=obj_id)
+
+        arrow_marker = self.map_widget.set_marker(
+            end_latitude, end_longitude,
+            icon=arrow_icon, icon_anchor="center",
+            command=self.on_wind_object_clicked, data=obj_id)
+
+        self.wind_objects[obj_id] = {
+            "start_latitude": start_latitude,
+            "start_longitude": start_longitude,
+            "start_height": start_height,
+            "end_latitude": end_latitude,
+            "end_longitude": end_longitude,
+            "end_height": end_height,
+            "speed": speed,
+            "radius": radius,
+            "zone": zone,
+            "path": path,
+            "arrow_marker": arrow_marker,
+            "arrow_icon": arrow_icon,  # keep a reference alive - tkinter PhotoImages need one
         }
         return obj_id
 
@@ -308,6 +511,134 @@ class ConfigurateEnvActorsApp:
         ew["marker"].delete()
         ew["zone"].delete()
 
+    def on_wind_object_clicked(self, canvas_object):
+        wind = self.wind_objects.get(canvas_object.data)
+        if wind is not None:
+            self.open_wind_modal(canvas_object.data, wind)
+
+    def open_wind_modal(self, obj_id: int, wind: dict):
+        modal = tk.Toplevel(self.root)
+        modal.title(f"Wind vector #{obj_id}")
+        modal.resizable(False, False)
+        modal.transient(self.root)
+        modal.grab_set()
+
+        field_vars = {}
+
+        def add_field(parent, row, label, value):
+            tk.Label(parent, text=label).grid(row=row, column=0, sticky="w", padx=10, pady=4)
+            var = tk.StringVar(value=str(value))
+            tk.Entry(parent, textvariable=var, width=14).grid(row=row, column=1, padx=10, pady=4)
+            field_vars[label] = var
+            return var
+
+        start_group = tk.LabelFrame(modal, text="Start")
+        start_group.grid(row=0, column=0, padx=10, pady=(10, 4), sticky="nsew")
+        add_field(start_group, 0, "Start Latitude", wind["start_latitude"])
+        add_field(start_group, 1, "Start Longitude", wind["start_longitude"])
+        start_height_var = add_field(start_group, 2, "Start Height", wind["start_height"])
+
+        end_group = tk.LabelFrame(modal, text="End")
+        end_group.grid(row=0, column=1, padx=10, pady=(10, 4), sticky="nsew")
+        add_field(end_group, 0, "End Latitude", wind["end_latitude"])
+        add_field(end_group, 1, "End Longitude", wind["end_longitude"])
+        end_height_var = add_field(end_group, 2, "End Height", wind["end_height"])
+
+        speed_row = tk.Frame(modal)
+        speed_row.grid(row=1, column=0, columnspan=2, sticky="w", padx=10, pady=(4, 4))
+        tk.Label(speed_row, text="Speed (m/s)").pack(side="left")
+        speed_var = tk.StringVar(value=str(wind["speed"]))
+        tk.Entry(speed_row, textvariable=speed_var, width=10).pack(side="left", padx=8)
+        tk.Label(speed_row, text="Radius (m)").pack(side="left", padx=(12, 0))
+        radius_var = tk.StringVar(value=str(wind["radius"]))
+        tk.Entry(speed_row, textvariable=radius_var, width=10).pack(side="left", padx=8)
+
+        side_view_group = tk.LabelFrame(modal, text="Side view (height tilt)")
+        side_view_group.grid(row=2, column=0, columnspan=2, padx=10, pady=(4, 4), sticky="nsew")
+        side_canvas = tk.Canvas(side_view_group, width=SIDE_VIEW_WIDTH, height=SIDE_VIEW_HEIGHT,
+                                 bg="white", highlightthickness=1, highlightbackground="#cccccc")
+        side_canvas.pack(padx=6, pady=6)
+
+        def refresh_side_view(*_args):
+            try:
+                start_h = float(start_height_var.get())
+                end_h = float(end_height_var.get())
+            except ValueError:
+                return
+            draw_side_view(side_canvas, start_h, end_h)
+
+        start_height_var.trace_add("write", refresh_side_view)
+        end_height_var.trace_add("write", refresh_side_view)
+        refresh_side_view()
+
+        button_row = tk.Frame(modal)
+        button_row.grid(row=3, column=0, columnspan=2, pady=(4, 10))
+
+        def on_save():
+            try:
+                start_latitude = float(field_vars["Start Latitude"].get())
+                start_longitude = float(field_vars["Start Longitude"].get())
+                start_height = float(start_height_var.get())
+                end_latitude = float(field_vars["End Latitude"].get())
+                end_longitude = float(field_vars["End Longitude"].get())
+                end_height = float(end_height_var.get())
+                speed = float(speed_var.get())
+                radius = float(radius_var.get())
+            except ValueError:
+                messagebox.showerror("Invalid input", "All fields must be numbers.", parent=modal)
+                return
+
+            self.update_wind_object(obj_id, start_latitude, start_longitude, start_height,
+                                     end_latitude, end_longitude, end_height, speed, radius)
+            modal.destroy()
+
+        def on_delete():
+            self.delete_wind_object(obj_id)
+            modal.destroy()
+
+        def on_close():
+            modal.destroy()
+
+        tk.Button(button_row, text="Save", width=10, command=on_save).pack(side="left", padx=5)
+        tk.Button(button_row, text="Close", width=10, command=on_close).pack(side="left", padx=5)
+        tk.Button(button_row, text="Delete", width=10, command=on_delete).pack(side="left", padx=5)
+
+    def update_wind_object(self, obj_id: int, start_latitude: float, start_longitude: float, start_height: float,
+                            end_latitude: float, end_longitude: float, end_height: float, speed: float,
+                            radius: float):
+        wind = self.wind_objects.get(obj_id)
+        if wind is None:
+            return
+
+        wind["start_latitude"] = start_latitude
+        wind["start_longitude"] = start_longitude
+        wind["start_height"] = start_height
+        wind["end_latitude"] = end_latitude
+        wind["end_longitude"] = end_longitude
+        wind["end_height"] = end_height
+        wind["speed"] = speed
+        wind["radius"] = radius
+
+        wind["path"].set_position_list([(start_latitude, start_longitude), (end_latitude, end_longitude)])
+
+        wind["zone"].position_list = wind_rectangle_points(start_latitude, start_longitude,
+                                                             end_latitude, end_longitude, radius)
+        wind["zone"].draw()
+
+        heading = bearing_deg(start_latitude, start_longitude, end_latitude, end_longitude)
+        wind["arrow_icon"] = make_wind_arrow_icon(heading)
+        wind["arrow_marker"].change_icon(wind["arrow_icon"])
+        wind["arrow_marker"].set_position(end_latitude, end_longitude)
+
+    def delete_wind_object(self, obj_id: int):
+        wind = self.wind_objects.pop(obj_id, None)
+        if wind is None:
+            return
+
+        wind["zone"].delete()
+        wind["path"].delete()
+        wind["arrow_marker"].delete()
+
     # ------------------------------------------------------------------ #
     # Save (hand data back to Unreal)
     # ------------------------------------------------------------------ #
@@ -330,13 +661,28 @@ class ConfigurateEnvActorsApp:
                 }
                 for ew in self.ew_objects.values()
             ],
+            "wind": [
+                {
+                    "start_latitude": wind["start_latitude"],
+                    "start_longitude": wind["start_longitude"],
+                    "start_height": wind["start_height"],
+                    "end_latitude": wind["end_latitude"],
+                    "end_longitude": wind["end_longitude"],
+                    "end_height": wind["end_height"],
+                    "speed": wind["speed"],
+                    "radius": wind["radius"],
+                }
+                for wind in self.wind_objects.values()
+            ],
         }
 
     def on_save_clicked(self):
         payload = self.build_export_payload()
         with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
-        self.status_var.set(f"Saved {len(payload['electronic_warfare'])} EW object(s) to {OUTPUT_FILE}")
+        self.status_var.set(
+            f"Saved {len(payload['electronic_warfare'])} EW object(s) and "
+            f"{len(payload['wind'])} wind vector(s) to {OUTPUT_FILE}")
 
 
 if __name__ == "__main__":

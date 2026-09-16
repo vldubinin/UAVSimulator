@@ -7,11 +7,13 @@
 #include "Modules/ModuleManager.h"
 #include "Engine/World.h"
 #include "Components/LineBatchComponent.h"
+#include "Components/ArrowComponent.h"
 #include "CesiumCameraManager.h"
 #include "CesiumCamera.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UAVSimulator/Subsystem/UAVSimulationSubsystem.h"
 #include "UAVSimulator/Actor/EWZoneActor.h"
+#include "UAVSimulator/Actor/WindActor.h"
 #include "Kismet/GameplayStatics.h"
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -117,6 +119,20 @@ void UUAVCameraComponent::BeginPlay()
 			{
 				if (EWZone->SphereVisual)
 					CaptureComponent->HideComponent(EWZone->SphereVisual);
+			}
+		}
+
+		// Вітрові вектори (AWindActor) — так само, лише в основній камері.
+		TArray<AActor*> WindActors;
+		UGameplayStatics::GetAllActorsOfClass(World, AWindActor::StaticClass(), WindActors);
+		for (AActor* WindActorInstance : WindActors)
+		{
+			if (AWindActor* Wind = Cast<AWindActor>(WindActorInstance))
+			{
+				if (Wind->BoxVisual)
+					CaptureComponent->HideComponent(Wind->BoxVisual);
+				if (Wind->ArrowVisual)
+					CaptureComponent->HideComponent(Wind->ArrowVisual);
 			}
 		}
 	}

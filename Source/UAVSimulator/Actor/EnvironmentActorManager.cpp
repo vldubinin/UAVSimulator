@@ -1,5 +1,6 @@
 #include "EnvironmentActorManager.h"
 #include "UAVSimulator/Actor/EWZoneActor.h"
+#include "UAVSimulator/Actor/WindActor.h"
 #include "UAVSimulator/Util/AerodynamicToolRunner.h"
 #include "UAVSimulator/UAVSimulator.h"
 #include "CesiumGeoreference.h"
@@ -18,6 +19,7 @@ namespace
 	const TCHAR* ConfigurationScriptRelativePath = TEXT("Tools/ProjectTools/configurate_env_actors.py");
 	const TCHAR* ConfigurationOutputRelativePath = TEXT("Tools/ProjectTools/env_actors.json");
 	const TCHAR* ElectronicWarfareArrayField      = TEXT("electronic_warfare");
+	const TCHAR* WindArrayField                   = TEXT("wind");
 }
 
 AEnvironmentActorManager::AEnvironmentActorManager()
@@ -40,6 +42,7 @@ void AEnvironmentActorManager::BeginPlay()
 	if (!LoadConfigurationsFromFile())
 	{
 		RefreshEWZones();
+		RefreshWindVectors();
 	}
 }
 
@@ -84,8 +87,24 @@ void AEnvironmentActorManager::SaveConfigurationsToFile() const
 		EWArray.Add(MakeShared<FJsonValueObject>(EWObject));
 	}
 
+	TArray<TSharedPtr<FJsonValue>> WindArray;
+	for (const FWindVectorConfiguration& Config : WindConfigurations)
+	{
+		const TSharedPtr<FJsonObject> WindObject = MakeShared<FJsonObject>();
+		WindObject->SetNumberField(TEXT("start_latitude"), Config.StartLatitude);
+		WindObject->SetNumberField(TEXT("start_longitude"), Config.StartLongitude);
+		WindObject->SetNumberField(TEXT("start_height"), Config.StartHeight);
+		WindObject->SetNumberField(TEXT("end_latitude"), Config.EndLatitude);
+		WindObject->SetNumberField(TEXT("end_longitude"), Config.EndLongitude);
+		WindObject->SetNumberField(TEXT("end_height"), Config.EndHeight);
+		WindObject->SetNumberField(TEXT("speed"), Config.Speed);
+		WindObject->SetNumberField(TEXT("radius"), Config.Radius);
+		WindArray.Add(MakeShared<FJsonValueObject>(WindObject));
+	}
+
 	const TSharedPtr<FJsonObject> RootObject = MakeShared<FJsonObject>();
 	RootObject->SetArrayField(ElectronicWarfareArrayField, EWArray);
+	RootObject->SetArrayField(WindArrayField, WindArray);
 
 	FString JsonString;
 	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
@@ -98,8 +117,8 @@ void AEnvironmentActorManager::SaveConfigurationsToFile() const
 		return;
 	}
 
-	UE_LOG(LogUAV, Log, TEXT("EnvironmentActorManager::SaveConfigurationsToFile: wrote %d EW configuration(s) to %s"),
-		EWConfigurations.Num(), *FilePath);
+	UE_LOG(LogUAV, Log, TEXT("EnvironmentActorManager::SaveConfigurationsToFile: wrote %d EW configuration(s) and %d wind vector(s) to %s"),
+		EWConfigurations.Num(), WindConfigurations.Num(), *FilePath);
 }
 
 bool AEnvironmentActorManager::LoadConfigurationsFromFile()
@@ -122,32 +141,62 @@ bool AEnvironmentActorManager::LoadConfigurationsFromFile()
 	}
 
 	const TArray<TSharedPtr<FJsonValue>>* EWArray = nullptr;
-	if (!RootObject->TryGetArrayField(ElectronicWarfareArrayField, EWArray))
+	if (RootObject->TryGetArrayField(ElectronicWarfareArrayField, EWArray))
+	{
+		EWConfigurations.Reset();
+		for (const TSharedPtr<FJsonValue>& Value : *EWArray)
+		{
+			const TSharedPtr<FJsonObject>* EWObject = nullptr;
+			if (!Value.IsValid() || !Value->TryGetObject(EWObject))
+				continue;
+
+			FEWZoneConfiguration Config;
+			(*EWObject)->TryGetNumberField(TEXT("latitude"), Config.Latitude);
+			(*EWObject)->TryGetNumberField(TEXT("longitude"), Config.Longitude);
+			(*EWObject)->TryGetNumberField(TEXT("height"), Config.Height);
+			(*EWObject)->TryGetNumberField(TEXT("radius"), Config.Radius);
+
+			EWConfigurations.Add(Config);
+		}
+	}
+	else
 	{
 		UE_LOG(LogUAV, Warning, TEXT("EnvironmentActorManager::LoadConfigurationsFromFile: %s has no '%s' array"), *FilePath, ElectronicWarfareArrayField);
-		return false;
 	}
 
-	EWConfigurations.Reset();
-	for (const TSharedPtr<FJsonValue>& Value : *EWArray)
+	const TArray<TSharedPtr<FJsonValue>>* WindArray = nullptr;
+	if (RootObject->TryGetArrayField(WindArrayField, WindArray))
 	{
-		const TSharedPtr<FJsonObject>* EWObject = nullptr;
-		if (!Value.IsValid() || !Value->TryGetObject(EWObject))
-			continue;
+		WindConfigurations.Reset();
+		for (const TSharedPtr<FJsonValue>& Value : *WindArray)
+		{
+			const TSharedPtr<FJsonObject>* WindObject = nullptr;
+			if (!Value.IsValid() || !Value->TryGetObject(WindObject))
+				continue;
 
-		FEWZoneConfiguration Config;
-		(*EWObject)->TryGetNumberField(TEXT("latitude"), Config.Latitude);
-		(*EWObject)->TryGetNumberField(TEXT("longitude"), Config.Longitude);
-		(*EWObject)->TryGetNumberField(TEXT("height"), Config.Height);
-		(*EWObject)->TryGetNumberField(TEXT("radius"), Config.Radius);
+			FWindVectorConfiguration Config;
+			(*WindObject)->TryGetNumberField(TEXT("start_latitude"), Config.StartLatitude);
+			(*WindObject)->TryGetNumberField(TEXT("start_longitude"), Config.StartLongitude);
+			(*WindObject)->TryGetNumberField(TEXT("start_height"), Config.StartHeight);
+			(*WindObject)->TryGetNumberField(TEXT("end_latitude"), Config.EndLatitude);
+			(*WindObject)->TryGetNumberField(TEXT("end_longitude"), Config.EndLongitude);
+			(*WindObject)->TryGetNumberField(TEXT("end_height"), Config.EndHeight);
+			(*WindObject)->TryGetNumberField(TEXT("speed"), Config.Speed);
+			(*WindObject)->TryGetNumberField(TEXT("radius"), Config.Radius);
 
-		EWConfigurations.Add(Config);
+			WindConfigurations.Add(Config);
+		}
+	}
+	else
+	{
+		UE_LOG(LogUAV, Warning, TEXT("EnvironmentActorManager::LoadConfigurationsFromFile: %s has no '%s' array"), *FilePath, WindArrayField);
 	}
 
-	UE_LOG(LogUAV, Log, TEXT("EnvironmentActorManager::LoadConfigurationsFromFile: loaded %d EW configuration(s) from %s"),
-		EWConfigurations.Num(), *FilePath);
+	UE_LOG(LogUAV, Log, TEXT("EnvironmentActorManager::LoadConfigurationsFromFile: loaded %d EW configuration(s) and %d wind vector(s) from %s"),
+		EWConfigurations.Num(), WindConfigurations.Num(), *FilePath);
 
 	RefreshEWZones();
+	RefreshWindVectors();
 	return true;
 }
 
@@ -184,23 +233,62 @@ void AEnvironmentActorManager::RefreshEWZones()
 	}
 }
 
+void AEnvironmentActorManager::RefreshWindVectors()
+{
+	for (AWindActor* Wind : SpawnedWindVectors)
+	{
+		if (Wind)
+			Wind->Destroy();
+	}
+	SpawnedWindVectors.Reset();
+
+	if (!WindActorClass)
+	{
+		UE_LOG(LogUAV, Warning, TEXT("EnvironmentActorManager::RefreshWindVectors: WindActorClass is not set — nothing spawned"));
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+		return;
+
+	for (const FWindVectorConfiguration& Config : WindConfigurations)
+	{
+		AWindActor* Wind = World->SpawnActor<AWindActor>(WindActorClass, GetActorTransform());
+		if (!Wind)
+			continue;
+
+		Wind->SetGeoPositions(Config.StartLongitude, Config.StartLatitude, Config.StartHeight,
+			Config.EndLongitude, Config.EndLatitude, Config.EndHeight);
+		// Метри -> сантиметри (Unreal-одиниці) — AWindActor::Radius очікує см.
+		Wind->SetRadius(Config.Radius * 100.0f);
+
+		SpawnedWindVectors.Add(Wind);
+	}
+}
+
 #if WITH_EDITOR
 void AEnvironmentActorManager::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
 	const FName ChangedProperty = PropertyChangedEvent.GetMemberPropertyName();
-	if (ChangedProperty == GET_MEMBER_NAME_CHECKED(AEnvironmentActorManager, EWConfigurations) ||
-		ChangedProperty == GET_MEMBER_NAME_CHECKED(AEnvironmentActorManager, EWZoneActorClass))
-	{
-		RefreshEWZones();
+	const bool bEWChanged = ChangedProperty == GET_MEMBER_NAME_CHECKED(AEnvironmentActorManager, EWConfigurations) ||
+		ChangedProperty == GET_MEMBER_NAME_CHECKED(AEnvironmentActorManager, EWZoneActorClass);
+	const bool bWindChanged = ChangedProperty == GET_MEMBER_NAME_CHECKED(AEnvironmentActorManager, WindConfigurations) ||
+		ChangedProperty == GET_MEMBER_NAME_CHECKED(AEnvironmentActorManager, WindActorClass);
 
-		// Ручні правки EWConfigurations в редакторі теж мають пережити наступний запуск —
-		// зберігаємо їх у той самий файл, з якого сесія стартує LoadConfigurationsFromFile().
-		if (ChangedProperty == GET_MEMBER_NAME_CHECKED(AEnvironmentActorManager, EWConfigurations))
-		{
-			SaveConfigurationsToFile();
-		}
+	if (bEWChanged)
+		RefreshEWZones();
+	if (bWindChanged)
+		RefreshWindVectors();
+
+	// Ручні правки *Configurations в редакторі теж мають пережити наступний запуск —
+	// зберігаємо їх у той самий файл, з якого сесія стартує LoadConfigurationsFromFile().
+	if (ChangedProperty == GET_MEMBER_NAME_CHECKED(AEnvironmentActorManager, EWConfigurations) ||
+		ChangedProperty == GET_MEMBER_NAME_CHECKED(AEnvironmentActorManager, WindConfigurations))
+	{
+		SaveConfigurationsToFile();
 	}
 }
 #endif

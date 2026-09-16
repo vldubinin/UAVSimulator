@@ -3,9 +3,11 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "UAVSimulator/Structure/EWZoneConfiguration.h"
+#include "UAVSimulator/Structure/WindVectorConfiguration.h"
 #include "EnvironmentActorManager.generated.h"
 
 class AEWZoneActor;
+class AWindActor;
 class ACesiumGeoreference;
 
 /**
@@ -18,7 +20,7 @@ class ACesiumGeoreference;
  * файл (куди SAVE у скрипті перезаписує масиви об'єктів) та синхронізує EWConfigurations +
  * спавнені AEWZoneActor.
  *
- * env_actors.json наразі містить лише масив "electronic_warfare"; коли зі скрипта додадуть
+ * env_actors.json містить масиви "electronic_warfare" і "wind"; коли зі скрипта додадуть
  * інші типи об'єктів, для кожного заводиться свій масив конфігурацій і своя Refresh*-логіка
  * за тим самим принципом.
  */
@@ -42,24 +44,36 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "EW")
 	TArray<FEWZoneConfiguration> EWConfigurations;
 
-	/** Записує поточний EWConfigurations у env_actors.json, запускає configurate_env_actors.py
-	 *  (стартові координати карти — з ACesiumGeoreference цього рівня; наявні зони скрипт
-	 *  одразу підхопить і відмалює з щойно записаного файлу) і, щойно користувач закриє вікно
-	 *  карти, підвантажує (можливо оновлені через SAVE у скрипті) конфігурації назад. */
+	/** Блупрінт-клас (на основі AWindActor), що спавниться для кожного запису в WindConfigurations. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wind")
+	TSubclassOf<AWindActor> WindActorClass;
+
+	/** Набір конфігурацій вітрових векторів на сцені — джерело правди для спавнених
+	 *  AWindActor. Синхронізується з env_actors.json ("wind") за тим самим принципом,
+	 *  що й EWConfigurations (див. коментар вище). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wind")
+	TArray<FWindVectorConfiguration> WindConfigurations;
+
+	/** Записує поточні EWConfigurations/WindConfigurations у env_actors.json, запускає
+	 *  configurate_env_actors.py (стартові координати карти — з ACesiumGeoreference цього
+	 *  рівня; наявні зони й вектори скрипт одразу підхопить і відмалює з щойно записаного
+	 *  файлу) і, щойно користувач закриє вікно карти, підвантажує (можливо оновлені через
+	 *  SAVE у скрипті) конфігурації назад. */
 	UFUNCTION(BlueprintCallable, Category = "EW")
 	void OpenConfigurationTool();
 
-	/** Перечитує Tools/ProjectTools/env_actors.json, оновлює EWConfigurations і викликає
-	 *  RefreshEWZones(). Нічого не робить (з попередженням у лог) і повертає false, якщо
-	 *  файла ще нема або він не парситься — це нормально, доки жодного разу не зберігали
-	 *  конфігурацію (ні через SAVE у скрипті, ні через редактор).
-	 *  @return true якщо файл знайдено, розпарсено й EWConfigurations застосовано. */
+	/** Перечитує Tools/ProjectTools/env_actors.json, оновлює EWConfigurations +
+	 *  WindConfigurations і викликає RefreshEWZones() + RefreshWindVectors(). Нічого не
+	 *  робить (з попередженням у лог) і повертає false, якщо файла ще нема або він не
+	 *  парситься — це нормально, доки жодного разу не зберігали конфігурацію (ні через
+	 *  SAVE у скрипті, ні через редактор).
+	 *  @return true якщо файл знайдено, розпарсено й конфігурації застосовано. */
 	UFUNCTION(BlueprintCallable, Category = "EW")
 	bool LoadConfigurationsFromFile();
 
-	/** Записує поточний EWConfigurations у Tools/ProjectTools/env_actors.json — тим самим
-	 *  форматом, що й SAVE у configurate_env_actors.py, щоб скрипт міг підхопити його при
-	 *  наступному відкритті. */
+	/** Записує поточні EWConfigurations/WindConfigurations у Tools/ProjectTools/env_actors.json —
+	 *  тим самим форматом, що й SAVE у configurate_env_actors.py, щоб скрипт міг підхопити
+	 *  його при наступному відкритті. */
 	UFUNCTION(BlueprintCallable, Category = "EW")
 	void SaveConfigurationsToFile() const;
 
@@ -68,6 +82,11 @@ public:
 	 *  (SetRadius, метри з конфігурації переводяться в см). */
 	UFUNCTION(BlueprintCallable, Category = "EW")
 	void RefreshEWZones();
+
+	/** Знищує всі раніше спавнені цим менеджером AWindActor і спавнить нові — по одному
+	 *  на кожен запис у WindConfigurations, з відповідними геоточками (SetGeoPositions). */
+	UFUNCTION(BlueprintCallable, Category = "Wind")
+	void RefreshWindVectors();
 
 protected:
 	virtual void BeginPlay() override;
@@ -81,4 +100,7 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AEWZoneActor>> SpawnedEWZones;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<AWindActor>> SpawnedWindVectors;
 };
