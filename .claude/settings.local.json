@@ -53,5 +53,8 @@
       "Bash(\"/c/Users/DubakusPC/Documents/MCPs/Office-Word-MCP-Server/.venv/Scripts/python.exe\" -m pip show fastmcp python-docx)",
       "Bash(claude mcp *)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "unreal-mcp"
+  ]
 }
