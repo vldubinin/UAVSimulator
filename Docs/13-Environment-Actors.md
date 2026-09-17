@@ -1,4 +1,4 @@
-# 13 — Об'єкти середовища: РЕБ-зони та вітер
+# 13 — Об'єкти середовища: РЕБ-зони, вітер та дощ
 
 Паралельна, опційна система наземних/просторових об'єктів середовища, що
 впливають на політ і/або сенсори — незалежна від аеродинамічної ієрархії
@@ -166,6 +166,59 @@ FVector WorldAirVelocity = -LinearVelocity + Wind - RotationalVelocity;
 конвеєрі, що взагалі знає про існування вітру). Під `bVisualizeForces`
 малюється блакитна стрілка вітру поруч із зеленою стрілкою результуючої сили
 (`AerodynamicDebugRenderer::DrawForceArrow`).
+
+## Дощ — `ARainEffectManager`
+
+`Actor/RainEffectManager.h/.cpp`. На відміну від `AEnvironmentActorManager`, не
+конфігурується через `env_actors.json` (дощ глобальний, без гео-прив'язки) і не
+знає про `AEnvironmentActorManager` взагалі — окремий, самодостатній актор,
+розміщений вручну в рівні (по одному на рівень).
+
+- `RainSystem : UNiagaraSystem*` — Niagara-система дощу (`Content/FX/NS_Rain`),
+  що спавниться над кожним `AAirplane`. Поки не задана — `RescanAirplanes()`
+  виходить одразу, нічого не спавнячи (той самий принцип, що й
+  `RefreshEWZones()`/`RefreshWindVectors()` без відповідного `*ActorClass`).
+- `RainOffset : FVector` (см, дефолт `(0,0,2000)`) — зміщення дощу відносно
+  `GetActorLocation()` літака по всіх осях (світові, без урахування орієнтації
+  літака — узгоджено з тим, що дощ ніколи не обертається): Z — висота над
+  літаком, X/Y — горизонтальний зсув (наприклад, з випередженням напрямку
+  польоту чи вбік).
+- `RescanInterval` (сек, дефолт 1.0) — як часто пере-сканувати світ через
+  `UGameplayStatics::GetAllActorsOfClass(AAirplane::StaticClass())`, щоб
+  підхопити нові літаки (спавн через `StartSimulation()`) і прибрати ефекти
+  знищених (`StopSimulation()`, зміна режиму) — позиція вже відстежуваних
+  ефектів оновлюється **щотіку**, незалежно від цього інтервалу.
+
+**Принцип нульової зв'язаності**: `AAirplane.h/.cpp` і його Blueprint нічого не
+знають про Niagara чи про `ARainEffectManager` — весь зв'язок односторонній,
+ззовні. Менеджер тримає `TMap<TWeakObjectPtr<AAirplane>, UNiagaraComponent*>
+ActiveRainEffects`: для кожного знайденого `AAirplane`, якого ще нема в мапі,
+спавнить окремий `UNiagaraComponent` через
+`UNiagaraFunctionLibrary::SpawnSystemAtLocation` (**без** `AttachTo`,
+`bAutoDestroy = false` — часом життя керує сам менеджер); щотіку виставляє
+йому `SetWorldLocation(Airplane->GetActorLocation() + RainOffset)` з нульовою
+ротацією, тож дощ завжди на заданому зміщенні й завжди падає прямо вниз,
+незалежно від крену/тангажу літака. `RescanAirplanes()` також
+знищує `UNiagaraComponent` і прибирає запис для будь-якого `TWeakObjectPtr`,
+що став stale (літак знищено).
+
+**`RainIntensity`** (`SetRainIntensity()`/`GetRainIntensity()`, дефолт `1.0`,
+клемп `[0, 5]`) — **єдине** поле, що керує дощем: одночасно і множник
+інтенсивності, і вимикач. `0` — негайно знищує всі активні `UNiagaraComponent`
+(`DestroyAllRainEffects()`, спільна з `EndPlay()`) і зупиняє `Tick()`/спавн
+нових ефектів; будь-яке значення `> 0` — одразу перескановує світ (якщо перед
+цим було `0`) і прокидається як User Parameter (Float) на кожен активний
+`UNiagaraComponent` через `SetFloatParameter(TEXT("Intensity"),
+RainIntensity)` (`ApplyIntensity()`, викликається і при зміні, і одразу при
+спавні нового ефекту в `RescanAirplanes()`). **`NS_Rain` має експонувати User
+Parameter з точно такою назвою (`Intensity`, тип Float) і використовувати
+його** (типово — множником на Spawn Rate/Spawn Count) — інакше зміна значення
+ні на що не вплине (окрім самого вкл/викл при переході через `0`, який працює
+завжди, незалежно від User Parameter). Керується єдиним `SpinBoxRainIntensity`
+у `UEnvironmentSectionWidget` (нема окремого чекбокса вкл/викл), персиститься
+в `UEnvironmentSettingsSave::RainIntensity`. `UEnvironmentSectionWidget::
+GetRainEffectManager()` лениво спавнить `ARainEffectManager`, якщо в рівні
+його ще нема — так само, як `GetEnvironmentActorManager()`.
 
 ## Структури-конфігурації
 

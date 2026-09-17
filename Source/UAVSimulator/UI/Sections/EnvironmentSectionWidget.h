@@ -11,6 +11,7 @@ class ACesiumGeoreference;
 class ACesiumSunSky;
 class ACesium3DTileset;
 class AEnvironmentActorManager;
+class ARainEffectManager;
 
 UCLASS()
 class UAVSIMULATOR_API UEnvironmentSectionWidget : public USimulatorSectionWidget
@@ -54,6 +55,14 @@ protected:
 	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
 	TObjectPtr<UButton> ConfigurateEnvActorsBtn;
 
+	// — Дощ (ARainEffectManager) ————————————————————————————————————————————————
+	// OptionalWidget = true: спінбоксу ще нема в UMG Blueprint, доки його не додадуть вручну
+	// (те саме застереження, що й для ConfigurateEnvActorsBtn вище). 0 = дощу нема взагалі —
+	// окремого чекбокса вкл/викл немає, RainIntensity — єдине джерело правди.
+
+	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
+	TObjectPtr<USpinBox> SpinBoxRainIntensity;
+
 	// — Резервні небо/сонце, що показуються, поки ландшафт Cesium вимкнено ————————
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Environment|DefaultSky")
@@ -72,6 +81,7 @@ private:
 	ACesiumSunSky*       GetSunSky() const;
 	ACesium3DTileset*    GetTileset() const;
 	AEnvironmentActorManager* GetEnvironmentActorManager() const;
+	ARainEffectManager*  GetRainEffectManager() const;
 
 	static const FString EnvironmentSaveSlotName;
 
@@ -81,6 +91,7 @@ private:
 	UFUNCTION() void OnTimeZoneCommitted(float Value, ETextCommit::Type CommitType);
 	UFUNCTION() void OnSolarTimeCommitted(float Value, ETextCommit::Type CommitType);
 	UFUNCTION() void OnTerrainSurfaceChanged(bool bIsChecked);
+	UFUNCTION() void OnRainIntensityCommitted(float Value, ETextCommit::Type CommitType);
 
 	UFUNCTION() void OnConfigurateEnvActorsBtnClicked();
 

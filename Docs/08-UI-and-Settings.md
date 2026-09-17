@@ -73,7 +73,8 @@
 ### `UEnvironmentSectionWidget`
 
 Слот `EnvironmentSettings` → `UEnvironmentSettingsSave` (`OriginLatitude`,
-`OriginLongitude`, `OriginHeight`, `TimeZone`, `SolarTime`, `bTerrainSurfaceEnabled`).
+`OriginLongitude`, `OriginHeight`, `TimeZone`, `SolarTime`, `bTerrainSurfaceEnabled`,
+`RainIntensity`).
 
 - `SpinBoxOriginLatitude/Longitude/Height` — `ACesiumGeoreference`.
 - `SpinBoxTimeZone/SolarTime` — `ACesiumSunSky`.
@@ -85,6 +86,13 @@
   спавнить, якщо нема) і викликає `Manager->OpenConfigurationTool()` — синхронно
   відкриває Python-інструмент карти (`Tools/ProjectTools/configurate_env_actors.py`)
   для розміщення зон РЕБ і вітрових векторів. Детально — `13-Environment-Actors.md`.
+- `SpinBoxRainIntensity` (`OptionalWidget = true`) → `OnRainIntensityCommitted()`:
+  `Manager->SetRainIntensity(Value)` — єдине поле керування дощем (знаходить
+  наявний `ARainEffectManager` у рівні через `GetRainEffectManager()`, спавнить,
+  якщо нема): `0` вимикає дощ над усіма літаками повністю, `> 0` — множник
+  інтенсивності, прокидається в кожен активний `UNiagaraComponent` дощу як
+  User Parameter `Intensity` (Float) — `NS_Rain` має його експонувати й
+  використовувати. Детально — `13-Environment-Actors.md`.
 
 ### `USyntheticDataSectionWidget`
 

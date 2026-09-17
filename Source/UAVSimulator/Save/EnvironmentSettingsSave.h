@@ -44,4 +44,9 @@ public:
 
 	UPROPERTY(BlueprintReadWrite)
 	double EWRadius = 5000.0;
+
+	/** ARainEffectManager::RainIntensity — множник інтенсивності дощу (1 = базова,
+	 *  0 = дощу нема взагалі — єдиний вимикач, окремого bool-прапорця нема). */
+	UPROPERTY(BlueprintReadWrite)
+	double RainIntensity = 1.0;
 };

@@ -9,6 +9,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "UAVSimulator/Save/EnvironmentSettingsSave.h"
 #include "UAVSimulator/Actor/EnvironmentActorManager.h"
+#include "UAVSimulator/Actor/RainEffectManager.h"
 #include "UAVSimulator/UAVSimulator.h"
 
 const FString UEnvironmentSectionWidget::EnvironmentSaveSlotName = TEXT("EnvironmentSettings");
@@ -26,6 +27,9 @@ void UEnvironmentSectionWidget::NativeConstruct()
 
 	if (ConfigurateEnvActorsBtn)
 		ConfigurateEnvActorsBtn->OnClicked.AddDynamic(this, &UEnvironmentSectionWidget::OnConfigurateEnvActorsBtnClicked);
+
+	if (SpinBoxRainIntensity)
+		SpinBoxRainIntensity->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnRainIntensityCommitted);
 
 	LoadAndApplySavedSettings();
 	SyncFromWorld();
@@ -56,6 +60,12 @@ void UEnvironmentSectionWidget::SyncFromWorld()
 		const bool bEnabled = !Tileset->IsHidden();
 		TerrainSurfaceCB->SetIsChecked(bEnabled);
 		ApplyTerrainSurfaceState(bEnabled);
+	}
+
+	if (SpinBoxRainIntensity)
+	{
+		if (ARainEffectManager* Manager = GetRainEffectManager())
+			SpinBoxRainIntensity->SetValue(Manager->GetRainIntensity());
 	}
 }
 
@@ -109,6 +119,13 @@ void UEnvironmentSectionWidget::OnSolarTimeCommitted(float Value, ETextCommit::T
 void UEnvironmentSectionWidget::OnTerrainSurfaceChanged(bool bIsChecked)
 {
 	ApplyTerrainSurfaceState(bIsChecked);
+	SaveCurrentSettings();
+}
+
+void UEnvironmentSectionWidget::OnRainIntensityCommitted(float Value, ETextCommit::Type /*CommitType*/)
+{
+	if (ARainEffectManager* Manager = GetRainEffectManager())
+		Manager->SetRainIntensity(Value);
 	SaveCurrentSettings();
 }
 
@@ -186,6 +203,11 @@ void UEnvironmentSectionWidget::LoadAndApplySavedSettings()
 	}
 
 	ApplyTerrainSurfaceState(Save->bTerrainSurfaceEnabled);
+
+	if (ARainEffectManager* Manager = GetRainEffectManager())
+	{
+		Manager->SetRainIntensity((float)Save->RainIntensity);
+	}
 }
 
 void UEnvironmentSectionWidget::SaveCurrentSettings()
@@ -209,6 +231,11 @@ void UEnvironmentSectionWidget::SaveCurrentSettings()
 	if (ACesium3DTileset* Tileset = GetTileset())
 	{
 		Save->bTerrainSurfaceEnabled = !Tileset->IsHidden();
+	}
+
+	if (ARainEffectManager* Manager = GetRainEffectManager())
+	{
+		Save->RainIntensity = Manager->GetRainIntensity();
 	}
 
 	UGameplayStatics::SaveGameToSlot(Save, EnvironmentSaveSlotName, /*UserIndex=*/0);
@@ -265,6 +292,26 @@ AEnvironmentActorManager* UEnvironmentSectionWidget::GetEnvironmentActorManager(
 	// EWZoneActorClass лишиться незаданим, доки його не признать вручну в редакторі.
 	AEnvironmentActorManager* Spawned = World->SpawnActor<AEnvironmentActorManager>();
 	UE_LOG(LogUAV, Log, TEXT("EnvironmentSectionWidget::GetEnvironmentActorManager: no AEnvironmentActorManager in level — spawned %s"),
+		Spawned ? *Spawned->GetName() : TEXT("FAILED"));
+	return Spawned;
+}
+
+ARainEffectManager* UEnvironmentSectionWidget::GetRainEffectManager() const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+		return nullptr;
+
+	if (ARainEffectManager* Existing = Cast<ARainEffectManager>(
+			UGameplayStatics::GetActorOfClass(World, ARainEffectManager::StaticClass())))
+	{
+		return Existing;
+	}
+
+	// У рівні ще немає розміщеного менеджера — спінбоксу нема кого перемикати. RainSystem
+	// лишиться незаданим, доки його не признать вручну в редакторі (як EWZoneActorClass вище).
+	ARainEffectManager* Spawned = World->SpawnActor<ARainEffectManager>();
+	UE_LOG(LogUAV, Log, TEXT("EnvironmentSectionWidget::GetRainEffectManager: no ARainEffectManager in level — spawned %s"),
 		Spawned ? *Spawned->GetName() : TEXT("FAILED"));
 	return Spawned;
 }
