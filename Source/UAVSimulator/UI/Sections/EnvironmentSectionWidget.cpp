@@ -8,6 +8,7 @@
 #include "Components/Button.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/VolumetricCloudComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Kismet/GameplayStatics.h"
 #include "UAVSimulator/Save/EnvironmentSettingsSave.h"
@@ -30,6 +31,9 @@ void UEnvironmentSectionWidget::NativeConstruct()
 	SpinBoxStarsThreshold->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnStarsThresholdCommitted);
 	SpinBoxStarsPointSize->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnStarsPointSizeCommitted);
 	SpinBoxStarsIntensity->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnStarsIntensityCommitted);
+	SpinBoxCloudsCoverage->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnCloudsCoverageCommitted);
+	SpinBoxCloudsDensity->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnCloudsDensityCommitted);
+	SpinBoxCloudsSpeed->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnCloudsSpeedCommitted);
 	TerrainSurfaceCB->OnCheckStateChanged.AddDynamic(this, &UEnvironmentSectionWidget::OnTerrainSurfaceChanged);
 
 	if (ConfigurateEnvActorsBtn)
@@ -151,6 +155,59 @@ void UEnvironmentSectionWidget::OnStarsIntensityCommitted(float /*Value*/, EText
 {
 	ApplyStarsSettingsFromWidgets();
 	SaveCurrentSettings();
+}
+
+void UEnvironmentSectionWidget::OnCloudsCoverageCommitted(float /*Value*/, ETextCommit::Type /*CommitType*/)
+{
+	ApplyCloudsSettingsFromWidgets();
+	SaveCurrentSettings();
+}
+
+void UEnvironmentSectionWidget::OnCloudsDensityCommitted(float /*Value*/, ETextCommit::Type /*CommitType*/)
+{
+	ApplyCloudsSettingsFromWidgets();
+	SaveCurrentSettings();
+}
+
+void UEnvironmentSectionWidget::OnCloudsSpeedCommitted(float /*Value*/, ETextCommit::Type /*CommitType*/)
+{
+	ApplyCloudsSettingsFromWidgets();
+	SaveCurrentSettings();
+}
+
+void UEnvironmentSectionWidget::ApplyCloudsSettingsFromWidgets() const
+{
+	AVolumetricCloud* Cloud = GetVolumetricCloud();
+	if (!Cloud)
+		return;
+
+	TInlineComponentArray<UVolumetricCloudComponent*> CloudComps;
+	Cloud->GetComponents(CloudComps);
+	if (CloudComps.Num() == 0)
+		return;
+
+	UVolumetricCloudComponent* CloudComp = CloudComps[0];
+
+	UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(CloudComp->GetMaterial());
+	if (!MID)
+	{
+		MID = UMaterialInstanceDynamic::Create(CloudComp->GetMaterial(), CloudComp);
+		CloudComp->SetMaterial(MID);
+	}
+	if (!MID)
+		return;
+
+	// Cloud_GlobalCoverage — скільки неба зайняте хмарами (густина хмарного покриву).
+	// Cloud_GlobalDensity — оптична щільність самої хмари (менше значення = крізь хмару
+	// видно більше неба, тобто вона прозоріша).
+	MID->SetScalarParameterValue(TEXT("Cloud_GlobalCoverage"), (float)SpinBoxCloudsCoverage->GetValue());
+	MID->SetScalarParameterValue(TEXT("Cloud_GlobalDensity"), (float)SpinBoxCloudsDensity->GetValue());
+
+	// Layout_WindControls = (напрям.X, напрям.Y, швидкість, швидкість деталізації) —
+	// напрям лишаємо як у дефолтному матеріалі (1,1), масштабуємо лише швидкість за
+	// тим самим співвідношенням, що й дефолт (0.5 / 0.333 ≈ 0.666).
+	const float WindSpeed = (float)SpinBoxCloudsSpeed->GetValue();
+	MID->SetVectorParameterValue(TEXT("Layout_WindControls"), FLinearColor(1.0f, 1.0f, 0.5f * WindSpeed, 0.333f * WindSpeed));
 }
 
 void UEnvironmentSectionWidget::ApplyStarsSettingsFromWidgets() const
@@ -318,6 +375,11 @@ void UEnvironmentSectionWidget::LoadAndApplySavedSettings()
 		UpdateNightVisuals(SunSky, (float)Save->StarsDensity, (float)Save->StarsThreshold, (float)Save->StarsPointSize, (float)Save->StarsIntensity);
 	}
 
+	SpinBoxCloudsCoverage->SetValue((float)Save->CloudsCoverage);
+	SpinBoxCloudsDensity->SetValue((float)Save->CloudsDensity);
+	SpinBoxCloudsSpeed->SetValue((float)Save->CloudsSpeed);
+	ApplyCloudsSettingsFromWidgets();
+
 	ApplyTerrainSurfaceState(Save->bTerrainSurfaceEnabled);
 
 	if (ARainEffectManager* Manager = GetRainEffectManager())
@@ -348,6 +410,10 @@ void UEnvironmentSectionWidget::SaveCurrentSettings()
 	Save->StarsThreshold = SpinBoxStarsThreshold->GetValue();
 	Save->StarsPointSize = SpinBoxStarsPointSize->GetValue();
 	Save->StarsIntensity = SpinBoxStarsIntensity->GetValue();
+
+	Save->CloudsCoverage = SpinBoxCloudsCoverage->GetValue();
+	Save->CloudsDensity  = SpinBoxCloudsDensity->GetValue();
+	Save->CloudsSpeed    = SpinBoxCloudsSpeed->GetValue();
 
 	if (ACesium3DTileset* Tileset = GetTileset())
 	{
@@ -394,6 +460,13 @@ ACesium3DTileset* UEnvironmentSectionWidget::GetTileset() const
 {
 	if (UWorld* World = GetWorld())
 		return Cast<ACesium3DTileset>(UGameplayStatics::GetActorOfClass(World, ACesium3DTileset::StaticClass()));
+	return nullptr;
+}
+
+AVolumetricCloud* UEnvironmentSectionWidget::GetVolumetricCloud() const
+{
+	if (UWorld* World = GetWorld())
+		return Cast<AVolumetricCloud>(UGameplayStatics::GetActorOfClass(World, AVolumetricCloud::StaticClass()));
 	return nullptr;
 }
 

@@ -41,6 +41,17 @@ public:
 	UPROPERTY(BlueprintReadWrite)
 	double StarsIntensity = 1000.0;
 
+	// — Хмари (VolumetricCloud_0 / MI_VolumetricClouds) — значення відповідають дефолтам
+	// m_SimpleVolumetricCloud_Inst —
+	UPROPERTY(BlueprintReadWrite)
+	double CloudsCoverage = -0.2;
+
+	UPROPERTY(BlueprintReadWrite)
+	double CloudsDensity = 0.008;
+
+	UPROPERTY(BlueprintReadWrite)
+	double CloudsSpeed = 1.0;
+
 	UPROPERTY(BlueprintReadWrite)
 	bool bTerrainSurfaceEnabled = true;
 

@@ -10,6 +10,7 @@ class UButton;
 class ACesiumGeoreference;
 class ACesiumSunSky;
 class ACesium3DTileset;
+class AVolumetricCloud;
 class AEnvironmentActorManager;
 class ARainEffectManager;
 
@@ -54,6 +55,18 @@ protected:
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<USpinBox> SpinBoxStarsIntensity;
+
+	// — Хмари (VolumetricCloud_0 / MI_VolumetricClouds, MID створюється лінькаво в
+	// ApplyCloudsSettingsFromWidgets) ——————————————————————————————————————————
+
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<USpinBox> SpinBoxCloudsCoverage;
+
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<USpinBox> SpinBoxCloudsDensity;
+
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<USpinBox> SpinBoxCloudsSpeed;
 
 	// — Cesium3DTileset (тайли ландшафту) ————————————————————————————————————————
 
@@ -106,9 +119,14 @@ private:
 	// Читає поточні значення 4 зоряних спінбоксів і застосовує через UpdateNightVisuals.
 	void ApplyStarsSettingsFromWidgets() const;
 
+	// Читає поточні значення 3 спінбоксів хмар і застосовує на MID хмарового матеріалу
+	// (створюється лінькаво при першому виклику — той самий підхід, що й StarsSphere вище).
+	void ApplyCloudsSettingsFromWidgets() const;
+
 	ACesiumGeoreference* GetGeoreference() const;
 	ACesiumSunSky*       GetSunSky() const;
 	ACesium3DTileset*    GetTileset() const;
+	AVolumetricCloud*    GetVolumetricCloud() const;
 	AEnvironmentActorManager* GetEnvironmentActorManager() const;
 	ARainEffectManager*  GetRainEffectManager() const;
 
@@ -123,6 +141,9 @@ private:
 	UFUNCTION() void OnStarsThresholdCommitted(float Value, ETextCommit::Type CommitType);
 	UFUNCTION() void OnStarsPointSizeCommitted(float Value, ETextCommit::Type CommitType);
 	UFUNCTION() void OnStarsIntensityCommitted(float Value, ETextCommit::Type CommitType);
+	UFUNCTION() void OnCloudsCoverageCommitted(float Value, ETextCommit::Type CommitType);
+	UFUNCTION() void OnCloudsDensityCommitted(float Value, ETextCommit::Type CommitType);
+	UFUNCTION() void OnCloudsSpeedCommitted(float Value, ETextCommit::Type CommitType);
 	UFUNCTION() void OnTerrainSurfaceChanged(bool bIsChecked);
 	UFUNCTION() void OnRainIntensityCommitted(float Value, ETextCommit::Type CommitType);
 
