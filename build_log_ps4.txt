@@ -1,0 +1,35 @@
+﻿Using bundled DotNet SDK version: 10.0 win-x64
+Running UnrealBuildTool: dotnet "..\..\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.dll" UAVSimulatorEditor Win64 Development "-Project=C:\Users\DubakusPC\Documents\Unreal Projects\UAVSimulator\UAVSimulator.uproject" -waitmutex
+Log file: C:\Users\DubakusPC\AppData\Local\UnrealBuildTool\Log.txt
+Determining max actions to execute in parallel (6 physical cores, 12 logical cores)
+  Executing up to 6 processes, one per physical core
+  Requested 1.5 GB memory per action, 1.98 GB available: limiting max parallel actions to 1
+Using 'git status' to determine working set for adaptive non-unity build (C:\Users\DubakusPC\Documents\Unreal Projects\UAVSimulator).
+UbaServer - Listening on 0.0.0.0:1345
+Project 'UAVSimulatorEditor' depends on plugin 'RawInput' which was deprecated in 5.8 and will soon be removed. Please update your dependencies.
+Building UAVSimulatorEditor...
+===== Toolchain Information =====
+Using ISPC compiler (C:\Program Files\Epic Games\UE_5.8\Engine\Source\ThirdParty\Intel\ISPC\bin\Windows\ispc.exe)
+  Intel(r) Implicit SPMD Program Compiler (Intel(r) ISPC), 1.24.0 (build commit  @ 20250404, LLVM 18.1.2) 
+Using Visual Studio 14.44.35225 toolchain (C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207) and Windows 10.0.22621.0 SDK (C:\Program Files (x86)\Windows Kits\10).
+[Adaptive Build] Excluded from UAVSimulator unity file: Airplane.cpp, UAVCameraComponent.cpp, UAVSimulationSubsystem.cpp, EnvironmentSectionWidget.cpp, GlobalSectionWidget.cpp
+=================================
+Using Unreal Build Accelerator local executor to run 4 action(s)
+  CPU 6 physical cores, 12 logical cores
+  Memory 7.35 GB physical, 18.44 GB/21.11 GB committed
+  UBA Storage capacity 40 GB
+[1/4] Compile [x64] EnvironmentSectionWidget.cpp
+C:\Users\DubakusPC\Documents\Unreal Projects\UAVSimulator\Source\UAVSimulator\UI\Sections\EnvironmentSectionWidget.cpp(166,51): error C2248: 'ACesiumSunSky::Elevation': cannot access protected member declared in class 'ACesiumSunSky'
+			const double NightFactor = FMath::Clamp(-SunSky->Elevation / 10.0, 0.0, 1.0);
+			                                               ^
+C:\Program Files\Epic Games\UE_5.8\Engine\Plugins\Marketplace\Cesiumfo5b7c98b8073cV11\Source\CesiumRuntime\Public\CesiumSunSky.h(392,10): note: see declaration of 'ACesiumSunSky::Elevation'
+  double Elevation = 0.f;
+         ^
+C:\Program Files\Epic Games\UE_5.8\Engine\Plugins\Marketplace\Cesiumfo5b7c98b8073cV11\Source\CesiumRuntime\Public\CesiumSunSky.h(29,25): note: see declaration of 'ACesiumSunSky'
+class CESIUMRUNTIME_API ACesiumSunSky : public AActor {
+                        ^
+Total time in Unreal Build Accelerator local executor: 20.11 seconds
+
+Result: Failed (OtherCompilationError)
+Total execution time: 21.58 seconds
+Trace written to file C:\Users\DubakusPC\AppData\Local\UnrealBuildTool\Trace.uba with size 6.7kb

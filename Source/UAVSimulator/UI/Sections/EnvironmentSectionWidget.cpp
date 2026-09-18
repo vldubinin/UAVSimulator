@@ -7,6 +7,8 @@
 #include "Components/CheckBox.h"
 #include "Components/Button.h"
 #include "Components/DirectionalLightComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Kismet/GameplayStatics.h"
 #include "UAVSimulator/Save/EnvironmentSettingsSave.h"
 #include "UAVSimulator/Actor/EnvironmentActorManager.h"
@@ -103,7 +105,7 @@ void UEnvironmentSectionWidget::OnTimeZoneCommitted(float Value, ETextCommit::Ty
 	{
 		SunSky->TimeZone = (double)Value;
 		SunSky->UpdateSun();
-		UpdateMoonLightRotation(SunSky);
+		UpdateNightVisuals(SunSky);
 	}
 	SaveCurrentSettings();
 }
@@ -114,12 +116,12 @@ void UEnvironmentSectionWidget::OnSolarTimeCommitted(float Value, ETextCommit::T
 	{
 		SunSky->SolarTime = (double)Value;
 		SunSky->UpdateSun();
-		UpdateMoonLightRotation(SunSky);
+		UpdateNightVisuals(SunSky);
 	}
 	SaveCurrentSettings();
 }
 
-void UEnvironmentSectionWidget::UpdateMoonLightRotation(ACesiumSunSky* SunSky) const
+void UEnvironmentSectionWidget::UpdateNightVisuals(ACesiumSunSky* SunSky) const
 {
 	if (!SunSky || !SunSky->DirectionalLight)
 		return;
@@ -136,12 +138,44 @@ void UEnvironmentSectionWidget::UpdateMoonLightRotation(ACesiumSunSky* SunSky) c
 			break;
 		}
 	}
-	if (!Moon)
-		return;
+	if (Moon)
+	{
+		// Дзеркальний до сонця напрямок: інверсія forward-вектора через (-Pitch, Yaw+180).
+		const FRotator SunRotation = SunSky->DirectionalLight->GetRelativeRotation();
+		Moon->SetRelativeRotation(FRotator(-SunRotation.Pitch, SunRotation.Yaw + 180.0, SunRotation.Roll));
+	}
 
-	// Дзеркальний до сонця напрямок: інверсія forward-вектора через (-Pitch, Yaw+180).
-	const FRotator SunRotation = SunSky->DirectionalLight->GetRelativeRotation();
-	Moon->SetRelativeRotation(FRotator(-SunRotation.Pitch, SunRotation.Yaw + 180.0, SunRotation.Roll));
+	// StarsSphere (SM_SkySphere + MI_Stars, додається вручну в CesiumSunSky_0) — яскравість
+	// зірок (NightFactor) керується напряму нахилом сонця, а не часом доби, щоб коректно
+	// узгоджуватись із фактичним затемненням атмосфери (SkyAtmosphere.transmittanceMinLightElevationAngle).
+	TInlineComponentArray<UStaticMeshComponent*> Meshes;
+	SunSky->GetComponents(Meshes);
+	for (UStaticMeshComponent* Mesh : Meshes)
+	{
+		if (Mesh->GetName() != TEXT("StarsSphere"))
+			continue;
+
+		UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(Mesh->GetMaterial(0));
+		if (!MID)
+			MID = Mesh->CreateDynamicMaterialInstance(0);
+
+		if (MID)
+		{
+			// ACesiumSunSky::Elevation є protected (лише BlueprintReadOnly), тож читаємо
+			// через рефлексію — той самий підхід, що вже застосовується нижче в
+			// ApplyTerrainSurfaceState для стороннього skybox-класу.
+			double Elevation = 0.0;
+			static const FName ElevationName(TEXT("Elevation"));
+			if (FDoubleProperty* ElevationProp = FindFProperty<FDoubleProperty>(SunSky->GetClass(), ElevationName))
+				Elevation = ElevationProp->GetPropertyValue_InContainer(SunSky);
+
+			// Повний нуль на 10° над горизонтом, повна яскравість на 10° під горизонтом
+			// (приблизно морські сутінки) — узгоджено з transmittanceMinLightElevationAngle=-90.
+			const double NightFactor = FMath::Clamp(-Elevation / 10.0, 0.0, 1.0);
+			MID->SetScalarParameterValue(TEXT("NightFactor"), NightFactor);
+		}
+		break;
+	}
 }
 
 void UEnvironmentSectionWidget::OnTerrainSurfaceChanged(bool bIsChecked)
@@ -228,7 +262,7 @@ void UEnvironmentSectionWidget::LoadAndApplySavedSettings()
 		SunSky->TimeZone  = Save->TimeZone;
 		SunSky->SolarTime = Save->SolarTime;
 		SunSky->UpdateSun();
-		UpdateMoonLightRotation(SunSky);
+		UpdateNightVisuals(SunSky);
 	}
 
 	ApplyTerrainSurfaceState(Save->bTerrainSurfaceEnabled);

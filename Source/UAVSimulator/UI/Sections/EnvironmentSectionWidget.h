@@ -79,10 +79,12 @@ private:
 
 	// CesiumSunSky обертає лише свій вбудований DirectionalLight (сонце). Другий
 	// DirectionalLightComponent (AtmosphereSunLightIndex == 1, "місяць" для нічного
-	// неба) рушій не рухає сам — тож синхронізуємо його вручну дзеркально до сонця
-	// щоразу, коли міняється SolarTime/TimeZone, інакше він лишається в старому
-	// фіксованому положенні й "світить як сонце" незалежно від обраного часу.
-	void UpdateMoonLightRotation(ACesiumSunSky* SunSky) const;
+	// неба) рушій не рухає сам — тож синхронізуємо його вручну дзеркально до сонця,
+	// і водночас підкручуємо яскравість зоряного неба (StarsSphere, параметр
+	// NightFactor матеріалу MI_Stars) відповідно до реального нахилу сонця. Викликається
+	// щоразу, коли міняється SolarTime/TimeZone — інакше і місяць, і зорі лишаються
+	// в тому стані, в якому їх залишив попередній виклик UpdateSun.
+	void UpdateNightVisuals(ACesiumSunSky* SunSky) const;
 
 	ACesiumGeoreference* GetGeoreference() const;
 	ACesiumSunSky*       GetSunSky() const;
