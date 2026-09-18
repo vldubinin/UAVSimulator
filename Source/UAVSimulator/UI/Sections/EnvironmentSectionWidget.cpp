@@ -26,6 +26,10 @@ void UEnvironmentSectionWidget::NativeConstruct()
 	SpinBoxOriginHeight->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnOriginHeightCommitted);
 	SpinBoxTimeZone->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnTimeZoneCommitted);
 	SpinBoxSolarTime->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnSolarTimeCommitted);
+	SpinBoxStarsDensity->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnStarsDensityCommitted);
+	SpinBoxStarsThreshold->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnStarsThresholdCommitted);
+	SpinBoxStarsPointSize->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnStarsPointSizeCommitted);
+	SpinBoxStarsIntensity->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnStarsIntensityCommitted);
 	TerrainSurfaceCB->OnCheckStateChanged.AddDynamic(this, &UEnvironmentSectionWidget::OnTerrainSurfaceChanged);
 
 	if (ConfigurateEnvActorsBtn)
@@ -57,6 +61,10 @@ void UEnvironmentSectionWidget::SyncFromWorld()
 		SpinBoxTimeZone->SetValue((float)SunSky->TimeZone);
 		SpinBoxSolarTime->SetValue((float)SunSky->SolarTime);
 	}
+
+	// Значення зоряного неба не читаються назад з MID (він створюється лінькаво і може ще
+	// не існувати) — панель завжди показує те, що застосував останній LoadAndApplySavedSettings
+	// чи UI-хендлер, цього достатньо для узгодженості.
 
 	if (ACesium3DTileset* Tileset = GetTileset())
 	{
@@ -105,7 +113,7 @@ void UEnvironmentSectionWidget::OnTimeZoneCommitted(float Value, ETextCommit::Ty
 	{
 		SunSky->TimeZone = (double)Value;
 		SunSky->UpdateSun();
-		UpdateNightVisuals(SunSky);
+		ApplyStarsSettingsFromWidgets();
 	}
 	SaveCurrentSettings();
 }
@@ -116,12 +124,48 @@ void UEnvironmentSectionWidget::OnSolarTimeCommitted(float Value, ETextCommit::T
 	{
 		SunSky->SolarTime = (double)Value;
 		SunSky->UpdateSun();
-		UpdateNightVisuals(SunSky);
+		ApplyStarsSettingsFromWidgets();
 	}
 	SaveCurrentSettings();
 }
 
-void UEnvironmentSectionWidget::UpdateNightVisuals(ACesiumSunSky* SunSky) const
+void UEnvironmentSectionWidget::OnStarsDensityCommitted(float /*Value*/, ETextCommit::Type /*CommitType*/)
+{
+	ApplyStarsSettingsFromWidgets();
+	SaveCurrentSettings();
+}
+
+void UEnvironmentSectionWidget::OnStarsThresholdCommitted(float /*Value*/, ETextCommit::Type /*CommitType*/)
+{
+	ApplyStarsSettingsFromWidgets();
+	SaveCurrentSettings();
+}
+
+void UEnvironmentSectionWidget::OnStarsPointSizeCommitted(float /*Value*/, ETextCommit::Type /*CommitType*/)
+{
+	ApplyStarsSettingsFromWidgets();
+	SaveCurrentSettings();
+}
+
+void UEnvironmentSectionWidget::OnStarsIntensityCommitted(float /*Value*/, ETextCommit::Type /*CommitType*/)
+{
+	ApplyStarsSettingsFromWidgets();
+	SaveCurrentSettings();
+}
+
+void UEnvironmentSectionWidget::ApplyStarsSettingsFromWidgets() const
+{
+	if (ACesiumSunSky* SunSky = GetSunSky())
+	{
+		UpdateNightVisuals(SunSky,
+			(float)SpinBoxStarsDensity->GetValue(),
+			(float)SpinBoxStarsThreshold->GetValue(),
+			(float)SpinBoxStarsPointSize->GetValue(),
+			(float)SpinBoxStarsIntensity->GetValue());
+	}
+}
+
+void UEnvironmentSectionWidget::UpdateNightVisuals(ACesiumSunSky* SunSky, float StarsDensity, float StarsThreshold, float StarsPointSize, float StarsIntensity) const
 {
 	if (!SunSky || !SunSky->DirectionalLight)
 		return;
@@ -173,6 +217,10 @@ void UEnvironmentSectionWidget::UpdateNightVisuals(ACesiumSunSky* SunSky) const
 			// (приблизно морські сутінки) — узгоджено з transmittanceMinLightElevationAngle=-90.
 			const double NightFactor = FMath::Clamp(-Elevation / 10.0, 0.0, 1.0);
 			MID->SetScalarParameterValue(TEXT("NightFactor"), NightFactor);
+			MID->SetScalarParameterValue(TEXT("StarsDensity"), StarsDensity);
+			MID->SetScalarParameterValue(TEXT("StarsThreshold"), StarsThreshold);
+			MID->SetScalarParameterValue(TEXT("StarsPointSize"), StarsPointSize);
+			MID->SetScalarParameterValue(TEXT("StarsIntensity"), StarsIntensity);
 		}
 		break;
 	}
@@ -257,12 +305,17 @@ void UEnvironmentSectionWidget::LoadAndApplySavedSettings()
 			FVector(Save->OriginLongitude, Save->OriginLatitude, Save->OriginHeight));
 	}
 
+	SpinBoxStarsDensity->SetValue((float)Save->StarsDensity);
+	SpinBoxStarsThreshold->SetValue((float)Save->StarsThreshold);
+	SpinBoxStarsPointSize->SetValue((float)Save->StarsPointSize);
+	SpinBoxStarsIntensity->SetValue((float)Save->StarsIntensity);
+
 	if (ACesiumSunSky* SunSky = GetSunSky())
 	{
 		SunSky->TimeZone  = Save->TimeZone;
 		SunSky->SolarTime = Save->SolarTime;
 		SunSky->UpdateSun();
-		UpdateNightVisuals(SunSky);
+		UpdateNightVisuals(SunSky, (float)Save->StarsDensity, (float)Save->StarsThreshold, (float)Save->StarsPointSize, (float)Save->StarsIntensity);
 	}
 
 	ApplyTerrainSurfaceState(Save->bTerrainSurfaceEnabled);
@@ -290,6 +343,11 @@ void UEnvironmentSectionWidget::SaveCurrentSettings()
 		Save->TimeZone  = SunSky->TimeZone;
 		Save->SolarTime = SunSky->SolarTime;
 	}
+
+	Save->StarsDensity   = SpinBoxStarsDensity->GetValue();
+	Save->StarsThreshold = SpinBoxStarsThreshold->GetValue();
+	Save->StarsPointSize = SpinBoxStarsPointSize->GetValue();
+	Save->StarsIntensity = SpinBoxStarsIntensity->GetValue();
 
 	if (ACesium3DTileset* Tileset = GetTileset())
 	{

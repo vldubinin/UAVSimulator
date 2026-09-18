@@ -28,6 +28,19 @@ public:
 	UPROPERTY(BlueprintReadWrite)
 	double SolarTime = 0.0;
 
+	// — Зоряне небо (StarsSphere / MI_Stars) — значення відповідають дефолтам матеріалу —
+	UPROPERTY(BlueprintReadWrite)
+	double StarsDensity = 200.0;
+
+	UPROPERTY(BlueprintReadWrite)
+	double StarsThreshold = 0.85;
+
+	UPROPERTY(BlueprintReadWrite)
+	double StarsPointSize = 0.008;
+
+	UPROPERTY(BlueprintReadWrite)
+	double StarsIntensity = 1000.0;
+
 	UPROPERTY(BlueprintReadWrite)
 	bool bTerrainSurfaceEnabled = true;
 

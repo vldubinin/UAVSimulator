@@ -41,6 +41,20 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<USpinBox> SpinBoxSolarTime;
 
+	// — Зоряне небо (StarsSphere / MI_Stars, керується з UpdateNightVisuals) ———————————
+
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<USpinBox> SpinBoxStarsDensity;
+
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<USpinBox> SpinBoxStarsThreshold;
+
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<USpinBox> SpinBoxStarsPointSize;
+
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<USpinBox> SpinBoxStarsIntensity;
+
 	// — Cesium3DTileset (тайли ландшафту) ————————————————————————————————————————
 
 	UPROPERTY(meta = (BindWidget))
@@ -83,8 +97,14 @@ private:
 	// і водночас підкручуємо яскравість зоряного неба (StarsSphere, параметр
 	// NightFactor матеріалу MI_Stars) відповідно до реального нахилу сонця. Викликається
 	// щоразу, коли міняється SolarTime/TimeZone — інакше і місяць, і зорі лишаються
-	// в тому стані, в якому їх залишив попередній виклик UpdateSun.
-	void UpdateNightVisuals(ACesiumSunSky* SunSky) const;
+	// в тому стані, в якому їх залишив попередній виклик UpdateSun. Параметри зірок
+	// передаються явно (а не читаються зі спінбоксів всередині), щоб цю саму функцію
+	// можна було викликати і з LoadAndApplySavedSettings (значеннями з сейву, до того
+	// як віджети синхронізовані) і з живих UI-хендлерів.
+	void UpdateNightVisuals(ACesiumSunSky* SunSky, float StarsDensity, float StarsThreshold, float StarsPointSize, float StarsIntensity) const;
+
+	// Читає поточні значення 4 зоряних спінбоксів і застосовує через UpdateNightVisuals.
+	void ApplyStarsSettingsFromWidgets() const;
 
 	ACesiumGeoreference* GetGeoreference() const;
 	ACesiumSunSky*       GetSunSky() const;
@@ -99,6 +119,10 @@ private:
 	UFUNCTION() void OnOriginHeightCommitted(float Value, ETextCommit::Type CommitType);
 	UFUNCTION() void OnTimeZoneCommitted(float Value, ETextCommit::Type CommitType);
 	UFUNCTION() void OnSolarTimeCommitted(float Value, ETextCommit::Type CommitType);
+	UFUNCTION() void OnStarsDensityCommitted(float Value, ETextCommit::Type CommitType);
+	UFUNCTION() void OnStarsThresholdCommitted(float Value, ETextCommit::Type CommitType);
+	UFUNCTION() void OnStarsPointSizeCommitted(float Value, ETextCommit::Type CommitType);
+	UFUNCTION() void OnStarsIntensityCommitted(float Value, ETextCommit::Type CommitType);
 	UFUNCTION() void OnTerrainSurfaceChanged(bool bIsChecked);
 	UFUNCTION() void OnRainIntensityCommitted(float Value, ETextCommit::Type CommitType);
 
