@@ -77,6 +77,13 @@ private:
 	void LoadAndApplySavedSettings();
 	void SaveCurrentSettings();
 
+	// CesiumSunSky обертає лише свій вбудований DirectionalLight (сонце). Другий
+	// DirectionalLightComponent (AtmosphereSunLightIndex == 1, "місяць" для нічного
+	// неба) рушій не рухає сам — тож синхронізуємо його вручну дзеркально до сонця
+	// щоразу, коли міняється SolarTime/TimeZone, інакше він лишається в старому
+	// фіксованому положенні й "світить як сонце" незалежно від обраного часу.
+	void UpdateMoonLightRotation(ACesiumSunSky* SunSky) const;
+
 	ACesiumGeoreference* GetGeoreference() const;
 	ACesiumSunSky*       GetSunSky() const;
 	ACesium3DTileset*    GetTileset() const;

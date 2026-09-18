@@ -15,6 +15,7 @@
 #include "UAVSimulator/Actor/EWZoneActor.h"
 #include "UAVSimulator/Actor/WindActor.h"
 #include "Kismet/GameplayStatics.h"
+#include "Engine/Scene.h"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Мінімальна обгортка FRunnable
@@ -327,6 +328,31 @@ void UUAVCameraComponent::SetCameraProcessingEnabled(bool bEnable)
 	// Тік зупиняється при вимкненні, тож камеру Cesium потрібно видалити саме тут.
 	if (!bEnable)
 		UnregisterCesiumSceneCaptureCamera();
+}
+
+void UUAVCameraComponent::ApplyExposureSettings(bool bManualExposure, float ISO, float ShutterSpeed, float ApertureFStop, float ExposureBias)
+{
+	if (!CaptureComponent)
+		return;
+
+	FPostProcessSettings& PP = CaptureComponent->PostProcessSettings;
+
+	PP.bOverride_AutoExposureMethod = true;
+	PP.AutoExposureMethod = bManualExposure ? EAutoExposureMethod::AEM_Manual : EAutoExposureMethod::AEM_Histogram;
+
+	PP.bOverride_AutoExposureBias = true;
+	PP.AutoExposureBias = ExposureBias;
+
+	// Формула фізичної камери (ISO + витримка + діафрагма) враховується лише в Manual —
+	// в Histogram ці три поля ігноруються рушієм, тож не шкодить виставляти їх завжди.
+	PP.bOverride_AutoExposureApplyPhysicalCameraExposure = true;
+	PP.AutoExposureApplyPhysicalCameraExposure = true;
+	PP.bOverride_CameraISO = true;
+	PP.CameraISO = ISO;
+	PP.bOverride_CameraShutterSpeed = true;
+	PP.CameraShutterSpeed = ShutterSpeed;
+	PP.bOverride_DepthOfFieldFstop = true;
+	PP.DepthOfFieldFstop = ApertureFStop;
 }
 
 void UUAVCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)

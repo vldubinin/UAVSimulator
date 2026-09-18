@@ -16,6 +16,16 @@ void UUAVSimulationSubsystem::SetOnboardCameraMode(EOnboardTargetMode Mode)
 	OnCameraSettingsChanged.Broadcast();
 }
 
+void UUAVSimulationSubsystem::SetCameraExposureSettings(bool bManualExposure, float ISO, float ShutterSpeed, float ApertureFStop, float ExposureBias)
+{
+	bCameraManualExposure = bManualExposure;
+	CameraISO             = ISO;
+	CameraShutterSpeed    = ShutterSpeed;
+	CameraApertureFStop   = ApertureFStop;
+	CameraExposureBias    = ExposureBias;
+	OnCameraSettingsChanged.Broadcast();
+}
+
 void UUAVSimulationSubsystem::SetSensorSettings(EOnboardTargetMode InSensorsMode, bool bAltimeter, bool bAttitudeIndicator, bool bCameraInclination, bool bLidar, bool bCameraFrame, bool bCameraAltitude, bool bSegmentationMask, bool bBBoxDetection, bool bPosition, bool bGeoPosition, bool bCesiumSurroundings, bool bCustomSurroundings)
 {
 	SensorsMode                    = InSensorsMode;

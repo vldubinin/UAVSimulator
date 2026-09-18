@@ -41,6 +41,15 @@ public:
 	void SetCameraProcessingEnabled(bool bEnable);
 
 	/**
+	 * Виставляє параметри експозиції CaptureComponent так, щоб відповідати реальному
+	 * сенсору-прототипу. bManualExposure=true -> AEM_Manual за фізичною формулою
+	 * (ISO + витримка + діафрагма) плюс фіксована EV-компенсація ExposureBias.
+	 * bManualExposure=false -> AEM_Histogram (авто-експозиція, як у головної камери гравця);
+	 * інші параметри в цьому режимі ігноруються.
+	 */
+	void ApplyExposureSettings(bool bManualExposure, float ISO, float ShutterSpeed, float ApertureFStop, float ExposureBias);
+
+	/**
 	 * Повертає стабільне в межах тіку JPEG-закодоване RGB-навантаження.
 	 * Кілька викликів у межах одного тіку повертають той самий знімок.
 	 * Має викликатися в ігровому потоці.

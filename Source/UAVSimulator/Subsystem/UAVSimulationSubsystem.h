@@ -31,6 +31,16 @@ public:
 	/** Для якої ролі активна бортова камера (конвеєр USceneCaptureComponent2D). */
 	EOnboardTargetMode OnboardCameraMode = EOnboardTargetMode::Drone;
 
+	// — Експозиція бортової камери (щоб відповідати реальному сенсору-прототипу) ——————
+	// За фізичною формулою (ISO + витримка + діафрагма), плюс фіксована EV-компенсація
+	// зверху. bCameraManualExposure=false перемикає SceneCaptureComponent2D назад на
+	// AEM_Histogram (авто-адаптація, як у головної камери гравця).
+	bool  bCameraManualExposure = true;
+	float CameraISO             = 100.0f;
+	float CameraShutterSpeed    = 60.0f;
+	float CameraApertureFStop   = 4.0f;
+	float CameraExposureBias    = -3.4f;
+
 	/** Для якої ролі активна шина сенсорів; окремі сенсори нижче додатково фільтруються за типом. */
 	EOnboardTargetMode SensorsMode = EOnboardTargetMode::Drone;
 
@@ -68,6 +78,7 @@ public:
 
 	void SetVisualSettings(bool bInPlayer, bool bInTarget);
 	void SetOnboardCameraMode(EOnboardTargetMode Mode);
+	void SetCameraExposureSettings(bool bManualExposure, float ISO, float ShutterSpeed, float ApertureFStop, float ExposureBias);
 	void SetSensorSettings(EOnboardTargetMode InSensorsMode, bool bAltimeter, bool bAttitudeIndicator, bool bCameraInclination, bool bLidar, bool bCameraFrame, bool bCameraAltitude, bool bSegmentationMask, bool bBBoxDetection, bool bPosition, bool bGeoPosition, bool bCesiumSurroundings, bool bCustomSurroundings);
 	void SetEWSettings(const TArray<TWeakObjectPtr<AEWZoneActor>>& Zones);
 	void SetWindSettings(const TArray<TWeakObjectPtr<AWindActor>>& Vectors);

@@ -186,6 +186,12 @@ void AAirplane::RefreshConfigurations()
 	if (CameraComp)
 	{
 		CameraComp->SetCameraProcessingEnabled(bCameraActive);
+		CameraComp->ApplyExposureSettings(
+			Subsystem->bCameraManualExposure,
+			Subsystem->CameraISO,
+			Subsystem->CameraShutterSpeed,
+			Subsystem->CameraApertureFStop,
+			Subsystem->CameraExposureBias);
 	}
 
 	if (bCameraActive && CameraWidgetClass && !CameraWidget)

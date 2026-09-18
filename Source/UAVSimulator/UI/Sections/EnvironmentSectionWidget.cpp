@@ -6,6 +6,7 @@
 #include "Components/SpinBox.h"
 #include "Components/CheckBox.h"
 #include "Components/Button.h"
+#include "Components/DirectionalLightComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "UAVSimulator/Save/EnvironmentSettingsSave.h"
 #include "UAVSimulator/Actor/EnvironmentActorManager.h"
@@ -102,6 +103,7 @@ void UEnvironmentSectionWidget::OnTimeZoneCommitted(float Value, ETextCommit::Ty
 	{
 		SunSky->TimeZone = (double)Value;
 		SunSky->UpdateSun();
+		UpdateMoonLightRotation(SunSky);
 	}
 	SaveCurrentSettings();
 }
@@ -112,8 +114,34 @@ void UEnvironmentSectionWidget::OnSolarTimeCommitted(float Value, ETextCommit::T
 	{
 		SunSky->SolarTime = (double)Value;
 		SunSky->UpdateSun();
+		UpdateMoonLightRotation(SunSky);
 	}
 	SaveCurrentSettings();
+}
+
+void UEnvironmentSectionWidget::UpdateMoonLightRotation(ACesiumSunSky* SunSky) const
+{
+	if (!SunSky || !SunSky->DirectionalLight)
+		return;
+
+	TInlineComponentArray<UDirectionalLightComponent*> Lights;
+	SunSky->GetComponents(Lights);
+
+	UDirectionalLightComponent* Moon = nullptr;
+	for (UDirectionalLightComponent* Light : Lights)
+	{
+		if (Light != SunSky->DirectionalLight && Light->AtmosphereSunLightIndex == 1)
+		{
+			Moon = Light;
+			break;
+		}
+	}
+	if (!Moon)
+		return;
+
+	// Дзеркальний до сонця напрямок: інверсія forward-вектора через (-Pitch, Yaw+180).
+	const FRotator SunRotation = SunSky->DirectionalLight->GetRelativeRotation();
+	Moon->SetRelativeRotation(FRotator(-SunRotation.Pitch, SunRotation.Yaw + 180.0, SunRotation.Roll));
 }
 
 void UEnvironmentSectionWidget::OnTerrainSurfaceChanged(bool bIsChecked)
@@ -200,6 +228,7 @@ void UEnvironmentSectionWidget::LoadAndApplySavedSettings()
 		SunSky->TimeZone  = Save->TimeZone;
 		SunSky->SolarTime = Save->SolarTime;
 		SunSky->UpdateSun();
+		UpdateMoonLightRotation(SunSky);
 	}
 
 	ApplyTerrainSurfaceState(Save->bTerrainSurfaceEnabled);
