@@ -22,10 +22,12 @@ namespace
 	// (світові см) — той самий підхід, що WakePositions у AeroVisualizerComponent.
 	const FName LightPositionsParameterName(TEXT("LightPositions"));
 
-	// User Parameter (Float) — кількість вогнів / NiagaraParticleLifetimeSeconds, штовхається
-	// сюди, бо User-параметри в Niagara read-only в графі (навіть проста арифметика над
-	// довжиною масиву там недоступна) — див. коментар StreetLightsSystem у .h.
-	const FName TargetSpawnRateParameterName(TEXT("TargetSpawnRate"));
+	// User Parameter (Int32) — точна кількість вогнів (TrackedBuildingsMap-сумарно), прив'язана
+	// до SpawnBurst_Instantaneous::Spawn Count. Разовий burst (не continuous SpawnRate) — щоб
+	// весь масив з'являвся одразу, а не поступово заповнювався; Lifetime частинки тепер
+	// величезний (86400с), тож між повними Activate(true) вони не гинуть і не "перетасовуються"
+	// самі по собі — див. коментар StreetLightsSystem у .h.
+	const FName TargetSpawnCountParameterName(TEXT("TargetSpawnCount"));
 }
 
 AStreetLightsManager::AStreetLightsManager()
@@ -313,8 +315,17 @@ void AStreetLightsManager::RebuildNiagaraArrays()
 	if (NiagaraComp)
 	{
 		UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(NiagaraComp, LightPositionsParameterName, FlatLightPositionsCm);
+		NiagaraComp->SetIntParameter(TargetSpawnCountParameterName, FlatLightPositionsCm.Num());
 
-		const float TargetSpawnRate = FlatLightPositionsCm.Num() / FMath::Max(NiagaraParticleLifetimeSeconds, 0.1f);
-		NiagaraComp->SetFloatParameter(TargetSpawnRateParameterName, TargetSpawnRate);
+		// SpawnBurst_Instantaneous спрацьовує лише раз за "цикл" емітера — Activate(true)
+		// примусово перезапускає симуляцію (знищує старі частинки й одразу спавнить новий
+		// burst на поточний TargetSpawnCount), тож масив завжди повністю й одразу
+		// відображається, без поступового заповнення (як було з continuous SpawnRate) чи
+		// випадкового "перетасовування" від безперервного respawn. Лише поки Brightness>0 —
+		// інакше компонент має лишатися неактивним (SetBrightness(0) деактивував його свідомо).
+		if (Brightness > 0.0f)
+		{
+			NiagaraComp->Activate(/*bReset=*/true);
+		}
 	}
 }

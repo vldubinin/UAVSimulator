@@ -1,6 +1,6 @@
 @echo off
 :: Use quotes around the entire set command to handle spaces correctly
-set "PYTHON_EXE=C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\ThirdParty\Python3\Win64\python.exe"
+set "PYTHON_EXE=C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\ThirdParty\Python3\Win64\python.exe"
 
 echo [1/4] Checking Python path...
 

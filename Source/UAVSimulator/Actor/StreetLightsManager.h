@@ -63,30 +63,25 @@ public:
 
 	/**
 	 * Niagara-система вогнів (напр. NS_StreetLights), що споживає масив User.LightPositions
-	 * (Vector3 Array, GetVectorArrayCount/SelectVectorFromArray) і User Parameter Brightness
-	 * (Float, [0,1], домножується на колір спрайта). Поки не задана — менеджер нічого не
-	 * спавнить (той самий принцип, що RainSystem у ARainEffectManager).
+	 * (Vector3 Array, SelectVectorFromArray) і User Parameter Brightness (Float, [0,1],
+	 * домножується на колір спрайта). Поки не задана — менеджер нічого не спавнить (той самий
+	 * принцип, що RainSystem у ARainEffectManager).
 	 *
-	 * NS_StreetLights очікує спалахування частинок безперервним SpawnRate (не разовим
-	 * burst) з фіксованим Lifetime — це необхідно, бо Niagara Custom Hlsl-вузли не можуть
-	 * викликати функції Data Interface масивів (перевірено емпірично: `.Get()`/`.Length()`
-	 * на User-параметрі масиву валить компіляцію з "GetDuplicatedDataInterfaceCDOForClass
-	 * failed"), тож позиція кожної частинки береться через штатний dynamic input
-	 * SelectVectorFromArray (ВИПАДКОВИЙ вибір елемента масиву, а не точний ExecIndex) —
-	 * періодичне респавнення (Lifetime = NiagaraParticleLifetimeSeconds) дає статистично
-	 * прийнятне покриття всіх позицій із часом, ціною відсутності гарантії "рівно один вогонь
-	 * на будівлю в кожен момент". SpawnRate обчислюється тут (кількість вогнів /
-	 * NiagaraParticleLifetimeSeconds), а не в Niagara, бо User-параметри — read-only в
-	 * графі, і навіть проста арифметика над довжиною масиву там теж недоступна.
+	 * NS_StreetLights спавнить частинки РАЗОВИМ burst (SpawnBurst_Instantaneous, Spawn Count =
+	 * User.TargetSpawnCount) із величезним Lifetime частинки (у самому ассеті) — не
+	 * безперервним SpawnRate: RebuildNiagaraArrays() викликає NiagaraComp->Activate(true)
+	 * щоразу, коли масив вогнів змінюється, примусово перезапускаючи симуляцію (новий burst на
+	 * актуальний TargetSpawnCount) — так увесь масив з'являється одразу, а не поступово
+	 * заповнюється, і частинки не гинуть і не "перетасовуються" самі по собі між цими
+	 * перезапусками. Позиція кожної частинки береться через штатний dynamic input
+	 * SelectVectorFromArray (ВИПАДКОВИЙ вибір елемента масиву, а не точний ExecIndex — Niagara
+	 * Custom Hlsl-вузли не можуть викликати функції Data Interface масивів, перевірено
+	 * емпірично: `.Get()`/`.Length()` на User-параметрі масиву валить компіляцію з
+	 * "GetDuplicatedDataInterfaceCDOForClass failed"), тож немає гарантії "рівно один вогонь на
+	 * будівлю", лише статистично прийнятне покриття.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Street Lights")
 	TObjectPtr<UNiagaraSystem> StreetLightsSystem;
-
-	/** Час життя (сек) однієї частинки в NS_StreetLights (InitializeParticle::Lifetime) —
-	 *  має збігатися зі значенням, заданим у самому Niagara-ассеті; звідси рахується
-	 *  User.TargetSpawnRate = кількість вогнів / це значення. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Street Lights", meta = (ClampMin = 0.1f))
-	float NiagaraParticleLifetimeSeconds = 20.0f;
 
 	// ── Сканер (лениво додається на кожен AAirplane, якщо його там ще нема) ─────────────
 

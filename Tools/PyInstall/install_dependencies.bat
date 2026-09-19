@@ -1,7 +1,7 @@
 @echo off
 :: Встановлює Python-залежності проєкту (Tools/PyInstall/requirements.txt)
 :: у вбудований Python3, що постачається разом з Unreal Engine.
-set "PYTHON_EXE=C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\ThirdParty\Python3\Win64\python.exe"
+set "PYTHON_EXE=C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\ThirdParty\Python3\Win64\python.exe"
 
 echo [1/3] Checking Python path...
 
