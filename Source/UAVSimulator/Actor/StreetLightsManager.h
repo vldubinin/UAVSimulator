@@ -95,11 +95,19 @@ public:
 
 	/**
 	 * Максимальна відстань (м) від будь-якого поточного AAirplane, на якій будівля ще
-	 * вважається "актуальною". Коли літак відлітає далі — вогні там прибираються, незалежно
-	 * від того, чи сканер саме зараз ще бачить об'єкт.
+	 * вважається "актуальною". Коли літак відлітає далі — вогні там прибираються.
+	 * 0 (типово) = ніколи не прибирати: вогні, що вже з'явились, лишаються назавжди
+	 * (кожне прибирання/додавання перезапускає Niagara-систему й вогні на мить зникають).
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Street Lights|Scan", meta = (ClampMin = 1.0f))
-	float MaxTrackingDistanceMeters = 2500.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Street Lights|Scan", meta = (ClampMin = 0.0f))
+	float MaxTrackingDistanceMeters = 0.0f;
+
+	/**
+	 * Мінімальний інтервал (с) між перебудовами масиву Niagara (кожна перебудова робить
+	 * Activate(true) — коротке "моргання"). Нові будівлі накопичуються й додаються одним пакетом.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Street Lights|Scan", meta = (ClampMin = 0.0f))
+	float MinRebuildIntervalSeconds = 2.0f;
 
 	// ── Розміщення вогнів на основі footprint (BBoxCornersWorldMeters) ──────────────────
 
@@ -197,6 +205,9 @@ private:
 
 	/** true, якщо TrackedBuildingsMap змінився з моменту останнього RebuildNiagaraArrays(). */
 	bool bLightPositionsDirty = false;
+
+	/** Час (World->GetTimeSeconds()) останньої RebuildNiagaraArrays() — для MinRebuildIntervalSeconds. */
+	double LastRebuildTimeSeconds = -1.0e9;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Street Lights", meta = (AllowPrivateAccess = "true", ClampMin = "0.0", ClampMax = "100.0"))
 	float Brightness = 0.0f;

@@ -75,8 +75,13 @@ void AStreetLightsManager::Tick(float DeltaTime)
 
 	if (bLightPositionsDirty)
 	{
-		RebuildNiagaraArrays();
-		bLightPositionsDirty = false;
+		const double Now = GetWorld()->GetTimeSeconds();
+		if (Now - LastRebuildTimeSeconds >= MinRebuildIntervalSeconds)
+		{
+			RebuildNiagaraArrays();
+			bLightPositionsDirty = false;
+			LastRebuildTimeSeconds = Now;
+		}
 	}
 
 	if (bDrawDebugFootprints)
@@ -271,6 +276,9 @@ void AStreetLightsManager::RemoveBuilding(const FString& Key)
 
 void AStreetLightsManager::RunValiditySweep(const TArray<FVector>& AirplaneLocationsCm)
 {
+	if (MaxTrackingDistanceMeters <= 0.0f)
+		return; // 0 = вогні ніколи не прибираються
+
 	if (AirplaneLocationsCm.Num() == 0)
 		return; // жодного літака цього проходу — нічого не прибираємо (можливо, ще не заспавнили)
 
@@ -305,15 +313,31 @@ void AStreetLightsManager::RebuildNiagaraArrays()
 	TrackedBuildings.Reserve(TrackedBuildingsMap.Num());
 
 	TArray<FVector> FlatLightPositionsCm;
+	FBox LightsBoundsCm(ForceInit);
 	for (const TPair<FString, FStreetLightBuilding>& Pair : TrackedBuildingsMap)
 	{
 		TrackedBuildings.Add(Pair.Value);
 		for (const FVector& PositionMeters : Pair.Value.LightPositionsWorldMeters)
+		{
 			FlatLightPositionsCm.Add(PositionMeters * 100.0);
+			LightsBoundsCm += PositionMeters * 100.0;
+		}
 	}
 
 	if (NiagaraComp)
 	{
+		// GPU-емітер не вміє рахувати bounds частинок сам: без фіксованих bounds система культиться
+		// за крихітною коробкою навколо актора (±100 см) і вогні зникають навіть у полі зору.
+		// Задаємо bounds по факту всіх вогнів (локально відносно компонента) з великим запасом —
+		// frustum culling лишається, але тепер працює по реальній області вогнів.
+		NiagaraComp->SetAllowScalability(false);
+		if (LightsBoundsCm.IsValid)
+		{
+			const FVector Origin = NiagaraComp->GetComponentLocation();
+			const FVector Pad(10000.0);
+			NiagaraComp->SetSystemFixedBounds(FBox(LightsBoundsCm.Min - Origin - Pad, LightsBoundsCm.Max - Origin + Pad));
+		}
+
 		UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(NiagaraComp, LightPositionsParameterName, FlatLightPositionsCm);
 		NiagaraComp->SetIntParameter(TargetSpawnCountParameterName, FlatLightPositionsCm.Num());
 

@@ -273,13 +273,15 @@ footprint (`BBoxCornersWorldMeters`) із кроком `LightSpacingMeters` (д�
 рельєфу, інтерпольований між кутами) + `LightHeightMeters` (дефолт 4 м).
 Жодного додаткового ground-trace тут не потрібно — сканер уже все прив'язав.
 
-### Видалення — відстань від літака
+### Видалення — лише опційно
 
-Наприкінці кожного `Scan()` `RunValiditySweep()` прибирає будівлі, чий
-центр footprint зараз далі за `MaxTrackingDistanceMeters` (дефолт 2500 м)
-від УСІХ поточних `AAirplane` — коли літак відлітає, вогні там більше не
-актуальні незалежно від внутрішнього стану сканера (той самий принцип, що
-вже застосовує `ARainEffectManager` для дощу навколо літака).
+`RunValiditySweep()` прибирає будівлі, чий центр footprint далі за
+`MaxTrackingDistanceMeters` від УСІХ `AAirplane`, **лише якщо це значення > 0**.
+Дефолт — `0` (вогні ніколи не прибираються): кожне видалення/додавання
+перезапускає Niagara-систему (`Activate(true)`) і вогні на мить зникають, тож
+відсікання за відстанню давало add/remove-цикл із "миготінням" навіть у полі зору.
+Перебудова масиву Niagara тротлиться `MinRebuildIntervalSeconds` (дефолт 2 с) —
+нові будівлі накопичуються й додаються одним пакетом.
 
 ### Рендер і керування
 
@@ -325,22 +327,21 @@ User Parameter `Brightness` (Float, [0,1]) і один масив
    вхід `Vector Selection Array` прив'язаний (Linked Variable) до
    `User.LightPositions`.
 2. **`SelectVectorFromArray` вибирає ВИПАДКОВИЙ елемент масиву на кожен
-   спавн** — точного відповідника "елемент масиву за `ExecIndex()`" серед
-   штатних dynamic input ассетів немає. Тому емітер працює через
-   **безперервний `SpawnRate`** (не `SpawnBurst_Instantaneous`) із
-   фіксованим `Lifetime` (`InitializeParticle::Lifetime = 20` — має
-   збігатися з `AStreetLightsManager::NiagaraParticleLifetimeSeconds`):
-   постійна плинність частинок дає статистично прийнятне покриття всіх
-   позицій із часом, ціною відсутності гарантії "рівно один вогонь на
-   будівлю в кожен момент" — прийнятний компроміс для декоративної
-   підсвітки, не для задач, де важлива точна відповідність.
-3. **User-параметри — read-only в графі**, тому навіть проста арифметика
-   (`Кількість / Lifetime` для `SpawnRate`) над `User.LightPositions`
-   недоступна зсередини Niagara. Замість цього `AStreetLightsManager`
-   рахує це в C++ (`RebuildNiagaraArrays()`) і штовхає готове число як
-   ще один plain User Parameter, **`TargetSpawnRate`** (Float,
-   `SpawnRate`-модуль прив'язаний до нього через Linked Variable) —
-   `SpawnRate`-модуль сам ніколи не звертається до масиву напряму.
+   спавн** — точного відповідника "елемент масиву за `ExecIndex()`" немає.
+   Тому емітер працює через **`SpawnBurst_Instantaneous`** (Spawn Count =
+   `User.TargetSpawnCount`, Linked Variable) із величезним `Lifetime`
+   (`InitializeParticle::Lifetime = 86400`), а C++ після кожної зміни масиву
+   робить `Activate(true)` (повний reset → новий burst одразу на весь масив).
+3. **User-параметри — read-only в графі**, тому кількість вогнів
+   `AStreetLightsManager::RebuildNiagaraArrays()` рахує в C++ і штовхає як
+   plain User Parameter **`TargetSpawnCount`** (Int32).
+
+**Bounds / culling.** GPU-емітер не рахує bounds частинок сам; без фіксованих
+bounds система відсікається за крихітною коробкою навколо актора і вогні
+зникають навіть у полі зору. Тому `RebuildNiagaraArrays()` викликає
+`SetSystemFixedBounds()` з bounding-box усіх вогнів (+100 м запасу) і
+`SetAllowScalability(false)`. Frustum culling лишається, але за реальною
+областю вогнів.
 
 `Color` (`InitializeParticle`, Direct Set) — HLSL-вираз
 `float4(1.0, 0.75, 0.4, 1.0) * User.Brightness` (плоске звернення до
