@@ -49,6 +49,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Telemetry")
 	float GetAirspeedKmh() const;
 
+	/** Фактичне положення дроселя (газу) двигуна [0,1] — після інерції розкручування, не команда пілота. */
+	UFUNCTION(BlueprintPure, Category = "Telemetry")
+	float GetThrottle01() const;
+
+	/** Фактична тяга двигуна, Н. */
+	UFUNCTION(BlueprintPure, Category = "Telemetry")
+	float GetThrustN() const;
+
 	void RefreshConfigurations();
 	void RefreshSensorSettings();
 	void CleanupWidgets();

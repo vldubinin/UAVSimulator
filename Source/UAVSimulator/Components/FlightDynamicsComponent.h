@@ -77,7 +77,7 @@ public:
 	bool bVisualizeForces = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation Settings",
-		meta = (ToolTip = "Друкувати в лог справжню швидкість, тягу та баланс сил кожні 0.5 с (LogUAV) + вивід на екран"))
+		meta = (ToolTip = "Друкувати в лог справжню швидкість, тягу та баланс сил кожні 0.5 с (LogUAV)"))
 	bool bLogFlightDebug = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Simulation Settings",
@@ -89,6 +89,10 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Engine")
 	float CurrentThrottle = 0.0f;
+
+	/** Фактична тяга двигуна цього тіку (Н) — MaxStaticThrust * CurrentThrottle * ThrustVsAirspeedCurve(V). 0, поки двигун не розкручений (CurrentThrottle <= 0.01). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Engine")
+	float CurrentThrustN = 0.0f;
 
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "UpdateAileronControl"), Category = "Control")
 	void UpdateAileronControl(float LeftAileronAngle, float RightAileronAngle);

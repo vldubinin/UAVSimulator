@@ -176,6 +176,7 @@ void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 		// Значення для діагностичного логу (заповнюються нижче, якщо двигун працює)
 		float LoggedThrustMultiplier = 0.0f;
 		float LoggedActualThrustN    = 0.0f;
+		CurrentThrustN = 0.0f;
 
 		if (CurrentThrottle > 0.01f)
 		{
@@ -191,6 +192,7 @@ void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 
 			LoggedThrustMultiplier = ThrustMultiplier;
 			LoggedActualThrustN    = ActualThrust / 100.0f;  // внутрішні одиниці (kg·cm/s²) → Н
+			CurrentThrustN         = LoggedActualThrustN;
 		}
 
 		// ── Діагностика розгону: справжня швидкість + баланс поздовжніх сил ──
@@ -238,14 +240,6 @@ void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 
 					UE_LOG(LogUAV, Warning, TEXT("[CoMDebug] CoM світ=%s локально(відносно актора)=%s |Відстані до поверхонь:%s"),
 						*CoMWorld.ToString(), *CoMLocal.ToString(), *SurfaceDistances);
-				}
-
-				if (GEngine)
-				{
-					GEngine->AddOnScreenDebugMessage((uint64)Owner->GetUniqueID(), 0.7f, FColor::Cyan,
-						FString::Printf(TEXT("%s  V=%.1f км/год  AoA=%.1f°  газ=%.2f  Kтяги=%.2f  тяга=%.0f Н  опір=%.0f Н"),
-							*Owner->GetName(), SpeedKmh, GetAngleOfAttack(), CurrentThrottle,
-							LoggedThrustMultiplier, LoggedActualThrustN, DragN + InducedDragN));
 				}
 			}
 		}

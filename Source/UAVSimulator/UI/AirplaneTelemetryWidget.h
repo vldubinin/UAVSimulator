@@ -5,14 +5,16 @@
 #include "AirplaneTelemetryWidget.generated.h"
 
 class AAirplane;
+class ACesiumGeoreference;
+class UTextBlock;
 
 /**
  * Легкий віджет для відображення телеметрії. Зберігає посилання на спостережуваний AAirplane
  * (встановлюється через SetAirplane, за тим самим патерном, що й UCameraViewWidget) і надає
- * BlueprintPure геттери для висоти/швидкості/тангажу/крену. Створіть Widget Blueprint із цим
- * класом як батьківським, додайте TextBlock'и й прив'яжіть їхню властивість Text до цих геттерів
- * (обгорнувши вузлом Format Text для одиниць виміру/десяткових знаків) — сама розкладка
- * лишається в Blueprint, а не в нативному коді.
+ * BlueprintPure геттери для висоти/швидкості/тангажу/крену. Розкладка лишається в Widget
+ * Blueprint (WBP_AirplaneTelemetry), а самі значення оновлює NativeTick: у Blueprint достатньо
+ * додати TextBlock'и з іменами SpeedValueText / AltitudeValueText / ThrottleValueText /
+ * ThrustValueText / PitchValueText / RollValueText (всі опційні) — форматування та одиниці виміру (км/год, м, °) робить C++.
  */
 UCLASS()
 class UAVSIMULATOR_API UAirplaneTelemetryWidget : public UUserWidget
@@ -23,7 +25,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Telemetry")
 	void SetAirplane(AAirplane* InAirplane);
 
-	/** Висота ЛА над рівнем світу (метри), Z світової позиції актора. */
+	/**
+	 * Висота ЛА (метри) — геодезична висота з ACesiumGeoreference (та сама, що в сенсорі
+	 * drone_geo_position), тож коректна й далеко від початку координат Georeference, де сирий
+	 * Z актора не враховує кривину Землі. Якщо Georeference нема — резерв: Z актора відносно
+	 * початку світу.
+	 */
 	UFUNCTION(BlueprintPure, Category = "Telemetry")
 	float GetAltitudeMeters() const;
 
@@ -35,6 +42,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Telemetry")
 	float GetAirspeedKmh() const;
 
+	/** Положення дроселя (газу) двигуна, відсотки [0,100] — фактичне, після інерції розкручування. */
+	UFUNCTION(BlueprintPure, Category = "Telemetry")
+	float GetThrottlePercent() const;
+
+	/** Фактична тяга двигуна, ньютони. */
+	UFUNCTION(BlueprintPure, Category = "Telemetry")
+	float GetThrustN() const;
+
 	/** Кут тангажу (pitch) актора, градуси. */
 	UFUNCTION(BlueprintPure, Category = "Telemetry")
 	float GetPitchDeg() const;
@@ -44,6 +59,32 @@ public:
 	float GetRollDeg() const;
 
 protected:
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+
 	UPROPERTY(BlueprintReadOnly, Category = "Telemetry")
 	TObjectPtr<AAirplane> Airplane;
+
+private:
+	// Значення телеметрії — прив'язуються до однойменних TextBlock'ів (змінних) у
+	// WBP_AirplaneTelemetry. Усі опційні: відсутній TextBlock просто не оновлюється.
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> SpeedValueText;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> AltitudeValueText;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> ThrottleValueText;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> ThrustValueText;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> PitchValueText;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> RollValueText;
+
+	/** Лінькаво знайдений Georeference (потрібен лише для висоти). */
+	mutable TWeakObjectPtr<ACesiumGeoreference> CachedGeoreference;
 };

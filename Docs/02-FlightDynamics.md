@@ -195,7 +195,7 @@ Z=рискання), `IsMirror : bool`, `IsReverseDirection : bool`,
 4. Розкрутка двигуна: `CurrentThrottle = FInterpTo(..., EngineSpoolSpeed)`. Якщо
    `> 0.01`: `ActualThrust = MaxStaticThrust · CurrentThrottle · ThrustMultiplier`;
    `AddForceAtLocation(Forward · ActualThrust, ThrustLocationWorld)`.
-5. Якщо `bLogFlightDebug` (акумулятор 0.5 с) — друкує в `LogUAV` + на екран:
+5. Якщо `bLogFlightDebug` (акумулятор 0.5 с) — друкує в `LogUAV` (на екран більше не виводиться):
    швидкість (км/год, гор., верт.), AoA, газ ц/факт, K тяги, тяга (Н), опір
    поляри / індуктивний / разом (Н), підйом (Н), вага (Н), маса (кг), а також
    `[CoMDebug]` — позиція ЦМ і відстані до поверхонь.

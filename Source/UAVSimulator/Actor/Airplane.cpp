@@ -324,3 +324,13 @@ float AAirplane::GetAirspeedKmh() const
 {
 	return GetAirspeedMs() * 3.6f;
 }
+
+float AAirplane::GetThrottle01() const
+{
+	return FlightDynamics ? FlightDynamics->CurrentThrottle : 0.0f;
+}
+
+float AAirplane::GetThrustN() const
+{
+	return FlightDynamics ? FlightDynamics->CurrentThrustN : 0.0f;
+}
