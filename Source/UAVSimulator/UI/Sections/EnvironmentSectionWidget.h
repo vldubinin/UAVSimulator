@@ -13,6 +13,7 @@ class ACesium3DTileset;
 class AVolumetricCloud;
 class AEnvironmentActorManager;
 class ARainEffectManager;
+class AStreetLightsManager;
 
 UCLASS()
 class UAVSIMULATOR_API UEnvironmentSectionWidget : public USimulatorSectionWidget
@@ -90,6 +91,14 @@ protected:
 	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
 	TObjectPtr<USpinBox> SpinBoxRainIntensity;
 
+	// — Нічні вуличні вогні (AStreetLightsManager) ————————————————————————————————
+	// OptionalWidget = true: те саме застереження, що й для SpinBoxRainIntensity вище —
+	// спінбоксу ще нема в UMG Blueprint, доки його не додадуть вручну. 0 = вогні вимкнені,
+	// 100 = максимальна яскравість — єдине джерело правди, окремого чекбокса вкл/викл немає.
+
+	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
+	TObjectPtr<USpinBox> SpinBoxStreetLightsBrightness;
+
 	// — Резервні небо/сонце, що показуються, поки ландшафт Cesium вимкнено ————————
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Environment|DefaultSky")
@@ -129,6 +138,7 @@ private:
 	AVolumetricCloud*    GetVolumetricCloud() const;
 	AEnvironmentActorManager* GetEnvironmentActorManager() const;
 	ARainEffectManager*  GetRainEffectManager() const;
+	AStreetLightsManager* GetStreetLightsManager() const;
 
 	static const FString EnvironmentSaveSlotName;
 
@@ -146,6 +156,7 @@ private:
 	UFUNCTION() void OnCloudsSpeedCommitted(float Value, ETextCommit::Type CommitType);
 	UFUNCTION() void OnTerrainSurfaceChanged(bool bIsChecked);
 	UFUNCTION() void OnRainIntensityCommitted(float Value, ETextCommit::Type CommitType);
+	UFUNCTION() void OnStreetLightsBrightnessCommitted(float Value, ETextCommit::Type CommitType);
 
 	UFUNCTION() void OnConfigurateEnvActorsBtnClicked();
 

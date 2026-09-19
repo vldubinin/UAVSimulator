@@ -14,6 +14,7 @@
 #include "UAVSimulator/Save/EnvironmentSettingsSave.h"
 #include "UAVSimulator/Actor/EnvironmentActorManager.h"
 #include "UAVSimulator/Actor/RainEffectManager.h"
+#include "UAVSimulator/Actor/StreetLightsManager.h"
 #include "UAVSimulator/UAVSimulator.h"
 
 const FString UEnvironmentSectionWidget::EnvironmentSaveSlotName = TEXT("EnvironmentSettings");
@@ -41,6 +42,9 @@ void UEnvironmentSectionWidget::NativeConstruct()
 
 	if (SpinBoxRainIntensity)
 		SpinBoxRainIntensity->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnRainIntensityCommitted);
+
+	if (SpinBoxStreetLightsBrightness)
+		SpinBoxStreetLightsBrightness->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnStreetLightsBrightnessCommitted);
 
 	LoadAndApplySavedSettings();
 	SyncFromWorld();
@@ -81,6 +85,12 @@ void UEnvironmentSectionWidget::SyncFromWorld()
 	{
 		if (ARainEffectManager* Manager = GetRainEffectManager())
 			SpinBoxRainIntensity->SetValue(Manager->GetRainIntensity());
+	}
+
+	if (SpinBoxStreetLightsBrightness)
+	{
+		if (AStreetLightsManager* Manager = GetStreetLightsManager())
+			SpinBoxStreetLightsBrightness->SetValue(Manager->GetBrightness());
 	}
 }
 
@@ -296,6 +306,13 @@ void UEnvironmentSectionWidget::OnRainIntensityCommitted(float Value, ETextCommi
 	SaveCurrentSettings();
 }
 
+void UEnvironmentSectionWidget::OnStreetLightsBrightnessCommitted(float Value, ETextCommit::Type /*CommitType*/)
+{
+	if (AStreetLightsManager* Manager = GetStreetLightsManager())
+		Manager->SetBrightness(Value);
+	SaveCurrentSettings();
+}
+
 void UEnvironmentSectionWidget::ApplyTerrainSurfaceState(bool bEnabled)
 {
 	if (ACesium3DTileset* Tileset = GetTileset())
@@ -386,6 +403,14 @@ void UEnvironmentSectionWidget::LoadAndApplySavedSettings()
 	{
 		Manager->SetRainIntensity((float)Save->RainIntensity);
 	}
+
+	if (SpinBoxStreetLightsBrightness)
+		SpinBoxStreetLightsBrightness->SetValue((float)Save->StreetLightsBrightness);
+
+	if (AStreetLightsManager* Manager = GetStreetLightsManager())
+	{
+		Manager->SetBrightness((float)Save->StreetLightsBrightness);
+	}
 }
 
 void UEnvironmentSectionWidget::SaveCurrentSettings()
@@ -423,6 +448,11 @@ void UEnvironmentSectionWidget::SaveCurrentSettings()
 	if (ARainEffectManager* Manager = GetRainEffectManager())
 	{
 		Save->RainIntensity = Manager->GetRainIntensity();
+	}
+
+	if (AStreetLightsManager* Manager = GetStreetLightsManager())
+	{
+		Save->StreetLightsBrightness = Manager->GetBrightness();
 	}
 
 	UGameplayStatics::SaveGameToSlot(Save, EnvironmentSaveSlotName, /*UserIndex=*/0);
@@ -506,6 +536,26 @@ ARainEffectManager* UEnvironmentSectionWidget::GetRainEffectManager() const
 	// лишиться незаданим, доки його не признать вручну в редакторі (як EWZoneActorClass вище).
 	ARainEffectManager* Spawned = World->SpawnActor<ARainEffectManager>();
 	UE_LOG(LogUAV, Log, TEXT("EnvironmentSectionWidget::GetRainEffectManager: no ARainEffectManager in level — spawned %s"),
+		Spawned ? *Spawned->GetName() : TEXT("FAILED"));
+	return Spawned;
+}
+
+AStreetLightsManager* UEnvironmentSectionWidget::GetStreetLightsManager() const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+		return nullptr;
+
+	if (AStreetLightsManager* Existing = Cast<AStreetLightsManager>(
+			UGameplayStatics::GetActorOfClass(World, AStreetLightsManager::StaticClass())))
+	{
+		return Existing;
+	}
+
+	// У рівні ще немає розміщеного менеджера — спінбоксу нема кого перемикати. StreetLightsSystem
+	// лишиться незаданим, доки його не признать вручну в редакторі (як RainSystem вище).
+	AStreetLightsManager* Spawned = World->SpawnActor<AStreetLightsManager>();
+	UE_LOG(LogUAV, Log, TEXT("EnvironmentSectionWidget::GetStreetLightsManager: no AStreetLightsManager in level — spawned %s"),
 		Spawned ? *Spawned->GetName() : TEXT("FAILED"));
 	return Spawned;
 }

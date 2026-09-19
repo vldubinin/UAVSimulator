@@ -409,7 +409,8 @@ const TArray<FCustomSurroundingObject>& UCustomSurroundingsScannerComponent::Sca
 		// UCesiumSurroundingsScannerComponent).
 		for (const TPair<FString, FCustomSurroundingObject>& Pair : ObjectStorage)
 		{
-			DrawDebugLine(World, Owner->GetActorLocation(), Pair.Value.WorldLocationMeters * 100.0, RayDebugColor, false, -1.0f);
+			if (bDrawRayDebug)
+				DrawDebugLine(World, Owner->GetActorLocation(), Pair.Value.WorldLocationMeters * 100.0, RayDebugColor, false, -1.0f);
 
 			if (bDrawObjectBBox)
 				DrawObjectBBoxDebug(Pair.Value.BBoxCornersWorldMeters);

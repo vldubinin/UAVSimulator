@@ -154,6 +154,10 @@ public:
 	// Малюються лише поки bSensorEnabled — true, тож вимикаються разом із компонентом (так само,
 	// як JSON-навантаження сенсора в BuildSensorFrame), а не рендеряться завжди.
 
+	/** Малює відладочний промінь від поточної позиції літака до кожного видимого об'єкта (див. RayDebugColor). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Custom Surroundings|Debug")
+	bool bDrawRayDebug = true;
+
 	/** Колір відладочного променя, що малюється від поточної позиції літака до кожного видимого об'єкта. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Custom Surroundings|Debug")
 	FColor RayDebugColor = FColor::Yellow;

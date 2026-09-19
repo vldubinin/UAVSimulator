@@ -460,7 +460,8 @@ const TArray<FCesiumSurroundingObject>& UCesiumSurroundingsScannerComponent::Sca
 			// (LifeTime -1.f, та сама угода про оновлення в один кадр, що й у стрілках сил
 			// USubAerodynamicSurfaceSC), тому він ніколи не накопичується у "віяло" минулих
 			// позицій — завжди вказує від поточної позиції літака до об'єкта.
-			DrawDebugLine(World, Owner->GetActorLocation(), Pair.Value.HitLocationMeters * 100.0, RayDebugColor, false, -1.0f);
+			if (bDrawRayDebug)
+				DrawDebugLine(World, Owner->GetActorLocation(), Pair.Value.HitLocationMeters * 100.0, RayDebugColor, false, -1.0f);
 		}
 	}
 

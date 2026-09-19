@@ -1,0 +1,320 @@
+#include "StreetLightsManager.h"
+#include "UAVSimulator/UAVSimulator.h"
+#include "UAVSimulator/Actor/Airplane.h"
+#include "UAVSimulator/Components/CustomSurroundingsScannerComponent.h"
+
+#include "Kismet/GameplayStatics.h"
+#include "DrawDebugHelpers.h"
+
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraComponent.h"
+#include "NiagaraDataInterfaceArrayFunctionLibrary.h"
+
+namespace
+{
+	// User Parameter (Float, [0,1]), який має бути експонований у StreetLightsSystem і
+	// використовуватись (типово — множником на розмір/яскравість спрайта) — інакше
+	// SetBrightness() ні на що не вплине, той самий принцип, що IntensityParameterName в
+	// ARainEffectManager.
+	const FName BrightnessParameterName(TEXT("Brightness"));
+
+	// Niagara Array Data Interface (Vector3), у який штовхається плаский масив позицій вогнів
+	// (світові см) — той самий підхід, що WakePositions у AeroVisualizerComponent.
+	const FName LightPositionsParameterName(TEXT("LightPositions"));
+
+	// User Parameter (Float) — кількість вогнів / NiagaraParticleLifetimeSeconds, штовхається
+	// сюди, бо User-параметри в Niagara read-only в графі (навіть проста арифметика над
+	// довжиною масиву там недоступна) — див. коментар StreetLightsSystem у .h.
+	const FName TargetSpawnRateParameterName(TEXT("TargetSpawnRate"));
+}
+
+AStreetLightsManager::AStreetLightsManager()
+{
+	PrimaryActorTick.bCanEverTick = true;
+
+	USceneComponent* DefaultRoot = CreateDefaultSubobject<USceneComponent>(TEXT("DefaultRoot"));
+	RootComponent = DefaultRoot;
+}
+
+void AStreetLightsManager::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (StreetLightsSystem)
+	{
+		// bAutoDestroy=false — часом життя керує сам менеджер (EndPlay), як RainSystem у
+		// ARainEffectManager. bAutoActivate=false — активація/деактивація йде виключно через
+		// SetBrightness().
+		NiagaraComp = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+			GetWorld(), StreetLightsSystem, GetActorLocation(), FRotator::ZeroRotator, FVector(1.0f),
+			/*bAutoDestroy*/ false, /*bAutoActivate*/ false, ENCPoolMethod::None, /*bPreCullCheck*/ true);
+	}
+	else
+	{
+		UE_LOG(LogUAV, Warning, TEXT("StreetLightsManager: StreetLightsSystem не задано — нічого не спавню"));
+	}
+
+	// Актор міг бути вручну розміщений у рівні з ненульовою Brightness (EditAnywhere) — застосовуємо
+	// її тепер, коли NiagaraComp уже існує (SetBrightness(), викликаний до BeginPlay ззовні, застав
+	// би NiagaraComp ще null).
+	if (Brightness > 0.0f)
+	{
+		SetBrightness(Brightness);
+	}
+}
+
+void AStreetLightsManager::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	// Дешево: лише читання вже обчисленого UCustomSurroundingsScannerComponent::LatestScanResults
+	// (фактичне сканування/ground-snap виконує сам сканер).
+	Scan();
+
+	if (bLightPositionsDirty)
+	{
+		RebuildNiagaraArrays();
+		bLightPositionsDirty = false;
+	}
+
+	if (bDrawDebugFootprints)
+	{
+		UWorld* World = GetWorld();
+		for (const TPair<FString, FStreetLightBuilding>& Pair : TrackedBuildingsMap)
+		{
+			const FStreetLightBuilding& Building = Pair.Value;
+			const int32 CornerCount = Building.FootprintCornersWorldMeters.Num();
+			for (int32 CornerIndex = 0; CornerIndex < CornerCount; ++CornerIndex)
+			{
+				const FVector From = Building.FootprintCornersWorldMeters[CornerIndex] * 100.0;
+				const FVector To   = Building.FootprintCornersWorldMeters[(CornerIndex + 1) % CornerCount] * 100.0;
+				DrawDebugLine(World, From, To, FootprintDebugColor, false, -1.0f);
+			}
+			for (const FVector& LightPositionMeters : Building.LightPositionsWorldMeters)
+				DrawDebugSphere(World, LightPositionMeters * 100.0, 100.0f, 8, LightDebugColor, false, -1.0f);
+		}
+	}
+}
+
+void AStreetLightsManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (NiagaraComp)
+	{
+		NiagaraComp->DestroyComponent();
+	}
+
+	Super::EndPlay(EndPlayReason);
+}
+
+void AStreetLightsManager::SetBrightness(float NewBrightness)
+{
+	Brightness = FMath::Clamp(NewBrightness, 0.0f, 100.0f);
+
+	UE_LOG(LogUAV, Log, TEXT("StreetLightsManager::SetBrightness: %.1f"), Brightness);
+
+	if (!NiagaraComp)
+		return;
+
+	if (Brightness <= 0.0f)
+	{
+		NiagaraComp->Deactivate();
+		return;
+	}
+
+	NiagaraComp->SetFloatParameter(BrightnessParameterName, Brightness / 100.0f);
+	NiagaraComp->Activate();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Сканування — споживає вже перевірений робочий UCustomSurroundingsScannerComponent (лениво
+// доданий на кожен AAirplane) замість власного sweep/метадані. Див. коментар класу в .h.
+// ─────────────────────────────────────────────────────────────────────────────
+
+void AStreetLightsManager::Scan()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+		return;
+
+	TArray<AActor*> Airplanes;
+	UGameplayStatics::GetAllActorsOfClass(World, AAirplane::StaticClass(), Airplanes);
+
+	TArray<FVector> AirplaneLocationsCm;
+	TMap<FString, TArray<FVector>> FreshFootprints; // ObjectID -> BBoxCornersWorldMeters (метри)
+
+	for (AActor* Airplane : Airplanes)
+	{
+		if (!Airplane)
+			continue;
+
+		AirplaneLocationsCm.Add(Airplane->GetActorLocation());
+
+		UCustomSurroundingsScannerComponent* Scanner = GetOrCreateScannerFor(Airplane);
+		if (!Scanner)
+			continue;
+
+		for (const FCustomSurroundingObject& Object : Scanner->LatestScanResults)
+		{
+			if (!Object.bGroundHeightResolved || Object.BBoxCornersWorldMeters.Num() < 3)
+				continue; // footprint ще не прив'язано до рельєфу — почекаємо наступного скану
+
+			FreshFootprints.Add(Object.ObjectID, Object.BBoxCornersWorldMeters);
+		}
+	}
+
+	int32 NewlyAdded = 0;
+	for (const TPair<FString, TArray<FVector>>& Pair : FreshFootprints)
+	{
+		if (TrackedBuildingsMap.Contains(Pair.Key))
+			continue; // вже відстежується — дані заморожені, той самий принцип, що ObjectStorage
+
+		FStreetLightBuilding Building;
+		if (BuildLightsForObject(Pair.Key, Pair.Value, Building))
+		{
+			AddBuilding(Pair.Key, Building);
+			++NewlyAdded;
+		}
+	}
+
+	RunValiditySweep(AirplaneLocationsCm);
+
+	if (NewlyAdded > 0)
+	{
+		UE_LOG(LogUAV, Log, TEXT("StreetLightsManager::Scan: %d літак(и), %d об'єктів від сканера, %d нових, усього відстежується %d"),
+			Airplanes.Num(), FreshFootprints.Num(), NewlyAdded, TrackedBuildingsMap.Num());
+	}
+}
+
+UCustomSurroundingsScannerComponent* AStreetLightsManager::GetOrCreateScannerFor(AActor* Airplane)
+{
+	if (!Airplane)
+		return nullptr;
+
+	if (TWeakObjectPtr<UCustomSurroundingsScannerComponent>* Found = OwnScannersByAirplane.Find(Airplane))
+	{
+		if (Found->IsValid())
+			return Found->Get();
+		OwnScannersByAirplane.Remove(Airplane); // застарілий запис (літак чи компонент знищено) — знайдемо/створимо знову нижче
+	}
+
+	// Використовуємо вже наявний сканер на літаку (типово — заздалегідь розміщений на
+	// Blueprint, для реальної сенсорної шини), якщо він є: тоді вогні автоматично йдуть із ТИХ
+	// САМИХ даних/налаштувань (ObjectsJson, радіус тощо), які вже видно на екрані через
+	// debug-промені цього сканера — жодного дублювання конфігурації. Свій ScanRadiusMeters/
+	// GroundTraceChannel і власні debug-прапорці застосовуємо лише тоді, коли на літаку
+	// взагалі ще нема жодного (створюємо з нуля).
+	UCustomSurroundingsScannerComponent* Scanner = Airplane->FindComponentByClass<UCustomSurroundingsScannerComponent>();
+	if (!Scanner)
+	{
+		Scanner = NewObject<UCustomSurroundingsScannerComponent>(Airplane, TEXT("StreetLights_CustomScanner"));
+		if (!Scanner)
+			return nullptr;
+
+		Scanner->ScanRadiusMeters   = ScannerScanRadiusMeters;
+		Scanner->GroundTraceChannel = CollisionChannel;
+		Scanner->RegisterComponent();
+
+		UE_LOG(LogUAV, Log, TEXT("StreetLightsManager: на %s ще не було UCustomSurroundingsScannerComponent — додав новий (ObjectsJson — лише заглушка, заповніть реальними будівлями)"),
+			*Airplane->GetName());
+	}
+
+	OwnScannersByAirplane.Add(Airplane, Scanner);
+	return Scanner;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Розміщення вогнів — з уже готового footprint сканера (реальні чотири кути, прив'язані до
+// рельєфу), не з обчисленої чи семпльованої позиції.
+// ─────────────────────────────────────────────────────────────────────────────
+
+bool AStreetLightsManager::BuildLightsForObject(const FString& Key, const TArray<FVector>& Corners, FStreetLightBuilding& OutBuilding) const
+{
+	OutBuilding.ObjectID = Key;
+	OutBuilding.FootprintCornersWorldMeters = Corners;
+
+	TArray<FVector> PerimeterPoints;
+	for (int32 CornerIndex = 0; CornerIndex < Corners.Num(); ++CornerIndex)
+	{
+		const FVector& From = Corners[CornerIndex];
+		const FVector& To   = Corners[(CornerIndex + 1) % Corners.Num()];
+		const double EdgeLen = FVector::Dist(From, To);
+		const int32 PointCount = FMath::Max(1, FMath::FloorToInt(EdgeLen / LightSpacingMeters));
+		for (int32 PointIndex = 0; PointIndex < PointCount; ++PointIndex)
+			PerimeterPoints.Add(FMath::Lerp(From, To, (double)PointIndex / PointCount));
+	}
+
+	OutBuilding.LightPositionsWorldMeters.Reset(PerimeterPoints.Num());
+	for (const FVector& Point : PerimeterPoints)
+		OutBuilding.LightPositionsWorldMeters.Add(Point + FVector::UpVector * LightHeightMeters);
+
+	return OutBuilding.LightPositionsWorldMeters.Num() > 0;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TrackedBuildingsMap — єдині дві операції, що його змінюють (той самий ObjectStorage-патерн,
+// що в UCesiumSurroundingsScannerComponent/UCustomSurroundingsScannerComponent).
+// ─────────────────────────────────────────────────────────────────────────────
+
+void AStreetLightsManager::AddBuilding(const FString& Key, const FStreetLightBuilding& Building)
+{
+	TrackedBuildingsMap.Add(Key, Building);
+	bLightPositionsDirty = true;
+}
+
+void AStreetLightsManager::RemoveBuilding(const FString& Key)
+{
+	TrackedBuildingsMap.Remove(Key);
+	bLightPositionsDirty = true;
+}
+
+void AStreetLightsManager::RunValiditySweep(const TArray<FVector>& AirplaneLocationsCm)
+{
+	if (AirplaneLocationsCm.Num() == 0)
+		return; // жодного літака цього проходу — нічого не прибираємо (можливо, ще не заспавнили)
+
+	const double MaxDistanceCm = MaxTrackingDistanceMeters * 100.0;
+
+	TArray<FString> StaleKeys;
+	for (const TPair<FString, FStreetLightBuilding>& Pair : TrackedBuildingsMap)
+	{
+		const FVector BuildingCenterCm = Pair.Value.FootprintCornersWorldMeters[0] * 100.0;
+
+		bool bNearAnyAirplane = false;
+		for (const FVector& AirplaneLocationCm : AirplaneLocationsCm)
+		{
+			if (FVector::DistXY(BuildingCenterCm, AirplaneLocationCm) <= MaxDistanceCm)
+			{
+				bNearAnyAirplane = true;
+				break;
+			}
+		}
+
+		if (!bNearAnyAirplane)
+			StaleKeys.Add(Pair.Key);
+	}
+
+	for (const FString& Key : StaleKeys)
+		RemoveBuilding(Key);
+}
+
+void AStreetLightsManager::RebuildNiagaraArrays()
+{
+	TrackedBuildings.Reset();
+	TrackedBuildings.Reserve(TrackedBuildingsMap.Num());
+
+	TArray<FVector> FlatLightPositionsCm;
+	for (const TPair<FString, FStreetLightBuilding>& Pair : TrackedBuildingsMap)
+	{
+		TrackedBuildings.Add(Pair.Value);
+		for (const FVector& PositionMeters : Pair.Value.LightPositionsWorldMeters)
+			FlatLightPositionsCm.Add(PositionMeters * 100.0);
+	}
+
+	if (NiagaraComp)
+	{
+		UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(NiagaraComp, LightPositionsParameterName, FlatLightPositionsCm);
+
+		const float TargetSpawnRate = FlatLightPositionsCm.Num() / FMath::Max(NiagaraParticleLifetimeSeconds, 0.1f);
+		NiagaraComp->SetFloatParameter(TargetSpawnRateParameterName, TargetSpawnRate);
+	}
+}

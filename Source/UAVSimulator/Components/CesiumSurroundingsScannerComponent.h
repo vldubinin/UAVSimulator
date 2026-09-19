@@ -127,6 +127,10 @@ public:
 
 	// ── Відладочні промені ─────────────────────────────────────────────────────────────
 
+	/** Малює відладочний промінь від поточної позиції літака до кожного сканованого об'єкта (див. RayDebugColor). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Debug")
+	bool bDrawRayDebug = true;
+
 	/** Колір відладочного променя, що малюється від поточної позиції літака до кожного сканованого об'єкта. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium Surroundings|Debug")
 	FColor RayDebugColor = FColor::Yellow;

@@ -27,7 +27,7 @@
 | [10-Aero-Data-Pipeline.md](10-Aero-Data-Pipeline.md) | Конвеєр аеродинамічних полярів: OpenVSP → XFoil / SU2 → екстраполяція 360° → плагін `AirfoilImporter` → `DataTable` |
 | [11-External-Tooling.md](11-External-Tooling.md) | Зовнішні Python-інструменти: ZMQ-сімейство `Tools/TestingPlatform/` (наведення на слабкому залізі, автопілот «коло», розмітка мапи, запис датасетів позиціонування) і файлове `Tools/ProjectTools/` (інструмент карти) |
 | [12-Niagara_VLM_Setup.md](12-Niagara_VLM_Setup.md) | Покрокове налаштування Niagara-системи візуалізації вихорового сліду (VLM / Біо-Савар на GPU) |
-| [13-Environment-Actors.md](13-Environment-Actors.md) | Об'єкти середовища: `AEnvironmentActorManager`, зони РЕБ (`AEWZoneActor`), вітрові вектори (`AWindActor`, реально впливають на аеродинаміку), дощ (`ARainEffectManager`, нульова зв'язаність з `AAirplane`), інструмент карти `configurate_env_actors.py`, формат `env_actors.json` |
+| [13-Environment-Actors.md](13-Environment-Actors.md) | Об'єкти середовища: `AEnvironmentActorManager`, зони РЕБ (`AEWZoneActor`), вітрові вектори (`AWindActor`, реально впливають на аеродинаміку), дощ (`ARainEffectManager`, нульова зв'язаність з `AAirplane`), нічні вуличні вогні (`AStreetLightsManager`, подієве виявлення будівель через `ICesium3DTilesetLifecycleEventReceiver`), інструмент карти `configurate_env_actors.py`, формат `env_actors.json` |
 
 ## Швидкий старт для читача коду
 

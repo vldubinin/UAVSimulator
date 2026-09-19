@@ -1,4 +1,4 @@
-# 13 — Об'єкти середовища: РЕБ-зони, вітер та дощ
+# 13 — Об'єкти середовища: РЕБ-зони, вітер, дощ та вуличні вогні
 
 Паралельна, опційна система наземних/просторових об'єктів середовища, що
 впливають на політ і/або сенсори — незалежна від аеродинамічної ієрархії
@@ -219,6 +219,137 @@ Parameter з точно такою назвою (`Intensity`, тип Float) і �
 в `UEnvironmentSettingsSave::RainIntensity`. `UEnvironmentSectionWidget::
 GetRainEffectManager()` лениво спавнить `ARainEffectManager`, якщо в рівні
 його ще нема — так само, як `GetEnvironmentActorManager()`.
+
+## Нічні вуличні вогні — `AStreetLightsManager`
+
+`Actor/StreetLightsManager.h/.cpp`. На відміну від `AEnvironmentActorManager`
+(конфігурація через `env_actors.json`) і `ARainEffectManager` (глобальний,
+без гео-прив'язки), цей менеджер не реалізує власне виявлення об'єктів —
+він лениво додає `UCustomSurroundingsScannerComponent` на кожен `AAirplane`
+у світі (якщо його там ще нема) і читає вже готові результати. Розміщується
+вручну в рівні (або лениво спавниться
+`UEnvironmentSectionWidget::GetStreetLightsManager()`, так само як
+`GetRainEffectManager()`) — один менеджер на рівень.
+
+### Виявлення — споживання `UCustomSurroundingsScannerComponent`
+
+**Історія:** попередні версії цього класу самі обчислювали або сканували
+позицію будівлі — (1) з lat/long Cesium-метаданих, обчислюючи світову
+позицію наперед і трейсячи туди для перевірки (систематично проминало все:
+кривина Землі на віддалених від Georeference-початку точках, LOD-неточність
+метаданих); (2) власна сітка вертикальних трейсів навколо XY літака
+(проблема була в тому, що Cesium підвантажує тайли попереду з затримкою —
+сітка, центрована на поточній позиції, майже завжди застає нове лише
+позаду); (3) `UCesiumSurroundingsScannerComponent` (замітає конус огляду
+камери, тож бачить те, що попереду, але дає лише сиру точку влучання без
+готового footprint і без гарантії, що тайли попереду вже мають колізію).
+
+**Поточний підхід** — `GetOrCreateScannerFor()` знаходить (або лениво додає
+й реєструє) `UCustomSurroundingsScannerComponent` на кожному `AAirplane`, із
+застосованими `ScannerScanRadiusMeters`/`CollisionChannel`. Цей компонент
+сам прив'язує кожен із чотирьох кутів свого `bbox` до поверхні тайла Cesium
+(`ResolveGroundHeights`) і віддає в `LatestScanResults` уже ГОТОВИЙ
+footprint (`FCustomSurroundingObject::BBoxCornersWorldMeters`) — жодного
+трейсу тут більше не потрібно.
+
+**Важливо:** джерело об'єктів `UCustomSurroundingsScannerComponent` —
+**не** автоматичне "усі будівлі поруч", а фіксований `ObjectsJson` (дефолт —
+заглушка з двох прикладних будівель, див. `Docs/05-SurroundingsScanners.md`).
+Щоб вогні з'являлися біля реальних будівель на маршруті літака,
+`ObjectsJson` щойно заспавненого сканера потрібно заповнити вручну (напр.
+через деталі компонента на Blueprint літака, або призначивши власний
+підклас/дефолт) реальними id/bbox — `AStreetLightsManager` сам туди нічого
+не генерує.
+
+### Footprint і розміщення вогнів
+
+`Scan()` (`Tick()`, щокадру — сама робота дешева, читає вже обчислений
+масив): для кожного `AAirplane` — `GetOrCreateScannerFor()`, потім кожен
+об'єкт `LatestScanResults` із `bGroundHeightResolved` зливається за своїм
+`ObjectID` у `TrackedBuildingsMap` (якщо ще не відстежується).
+`BuildLightsForObject()` розставляє вогні вздовж периметра готового
+footprint (`BBoxCornersWorldMeters`) із кроком `LightSpacingMeters` (дефолт
+18 м); висота кожного — Z відповідної точки периметра (уже на рівні
+рельєфу, інтерпольований між кутами) + `LightHeightMeters` (дефолт 4 м).
+Жодного додаткового ground-trace тут не потрібно — сканер уже все прив'язав.
+
+### Видалення — відстань від літака
+
+Наприкінці кожного `Scan()` `RunValiditySweep()` прибирає будівлі, чий
+центр footprint зараз далі за `MaxTrackingDistanceMeters` (дефолт 2500 м)
+від УСІХ поточних `AAirplane` — коли літак відлітає, вогні там більше не
+актуальні незалежно від внутрішнього стану сканера (той самий принцип, що
+вже застосовує `ARainEffectManager` для дощу навколо літака).
+
+### Рендер і керування
+
+Один постійний `UNiagaraComponent` (`StreetLightsSystem`, спавниться
+`UNiagaraFunctionLibrary::SpawnSystemAtLocation` з `bAutoDestroy=false`, як
+`RainSystem` у `ARainEffectManager`) — `RebuildNiagaraArrays()` штовхає
+плаский `TArray<FVector>` позицій усіх вогнів через
+`UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector`
+(User Parameter `"LightPositions"`, той самий підхід, що `WakePositions` у
+`UAeroVisualizerComponent`) щоразу, коли `TrackedBuildingsMap` змінюється —
+масштабується на тисячі вогнів без per-light акторів/компонентів.
+
+**`Brightness`** (`SetBrightness()`/`GetBrightness()`, [0,100], дефолт 0) —
+єдине поле керування, той самий принцип "інтенсивність і вимикач в одному",
+що `RainIntensity`: `0` деактивує `UNiagaraComponent`
+(`NiagaraComp->Deactivate()`), `>0` активує і прокидає User Parameter
+`"Brightness"` (Float, [0,1] — `Brightness/100`). `StreetLightsSystem` має
+експонувати цей параметр і використовувати його (типово — множником на
+розмір/яскравість спрайта), інакше зміна значення ні на що не вплине.
+Керується єдиним `SpinBoxStreetLightsBrightness` у `UEnvironmentSectionWidget`
+(нема окремого чекбокса вкл/викл), персиститься в
+`UEnvironmentSettingsSave::StreetLightsBrightness`.
+`UEnvironmentSectionWidget::GetStreetLightsManager()` лениво спавнить
+`AStreetLightsManager`, якщо в рівні його ще нема — так само, як
+`GetRainEffectManager()`.
+
+### `NS_StreetLights` (`Content/FX/NS_StreetLights`)
+
+Клонований з `NS_VLMFlow` (щоб успадкувати вже робочий GPU sprite-рендерер),
+очищений від хвильових модулів вихорового сліду й переналаштований під один
+User Parameter `Brightness` (Float, [0,1]) і один масив
+`LightPositions` (`NiagaraDataInterfaceArrayFloat3`). Три знахідки з
+практичної розбудови через `unreal-mcp`, важливі для будь-якого майбутнього
+редагування цього ассету:
+
+1. **Custom Hlsl-вирази не можуть викликати функції Data Interface масивів
+   на User-параметрі** — `User.LightPositions.Get(...)`/`.Length()` валять
+   компіляцію (`GetDuplicatedDataInterfaceCDOForClass failed` /
+   `Cannot Set external constant`), навіть якщо параметр коректно
+   "зустрінутий" раніше в графі. Робочий шлях — лише штатні dynamic input
+   ассети: **`Position`** входу `InitializeParticle` встановлено на
+   `SelectVectorFromArray` (`/Niagara/DynamicInputs/Arrays/`), чий власний
+   вхід `Vector Selection Array` прив'язаний (Linked Variable) до
+   `User.LightPositions`.
+2. **`SelectVectorFromArray` вибирає ВИПАДКОВИЙ елемент масиву на кожен
+   спавн** — точного відповідника "елемент масиву за `ExecIndex()`" серед
+   штатних dynamic input ассетів немає. Тому емітер працює через
+   **безперервний `SpawnRate`** (не `SpawnBurst_Instantaneous`) із
+   фіксованим `Lifetime` (`InitializeParticle::Lifetime = 20` — має
+   збігатися з `AStreetLightsManager::NiagaraParticleLifetimeSeconds`):
+   постійна плинність частинок дає статистично прийнятне покриття всіх
+   позицій із часом, ціною відсутності гарантії "рівно один вогонь на
+   будівлю в кожен момент" — прийнятний компроміс для декоративної
+   підсвітки, не для задач, де важлива точна відповідність.
+3. **User-параметри — read-only в графі**, тому навіть проста арифметика
+   (`Кількість / Lifetime` для `SpawnRate`) над `User.LightPositions`
+   недоступна зсередини Niagara. Замість цього `AStreetLightsManager`
+   рахує це в C++ (`RebuildNiagaraArrays()`) і штовхає готове число як
+   ще один plain User Parameter, **`TargetSpawnRate`** (Float,
+   `SpawnRate`-модуль прив'язаний до нього через Linked Variable) —
+   `SpawnRate`-модуль сам ніколи не звертається до масиву напряму.
+
+`Color` (`InitializeParticle`, Direct Set) — HLSL-вираз
+`float4(1.0, 0.75, 0.4, 1.0) * User.Brightness` (плоске звернення до
+User-параметра в Custom Hlsl працює нормально — ламаються лише виклики
+функцій Data Interface, не самі значення). `Uniform Sprite Size = 40`
+(фіксований, не залежить від Brightness — яскравість "вимикання" вже дає
+`Brightness=0` через колір/деактивацію компонента). Рендерер — стандартний
+`DefaultSpriteMaterial`; для продакшн-вигляду варто замінити на власний
+емісивний матеріал вуличного ліхтаря.
 
 ## Структури-конфігурації
 

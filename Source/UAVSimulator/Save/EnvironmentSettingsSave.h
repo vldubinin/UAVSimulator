@@ -73,4 +73,10 @@ public:
 	 *  0 = дощу нема взагалі — єдиний вимикач, окремого bool-прапорця нема). */
 	UPROPERTY(BlueprintReadWrite)
 	double RainIntensity = 1.0;
+
+	/** AStreetLightsManager::Brightness — яскравість нічних вуличних вогнів [0,100]; 0 —
+	 *  вимкнено (єдиний вимикач, окремого bool-прапорця нема, той самий принцип, що RainIntensity).
+	 *  Дефолт 0 — безпечний старт для великих міст без несподіваного навантаження при першому запуску. */
+	UPROPERTY(BlueprintReadWrite)
+	double StreetLightsBrightness = 0.0;
 };
