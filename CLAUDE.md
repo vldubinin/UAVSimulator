@@ -100,6 +100,7 @@ Getters backed by `UUAVPhysicsStateComponent` (updated at the top of each tick):
 - `GetAngleOfAttack()` — body-level AoA in degrees (velocity vs. actor forward)
 - `GetLeftWingtipWorldPosition()` / `GetRightWingtipWorldPosition()` — world-space wingtip positions
 - `GetVortexWakeLines()` — `const TArray<TArray<FTrailingVortexNode>>&`, the shed trailing-vortex wake (consumed by `UAeroVisualizerComponent`)
+- `CurrentThrottle` (actual throttle after engine spool-up) / `CurrentThrustN` (actual engine thrust, N; `0` until the engine spools past 0.01) — read via `AAirplane::GetThrottle01()` / `GetThrustN()` for the HUD
 - `GetControlState()` — current `FControlInputState`
 - `GetDesignWingSpanCm()` — raw `|Offset.Y|` sum over `Surfaces[0].SurfaceForm`, **before** actor scale (used for `CalibrationSettings` auto-rescale)
 
@@ -121,7 +122,7 @@ All three are pushed *after* all actors are spawned and possessed (`StartSimulat
 1. **`BeginPlay`** — for each `UAerodynamicSurfaceSC` whose name contains `Wing` or `TailHorizontal`, spawns a `UNiagaraComponent` (`FlowVisualizerSystem`, `bAutoActivate = false`), sets `SurfaceSpan` / `ProbeHeight` float params from the surface's span.
 2. **`TickComponent`** → `UpdateNiagaraWakeData()`: flattens `GetVortexWakeLines()` into `TArray<FVector> WakePositions` + `TArray<float> WakeGammas` (with an end-of-line sentinel node per line), pushed via `UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector/Float`.
 
-Manual Niagara-system setup (GPU sim, Biot-Savart Custom HLSL) — `Docs/Niagara_VLM_Setup.md`.
+All Niagara effects (`NS_VLMFlow` wake, `NS_Rain`, `NS_StreetLights`: purpose, User Parameter contracts, how they work, manual asset setup incl. the Biot-Savart Custom HLSL, pitfalls) — `Docs/12-Niagara.md`.
 
 ### Simulator Modes (AUAVSimulatorGameModeBase)
 
@@ -188,13 +189,21 @@ Tool actors under `DatasetGen/`, driven from the menu's *Synthetic Data* section
 |---------|------------------|----------|
 | `UScenarioSectionWidget` | `ScenarioSettings` → `UScenarioSettingsSave` | GameMode mode / slot name / offset / camera & sensors `EOnboardTargetMode` |
 | `USensorsSectionWidget` | `SensorSettings` → `USensorSettingsSave` | one `UCheckBox` per sensor (four are `OptionalWidget`) |
-| `UEnvironmentSectionWidget` | `EnvironmentSettings` → `UEnvironmentSettingsSave` | Cesium `Georeference` / `SunSky` / `Tileset` + fallback sky/sun |
+| `UEnvironmentSectionWidget` | `EnvironmentSettings` → `UEnvironmentSettingsSave` | Cesium `Georeference` / `SunSky` / `Tileset` + fallback sky/sun, stars (`MI_Stars`, procedural 3D-hash starfield in `M_Stars` — jittered in-cell star positions + integer hash to avoid moire circles at high density; see `Docs/13-Environment-Actors.md`) and clouds (`VolumetricCloud` MID) spin boxes, `ARainEffectManager` (`SpinBoxRainIntensity`), `AStreetLightsManager` (`SpinBoxStreetLightsBrightness` 0–100 + `ComboBoxStreetLightsDataSource` Custom/Cesium), `AEnvironmentActorManager` map tool button |
 | `USyntheticDataSectionWidget` | `SyntheticDataSettings` → `USyntheticDataSettingsSave` | the four `DatasetGen` actors |
 | `UGlobalSectionWidget` | `GlobalSettings` → `UGlobalSettingsSave` | `SensorWarmupFrameCount` (warm-up logic not implemented yet) |
 
 `UDronesSectionWidget` — Blueprint-only content, not in the switcher.
 
-HUD widgets (on the flown pawn only): `UAirplaneTelemetryWidget` (`SetAirplane()` + `BlueprintPure` altitude/speed/pitch/roll getters), `UCameraViewWidget` (`SetAirplane()`; texture bound to `GetCameraOutputTexture()` in the UMG Blueprint).
+All UMG text in `Content/UI/**` is Ukrainian (technical IDs like `Топік: camera_tp` stay as-is); `ComboBoxString` option strings are added from C++ and are still English.
+
+### Environment Actors (rain, night street lights, EW zones, wind)
+
+Level-placed managers driven by single fields of `UEnvironmentSectionWidget`, independent of `AAirplane` (details: `Docs/13-Environment-Actors.md`):
+- **`AStreetLightsManager`** (`Actor/StreetLightsManager.h/.cpp`) — night street lights on the Cesium surface. No detection of its own: `Scan()` (every tick) reads scanner results from every `AAirplane`, chosen by `EStreetLightsDataSource` (`Entity/StreetLightsDataSource.h`, `SetDataSource()` — switching clears all tracked lights): **`Custom`** (default) → `UCustomSurroundingsScannerComponent::LatestScanResults` (ground-snapped `BBoxCornersWorldMeters` footprint; component is lazily added if the airplane has none); **`Cesium`** → `UCesiumSurroundingsScannerComponent::LatestScanResults` (only an already-present one — needs the onboard camera; metadata has no outline, so a **random-size rectangle** — `CesiumFootprintMin/MaxSizeMeters`, random yaw, seeded by `ObjectID` hash — is built around `HitLocationMeters`). `BuildLightsForObject()` reorders the 4 corners to the min-perimeter cycle (the scanner's `x_min→x_max→y_min→y_max` order can self-intersect → "bow-tie"), then places lights along the perimeter every `LightSpacingMeters` at `LightHeightMeters`. Tracked in `TrackedBuildingsMap` keyed by `ObjectID`; removal only if `MaxTrackingDistanceMeters > 0` (default 0 = never — every add/remove resets Niagara and lights blink). Rendering: one `UNiagaraComponent` (`NS_StreetLights`, GPU burst: `User.LightPositions` array + `User.TargetSpawnCount` + `User.Brightness`, particle lifetime 86400 s); `RebuildNiagaraArrays()` (throttled by `MinRebuildIntervalSeconds`) pushes the array, calls `Activate(true)`, and sets `SetSystemFixedBounds()` around all lights + `SetAllowScalability(false)` — without fixed bounds a GPU system is culled by a ±100 cm box around the actor even when lights are on screen. `SetBrightness()` 0–100 (`0` = off).
+- `ARainEffectManager` (`SetRainIntensity`), `AEnvironmentActorManager` → `AEWZoneActor` / `AWindActor` (see `Docs/13-Environment-Actors.md`).
+
+HUD widgets (on the flown pawn only): `UAirplaneTelemetryWidget` (`SetAirplane()`; `NativeTick` formats the `BindWidgetOptional` `TextBlock`s `SpeedValueText` / `AltitudeValueText` / `ThrottleValueText` / `ThrustValueText` / `PitchValueText` / `RollValueText` of `WBP_AirplaneTelemetry` — km/h, m, %, N, °; altitude is the `ACesiumGeoreference` geodetic height; the widget names must not be duplicated as plain C++ `UPROPERTY`s or the UMG compiler fails), `UCameraViewWidget` (`SetAirplane()`; texture bound to `GetCameraOutputTexture()` in the UMG Blueprint).
 
 ### Aerodynamic Data Pipeline
 
@@ -248,8 +257,9 @@ HUD widgets (on the flown pawn only): `UAirplaneTelemetryWidget` (`SetAirplane()
 | `Structure/AircraftCalibrationSettings.h` | `FAircraftCalibrationSettings` — `ExpectedWingSpanMeters` auto-rescale, applied in `AAirplane::BeginPlay` |
 | `Components/GeoPositionDroneComponent.h/cpp` | Sensor: aircraft lat/long/alt via `ACesiumGeoreference` (`drone_geo_position`) |
 | `Components/AttitudeIndicatorComponent.h/cpp` | Sensor: roll/pitch/yaw + body angular rates (`attitude_indicator`) |
+| `Actor/StreetLightsManager.h/cpp` · `Entity/StreetLightsDataSource.h` · `Structure/StreetLightBuilding.h` | Night street lights: scanner-fed (Custom/Cesium data source), one Niagara component, `SetBrightness()` 0–100 |
 | `Components/CesiumSurroundingsScannerComponent.h/cpp` | Sensor: camera-FOV sphere sweep over Cesium 3D Tiles, reads feature metadata, persistent `ObjectStorage`, projects onto camera frame (`cesium_objects`) |
-| `Components/CustomSurroundingsScannerComponent.h/cpp` | Sensor: objects from a JSON list, snapped to the Cesium tile surface, projected onto the camera frame (`custom_objects`) |
+| `Components/CustomSurroundingsScannerComponent.h/cpp` | Sensor: objects from a JSON list, snapped to the Cesium tile surface, projected onto the camera frame (`custom_objects`); both surroundings scanners have a `bDrawRayDebug` toggle for their yellow debug rays (`RayDebugColor`), separate from `bDrawScanArea` / `bDebugGroundTrace` |
 | `Interfaces/UAVSensorInterface.h` | Contract implemented by all sensor components (Altimeter, Lidar, BBox/KeyPoint detection, camera adapters, etc.) |
 | `Interfaces/PilotInputSource.h` + `Structure/PilotCommand.h` | `IPilotInputSource` contract + `FPilotCommand` frame — control-input analogue of `IUAVSensorInterface`/`FSensorFrame` |
 | `Components/PilotInputComponent.h/cpp` | Coordinator: discovers `IPilotInputSource` components, combines by priority tier (sum+clamp), sole writer of `FlightDynamicsComponent`'s control API; owns throttle accumulator |
@@ -259,7 +269,7 @@ HUD widgets (on the flown pawn only): `UAirplaneTelemetryWidget` (`SetAirplane()
 | `DatasetGen/SceneObjectDatasetActor.h/cpp` | Tool: exports world position + AABB of every scene actor (excludes `AAirplane`, mesh-less actors) |
 | `DatasetGen/YoloMarkerDatasetActor.h/cpp` | Tool: `Tick` state machine, orbits a capture around each map marker, writes a YOLO detection dataset; forces `ForbidHoles` on Cesium tilesets for the sweep |
 | `UAVSimulatorPlayerController.h/cpp` | Owns `USimulatorMenuWidget`; `Q` / gamepad Start → `StopSimulation()` + open menu |
-| `UI/AirplaneTelemetryWidget.h/cpp` | HUD readout: `SetAirplane()` + `BlueprintPure` altitude/speed/pitch/roll |
+| `UI/AirplaneTelemetryWidget.h/cpp` | HUD readout: `SetAirplane()`; `NativeTick` fills speed / altitude (Georeference) / throttle / thrust / pitch / roll text blocks; `BlueprintPure` getters for each |
 | `UI/Sections/*SectionWidget.h/cpp` | Menu panels (`Scenario`/`Sensors`/`Environment`/`SyntheticData`/`Global`), each persisting to its own `USaveGame` slot; base class `USimulatorSectionWidget` |
 | `Save/*SettingsSave.h` · `Save/GlobalSettingsSave.h` | `USaveGame` classes for menu-section persistence |
 | `UI/SimulatorMenuWidget.h/cpp` | Top-level UMG menu; switches between `Scenario`/`Sensors`/`Environment`/`SyntheticData`/`Global` section widgets |

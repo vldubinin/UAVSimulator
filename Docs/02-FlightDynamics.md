@@ -163,6 +163,7 @@ Z=рискання), `IsMirror : bool`, `IsReverseDirection : bool`,
 | `ThrustVsAirspeedCurve : UCurveFloat*` | — | Множник тяги від повітряної швидкості (без кривої = 1.0) |
 | `EngineThrustOffsetLocal : FVector` | 0 | Точка прикладання тяги (лок. коорд.) |
 | `TargetThrottle` / `CurrentThrottle` | 0 | Ціль / фактичний газ (`CurrentThrottle` інерційно наздоганяє `TargetThrottle`) |
+| `CurrentThrustN` (`VisibleAnywhere`) | 0 | Фактична тяга цього тіку, **Н** (`MaxStaticThrust · CurrentThrottle · ThrustMultiplier / 100`); `0`, поки `CurrentThrottle ≤ 0.01`. Читається `AAirplane::GetThrustN()` для HUD |
 | `InitialSpeedMs` | 0 | Початкова швидкість при старті (задається як `SetPhysicsLinearVelocity` вперед) |
 
 ### VLM / вихоровий слід
@@ -194,7 +195,8 @@ Z=рискання), `IsMirror : bool`, `IsReverseDirection : bool`,
    `AddTorqueInRadians(TotalForce.RotationalForce)`.
 4. Розкрутка двигуна: `CurrentThrottle = FInterpTo(..., EngineSpoolSpeed)`. Якщо
    `> 0.01`: `ActualThrust = MaxStaticThrust · CurrentThrottle · ThrustMultiplier`;
-   `AddForceAtLocation(Forward · ActualThrust, ThrustLocationWorld)`.
+   `AddForceAtLocation(Forward · ActualThrust, ThrustLocationWorld)`; та сама тяга в
+   ньютонах пишеться в `CurrentThrustN` (нуль, якщо двигун не розкручений).
 5. Якщо `bLogFlightDebug` (акумулятор 0.5 с) — друкує в `LogUAV` (на екран більше не виводиться):
    швидкість (км/год, гор., верт.), AoA, газ ц/факт, K тяги, тяга (Н), опір
    поляри / індуктивний / разом (Н), підйом (Н), вага (Н), маса (кг), а також
@@ -293,4 +295,4 @@ CoM (`Mesh->GetCenterOfMass()` в редакторі — 0), малює пере
   `UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector/Float`.
 
 Ручне налаштування самої Niagara-системи (GPU, Custom HLSL Біо-Савара) — у
-[12-Niagara_VLM_Setup.md](12-Niagara_VLM_Setup.md).
+[12-Niagara.md](12-Niagara.md) (розділ `NS_VLMFlow`).

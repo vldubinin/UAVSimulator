@@ -1,5 +1,12 @@
 # 08 — Меню симулятора та налаштування
 
+> **Мова інтерфейсу — українська.** Усі підписи `TextBlock` у `Content/UI/**`
+> (`WBP_SimulatorMenu`, секції, `WBP_AirplaneTelemetry`) переведено українською.
+> Технічні ідентифікатори (`Топік: camera_tp`, `ISO`, `EV`, `BBox`) лишено як є.
+> Рядки опцій `ComboBoxString` додаються з C++ (`ModeToString`,
+> `OnboardTargetModeToString`, `StreetLightsDataSourceToString`), а не з UMG, тому
+> вони поки англійські (`Free`, `Drone`, `Custom`, `Cesium` …).
+
 ## `AUAVSimulatorPlayerController`
 
 `UAVSimulatorPlayerController.h/.cpp`. Див. також
@@ -73,11 +80,20 @@
 ### `UEnvironmentSectionWidget`
 
 Слот `EnvironmentSettings` → `UEnvironmentSettingsSave` (`OriginLatitude`,
-`OriginLongitude`, `OriginHeight`, `TimeZone`, `SolarTime`, `bTerrainSurfaceEnabled`,
-`RainIntensity`).
+`OriginLongitude`, `OriginHeight`, `TimeZone`, `SolarTime`, `StarsDensity/Threshold/
+PointSize/Intensity`, `CloudsCoverage/Density/Speed`, `bTerrainSurfaceEnabled`,
+`RainIntensity`, `StreetLightsBrightness`, `StreetLightsDataSource`).
 
 - `SpinBoxOriginLatitude/Longitude/Height` — `ACesiumGeoreference`.
 - `SpinBoxTimeZone/SolarTime` — `ACesiumSunSky`.
+- `SpinBoxStarsDensity/Threshold/PointSize/Intensity` — параметри матеріалу
+  `MI_Stars` на `StarsSphere` всередині `CesiumSunSky` (`UpdateNightVisuals`):
+  разом із яскравістю зірок (`NightFactor` від нахилу сонця) дзеркалить "місяць" —
+  другий `UDirectionalLightComponent` (`AtmosphereSunLightIndex == 1`) — проти сонця.
+  Сам матеріал — процедурне 3D-поле зір (`M_Stars`); алгоритм, параметри й виправлення
+  «кіл» при високій щільності — у `13-Environment-Actors.md` (розділ «Нічне небо: зорі»).
+- `SpinBoxCloudsCoverage/Density/Speed` — параметри MID хмарового матеріалу
+  `VolumetricCloud` (створюється лінькаво в `ApplyCloudsSettingsFromWidgets`).
 - `TerrainSurfaceCB` — `ACesium3DTileset` вкл/викл; при вимкненому Cesium-рельєфі
   спавнить fallback `DefaultSkyboxClass` / `DefaultSunClass`
   (`ApplyTerrainSurfaceState`).
@@ -89,10 +105,18 @@
 - `SpinBoxRainIntensity` (`OptionalWidget = true`) → `OnRainIntensityCommitted()`:
   `Manager->SetRainIntensity(Value)` — єдине поле керування дощем (знаходить
   наявний `ARainEffectManager` у рівні через `GetRainEffectManager()`, спавнить,
-  якщо нема): `0` вимикає дощ над усіма літаками повністю, `> 0` — множник
-  інтенсивності, прокидається в кожен активний `UNiagaraComponent` дощу як
-  User Parameter `Intensity` (Float) — `NS_Rain` має його експонувати й
-  використовувати. Детально — `13-Environment-Actors.md`.
+  якщо нема): `0` вимикає дощ над усіма літаками повністю, `> 0` — значення прокидається в кожен активний `UNiagaraComponent` дощу як User Parameter `Intensity` (Float), яке в `NS_Rain` є безпосередньо Spawn Rate (частинок/с); діапазон спінбокса — 0–150000 (див. `12-Niagara.md`). Детально — `13-Environment-Actors.md`.
+- `SpinBoxStreetLightsBrightness` (`OptionalWidget = true`) →
+  `OnStreetLightsBrightnessCommitted()`: `Manager->SetBrightness(Value)`, діапазон
+  `0..100` (`0` — вогні вимкнені, `100` — максимум). `GetStreetLightsManager()` лениво
+  спавнить `AStreetLightsManager`, якщо його ще нема в рівні.
+- `ComboBoxStreetLightsDataSource` (`UComboBoxString`, `OptionalWidget = true`) →
+  `OnStreetLightsDataSourceChanged()`: `Manager->SetDataSource(EStreetLightsDataSource)`
+  — джерело будівель для вогнів: `Custom` (`UCustomSurroundingsScannerComponent`) або
+  `Cesium` (`UCesiumSurroundingsScannerComponent`). Опції додаються в `NativeConstruct`;
+  підписка на `OnSelectionChanged` робиться **після** початкового Load/Sync, щоб
+  програмний `SetSelectedOption` не тригерив зайве збереження. Перемикання скидає
+  вже розставлені вогні. Детально — `13-Environment-Actors.md`.
 
 ### `USyntheticDataSectionWidget`
 
@@ -123,7 +147,7 @@
 |----------------|------|------|
 | `UScenarioSettingsSave` | `ScenarioSettings` | `CurrentSimulatorMode`, `ScenarioSlotName`, `TargetSpawnOffsetDistance`, `OnboardCameraMode`, `SensorsMode` |
 | `USensorSettingsSave` | `SensorSettings` | `bEnableSensorCameraFrame`, `…Altimeter`, `…AttitudeIndicator`, `…CameraInclination`, `…Lidar`, `…CameraAltitude`, `…Position`, `…GeoPosition`, `…CesiumSurroundings`, `…CustomSurroundings` |
-| `UEnvironmentSettingsSave` | `EnvironmentSettings` | `OriginLatitude/Longitude/Height`, `TimeZone`, `SolarTime`, `bTerrainSurfaceEnabled` |
+| `UEnvironmentSettingsSave` | `EnvironmentSettings` | `OriginLatitude/Longitude/Height`, `TimeZone`, `SolarTime`, `StarsDensity/Threshold/PointSize/Intensity`, `CloudsCoverage/Density/Speed`, `bTerrainSurfaceEnabled`, `RainIntensity`, `StreetLightsBrightness` (дефолт 0), `StreetLightsDataSource` (дефолт `Custom`); залишкові `bEWInterferenceEnabled`, `EWLongitude/Latitude/Radius` — застарілі, не використовуються |
 | `USyntheticDataSettingsSave` | `SyntheticDataSettings` | `SphericalContourBasePath`, `KeyPointOutputJsonPath`, `SceneObjectOutputJsonPath`, `MarkerDatasetBasePath`, `bEnableSensorSegmentationMask`, `bEnableSensorBBoxDetection` |
 | `UGlobalSettingsSave` | `GlobalSettings` | `SensorWarmupFrameCount` |
 | `UFlightScenarioSave` | `ScenarioSlotName` (за замовч. `TargetScenario_1`) | траєкторія — див. [07](07-Recording-Playback-Modes.md) |
@@ -132,11 +156,34 @@
 
 ### `UAirplaneTelemetryWidget`
 
-`UI/AirplaneTelemetryWidget.h/.cpp`. Тонкий readout. `SetAirplane(AAirplane*)`
-(той самий патерн, що `UCameraViewWidget`). `BlueprintPure`-геттери для біндингу
-`TextBlock`-ів у Blueprint: `GetAltitudeMeters()`, `GetAirspeedMs()`,
-`GetAirspeedKmh()`, `GetPitchDeg()`, `GetRollDeg()`. Верстка — у Blueprint.
-`AAirplane` створює його з `TelemetryWidgetClass` лише для локально керованого pawn.
+`UI/AirplaneTelemetryWidget.h/.cpp`. HUD-readout. `SetAirplane(AAirplane*)` (той
+самий патерн, що `UCameraViewWidget`). `AAirplane` створює його з
+`TelemetryWidgetClass` лише для локально керованого pawn.
+
+**Значення оновлює C++, а не Blueprint.** `NativeTick` щокадру форматує тексти в
+опційні `BindWidgetOptional`-`TextBlock`-и з `WBP_AirplaneTelemetry` (відсутній —
+просто пропускається):
+
+| Віджет (Is Variable) | Формат | Джерело |
+|----------------------|--------|---------|
+| `SpeedValueText` | `123 км/год` | `GetAirspeedKmh()` → `AAirplane::GetAirspeedKmh()` (швидкість фізичного тіла) |
+| `AltitudeValueText` | `350 м` | `GetAltitudeMeters()` — **геодезична висота** з `ACesiumGeoreference` (та сама конвертація Unreal → Georeference-local → LLH, що в `UGeoPositionDroneComponent`); резерв без Georeference — Z актора |
+| `ThrottleValueText` | `65 %` | `GetThrottlePercent()` = `AAirplane::GetThrottle01() * 100` — **фактичний** дросель (`CurrentThrottle` після інерції розкручування), не команда пілота |
+| `ThrustValueText` | `9750 Н` | `GetThrustN()` → `UFlightDynamicsComponent::CurrentThrustN` |
+| `PitchValueText` | `-2.5°` | `GetPitchDeg()` — `GetActorRotation().Pitch` (та сама, що в `UAttitudeIndicatorComponent`) |
+| `RollValueText` | `12.0°` | `GetRollDeg()` — `GetActorRotation().Roll` |
+
+Усі геттери лишаються `BlueprintPure` (`GetAltitudeMeters`, `GetAirspeedMs`,
+`GetAirspeedKmh`, `GetThrottlePercent`, `GetThrustN`, `GetPitchDeg`, `GetRollDeg`).
+Раніше значення у WBP були статичним «0.0» без будь-якої логіки.
+
+**`WBP_AirplaneTelemetry`:** один `HorizontalBox` внизу екрана — пари «підпис /
+значення» (Швидкість, Висота, Тангаж, Крен, Дросель, Тяга), кожен елемент у своєму
+`VerticalBox`, між ними `Spacer`-и (15 між підписом і значенням, 50 між парами).
+`BindWidgetOptional` вимагає, щоб `TextBlock`-и значень мали **точно ці імена** і були
+позначені Is Variable; імена не можна дублювати в C++ звичайними `UPROPERTY` — UMG-
+компілятор падає з "another object already exists". Додаючи нове поле: `TextBlock` +
+`BindWidgetOptional` член у `UAirplaneTelemetryWidget` + рядок у `NativeTick`.
 
 ### `UCameraViewWidget`
 

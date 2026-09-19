@@ -71,7 +71,8 @@
   локального pawn — на його PC, для цілі — на PC першого гравця, щоб трекер бачив
   фід камери цілі). Якщо це `UCameraViewWidget` — йому передається `SetAirplane(this)`.
 - `TelemetryWidgetClass` — HUD-віджет лише на локально керованому pawn. Якщо це
-  `UAirplaneTelemetryWidget` — `SetAirplane(this)`.
+  `UAirplaneTelemetryWidget` — `SetAirplane(this)`; далі віджет сам щокадру
+  оновлює тексти швидкості/висоти/дроселя/тяги/тангажу/крену (`NativeTick`).
 
 ### Ініціалізація в дві стадії
 
@@ -117,6 +118,13 @@
 - `GetAirspeedMs()` / `GetAirspeedKmh()` — модуль швидкості фізичного тіла
   фюзеляжу (через `FlightDynamics->GetAirspeed()`). **Не** `Actor->GetVelocity()` —
   корінь актора не симулює фізику.
+- `GetThrottle01()` — **фактичний** дросель двигуна [0,1]
+  (`FlightDynamics->CurrentThrottle`, після інерції розкручування; не команда пілота).
+- `GetThrustN()` — фактична тяга, Н (`FlightDynamics->CurrentThrustN`).
+
+Їх споживає `UAirplaneTelemetryWidget` (швидкість, дросель, тяга; висота береться з
+`ACesiumGeoreference`, тангаж/крен — з `GetActorRotation()`) — див.
+`08-UI-and-Settings.md`.
 
 ## Порядок тіку за кадр
 
@@ -214,7 +222,7 @@ AAirplane::Tick
   вручну розміщені актори, і спавнені `AEnvironmentActorManager`) →
   `Subsystem->SetEWSettings(...)` / `SetWindSettings(...)`.
 
-## Об'єкти середовища (РЕБ, вітер)
+## Об'єкти середовища (РЕБ, вітер, дощ, вуличні вогні)
 
 `AEnvironmentActorManager` (`Actor/EnvironmentActorManager.h/.cpp`) — окрема
 сцена-актор, що спавнить і персистить `AEWZoneActor` (зони перешкод РЕБ) і
@@ -225,6 +233,15 @@ AAirplane::Tick
 у `UEnvironmentSectionWidget`). Ніколи не торкається `UUAVSimulationSubsystem`
 сам — це робить `AUAVSimulatorGameModeBase::UpdateEWSettings()`/
 `UpdateWindSettings()` (вище). Детально — `13-Environment-Actors.md`.
+
+Окремо від нього, за тим самим принципом "менеджер у рівні, керований одним полем у
+`UEnvironmentSectionWidget`, без зв'язку з `UUAVSimulationSubsystem`":
+- `ARainEffectManager` — дощ над усіма літаками (`SpinBoxRainIntensity`).
+- `AStreetLightsManager` — нічні вуличні вогні на Cesium-поверхні
+  (`SpinBoxStreetLightsBrightness` 0–100 + `ComboBoxStreetLightsDataSource`
+  `Custom`/`Cesium`). Не має власного виявлення: читає
+  `UCustomSurroundingsScannerComponent` або `UCesiumSurroundingsScannerComponent` з
+  літаків і рендерить усі вогні одним `UNiagaraComponent` (`NS_StreetLights`).
 
 ## Режими симуляції (`ESimulatorMode`)
 

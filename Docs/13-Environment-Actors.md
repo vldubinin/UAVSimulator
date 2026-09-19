@@ -203,18 +203,14 @@ ActiveRainEffects`: для кожного знайденого `AAirplane`, як
 що став stale (літак знищено).
 
 **`RainIntensity`** (`SetRainIntensity()`/`GetRainIntensity()`, дефолт `1.0`,
-клемп `[0, 5]`) — **єдине** поле, що керує дощем: одночасно і множник
-інтенсивності, і вимикач. `0` — негайно знищує всі активні `UNiagaraComponent`
+знизу обмежено нулем; `ClampMax 5` у `UPROPERTY` діє лише в редакторі) — **єдине**
+поле, що керує дощем: одночасно і значення Spawn Rate, і вимикач. `0` — негайно знищує всі активні `UNiagaraComponent`
 (`DestroyAllRainEffects()`, спільна з `EndPlay()`) і зупиняє `Tick()`/спавн
 нових ефектів; будь-яке значення `> 0` — одразу перескановує світ (якщо перед
 цим було `0`) і прокидається як User Parameter (Float) на кожен активний
 `UNiagaraComponent` через `SetFloatParameter(TEXT("Intensity"),
 RainIntensity)` (`ApplyIntensity()`, викликається і при зміні, і одразу при
-спавні нового ефекту в `RescanAirplanes()`). **`NS_Rain` має експонувати User
-Parameter з точно такою назвою (`Intensity`, тип Float) і використовувати
-його** (типово — множником на Spawn Rate/Spawn Count) — інакше зміна значення
-ні на що не вплине (окрім самого вкл/викл при переході через `0`, який працює
-завжди, незалежно від User Parameter). Керується єдиним `SpinBoxRainIntensity`
+спавні нового ефекту в `RescanAirplanes()`). **`NS_Rain` експонує User Parameter з точно такою назвою (`Intensity`, тип Float), і його значення напряму є `SpawnRate` емітера** (Linked Variable, а не множник) — тобто `RainIntensity` = частинок за секунду; діапазон `SpinBoxRainIntensity` — 0–150000 (деталі та застереження — `12-Niagara.md`, розділ `NS_Rain`). Вкл/викл при переході через `0` працює завжди, незалежно від User Parameter. Керується єдиним `SpinBoxRainIntensity`
 у `UEnvironmentSectionWidget` (нема окремого чекбокса вкл/викл), персиститься
 в `UEnvironmentSettingsSave::RainIntensity`. `UEnvironmentSectionWidget::
 GetRainEffectManager()` лениво спавнить `ARainEffectManager`, якщо в рівні
@@ -224,14 +220,35 @@ GetRainEffectManager()` лениво спавнить `ARainEffectManager`, як
 
 `Actor/StreetLightsManager.h/.cpp`. На відміну від `AEnvironmentActorManager`
 (конфігурація через `env_actors.json`) і `ARainEffectManager` (глобальний,
-без гео-прив'язки), цей менеджер не реалізує власне виявлення об'єктів —
-він лениво додає `UCustomSurroundingsScannerComponent` на кожен `AAirplane`
-у світі (якщо його там ще нема) і читає вже готові результати. Розміщується
+без гео-прив'язки), цей менеджер не реалізує власне виявлення об'єктів — він
+читає готові результати сканерів, що сидять на `AAirplane`. **Джерело обирається**
+(`DataSource`, див. нижче): `UCustomSurroundingsScannerComponent` (за замовчуванням;
+лениво додається на літак, якщо його там ще нема) або
+`UCesiumSurroundingsScannerComponent` (лише вже наявний на літаку). Розміщується
 вручну в рівні (або лениво спавниться
 `UEnvironmentSectionWidget::GetStreetLightsManager()`, так само як
 `GetRainEffectManager()`) — один менеджер на рівень.
 
-### Виявлення — споживання `UCustomSurroundingsScannerComponent`
+**Керування (`UEnvironmentSectionWidget`):**
+`SpinBoxStreetLightsBrightness` (0–100, `0` = вимкнено) і
+`ComboBoxStreetLightsDataSource` (`Custom` / `Cesium`); обидва зберігаються в
+`UEnvironmentSettingsSave` і застосовуються при старті меню.
+
+**Властивості `AStreetLightsManager`:**
+| Властивість | Дефолт | Роль |
+|---|---|---|
+| `StreetLightsSystem : UNiagaraSystem*` | — | `NS_StreetLights`; поки не задано — нічого не спавниться |
+| `Brightness` (приватна, `SetBrightness/GetBrightness`) | 0 | 0–100; `0` деактивує Niagara |
+| `DataSource` (`SetDataSource/GetDataSource`) | `Custom` | Джерело будівель; зміна скидає всі відстежувані вогні |
+| `ScannerScanRadiusMeters` / `CollisionChannel` | 2000 / Visibility | Застосовуються лише до щойно створеного `UCustomSurroundingsScannerComponent` |
+| `MaxTrackingDistanceMeters` | 0 | `0` = вогні ніколи не прибираються; `>0` — відсікання за відстанню від літака |
+| `MinRebuildIntervalSeconds` | 2 | Тротлінг перебудови масиву Niagara (кожна = `Activate(true)`) |
+| `LightSpacingMeters` / `LightHeightMeters` | 18 / 4 | Крок вогнів по периметру / висота "стовпа" |
+| `CesiumFootprintMinSizeMeters` / `…MaxSizeMeters` | 15 / 40 | Розмір випадкового прямокутника для джерела `Cesium` |
+| `bDrawDebugFootprints`, `FootprintDebugColor`, `LightDebugColor` | false | Debug-контури й позиції вогнів |
+| `TrackedBuildings` | — | `VisibleAnywhere`-дзеркало `TrackedBuildingsMap` для інспекції |
+
+### Виявлення — споживання сканерів (`Custom` за замовчуванням)
 
 **Історія:** попередні версії цього класу самі обчислювали або сканували
 позицію будівлі — (1) з lat/long Cesium-метаданих, обчислюючи світову
@@ -242,9 +259,11 @@ GetRainEffectManager()` лениво спавнить `ARainEffectManager`, як
 сітка, центрована на поточній позиції, майже завжди застає нове лише
 позаду); (3) `UCesiumSurroundingsScannerComponent` (замітає конус огляду
 камери, тож бачить те, що попереду, але дає лише сиру точку влучання без
-готового footprint і без гарантії, що тайли попереду вже мають колізію).
+готового footprint і без гарантії, що тайли попереду вже мають колізію). Пізніше
+цей сканер повернуто як опційне джерело `Cesium` (див. «Джерело даних») — з
+випадковим прямокутником навколо точки влучання.
 
-**Поточний підхід** — `GetOrCreateScannerFor()` знаходить (або лениво додає
+**Поточний підхід** (для джерела `Custom`) — `GetOrCreateScannerFor()` знаходить (або лениво додає
 й реєструє) `UCustomSurroundingsScannerComponent` на кожному `AAirplane`, із
 застосованими `ScannerScanRadiusMeters`/`CollisionChannel`. Цей компонент
 сам прив'язує кожен із чотирьох кутів свого `bbox` до поверхні тайла Cesium
@@ -259,7 +278,13 @@ footprint (`FCustomSurroundingObject::BBoxCornersWorldMeters`) — жодног�
 `ObjectsJson` щойно заспавненого сканера потрібно заповнити вручну (напр.
 через деталі компонента на Blueprint літака, або призначивши власний
 підклас/дефолт) реальними id/bbox — `AStreetLightsManager` сам туди нічого
-не генерує.
+не генерує. Якщо сканер уже є на Blueprint літака (Cessna_172 має обидва),
+менеджер використовує саме його — вогні йдуть із тих самих даних, що видно на
+екрані через debug-промені цього сканера.
+
+Debug-промені сканерів вимикаються прапорцем `bDrawRayDebug`
+(`UCustomSurroundingsScannerComponent` і `UCesiumSurroundingsScannerComponent`,
+див. `05-SurroundingsScanners.md`).
 
 ### Footprint і розміщення вогнів
 
@@ -374,6 +399,49 @@ User-параметра в Custom Hlsl працює нормально — ла�
 `Brightness=0` через колір/деактивацію компонента). Рендерер — стандартний
 `DefaultSpriteMaterial`; для продакшн-вигляду варто замінити на власний
 емісивний матеріал вуличного ліхтаря.
+
+## Нічне небо: зорі — `M_Stars` / `MI_Stars`
+
+`Content/Environment/M_Stars` (батьківський матеріал) і `MI_Stars` (інстанс) — матеріал
+меша `StarsSphere` (`SM_SkySphere`), який додано вручну в `CesiumSunSky_0`. Параметри
+керуються з `UEnvironmentSectionWidget::UpdateNightVisuals()` (див. `08-UI-and-Settings.md`),
+а сам ефект — це **процедурне 3D-поле зір без текстур і UV-швів**.
+
+**Параметри матеріалу:**
+| Параметр | Дефолт | Роль |
+|---|---|---|
+| `NightFactor` | 0 | Загальна яскравість зір [0,1]; C++ рахує `clamp(-Elevation/10, 0, 1)` від нахилу сонця (повний нуль на 10° над горизонтом, максимум на 10° під ним) |
+| `StarsIntensity` | 8 | Множник яскравості |
+| `StarsDensity` | 250 | Масштаб клітинок: чим більше, тим дрібніше й більше зір |
+| `StarsThreshold` | 0.985 | Поріг хеша: зірка є в клітинці, якщо `hash > StarsThreshold`; **менший поріг = більше зір** |
+| `StarsPointSize` | 0.12 | Базовий радіус зірки (у частках клітинки) |
+| `StarsSharpness` | 6 | Степінь у вузлі `Power` над текстурою `T_Sky_Stars` (текстурна гілка графа; чи підключена вона до виходу матеріалу — не перевірялося, зорі, що описані нижче, від неї не залежать) |
+
+**Алгоритм (Custom HLSL-вузол):**
+1. `p = normalize(CameraVector) * StarsDensity`; `cell = floor(p)`, `f = frac(p) - 0.5`.
+2. Цілочисельний PCG-подібний хеш від `cell` дає `rnd1` (чи є зірка), `rnd2` (яскравість
+   `0.3–1.0`), `rnd3` (радіус `0.3–1.0 × StarsPointSize`); другий хеш з іншим зерном —
+   зсув зірки всередині клітинки.
+3. Зірка — диск радіуса `trueRadius` на відстані `dist = |f − jitter|`; край згладжується
+   `smoothstep` по `aa = fwidth(dist)`. Зорі, менші за піксель, розширюються до пікселя, а їхня
+   яскравість зменшується пропорційно площі (`energyScale`), щоб не мерехтіли.
+4. Результат множиться на `NightFactor` і `StarsIntensity`.
+
+**Виправлення «кіл» при великій щільності й низькому порозі.** Раніше зорі мали три дефекти:
+- усі зорі стояли **строго в центрах клітинок** — коли активна більшість клітинок, видно
+  регулярну 3D-решітку, а її проєкція на сферу дає концентричні кола (муар). Тепер позицію
+  зірки випадково зсунуто всередині клітинки (на `±(0.5 − trueRadius)`, щоб зірка не
+  обрізалась межею клітинки);
+- хеш `frac(sin(dot(cell, …)) * 43758.5453)` втрачав точність на великих координатах клітинок
+  (`StarsDensity` ≈ 250 → координати сотні) і давав впорядковані візерунки — замінено на
+  цілочисельний хеш без `sin()`;
+- `fwidth(dist)` викликався всередині `if (rnd1 > Threshold)` (неоднорідний потік, похідні
+  недостовірні) — тепер відстань і `fwidth` рахуються безумовно, а поріг застосовується
+  наприкінці (`(rnd1 > Threshold) ? mask * brightness : 0`).
+
+Імена й тип параметрів матеріалу не змінювалися, тож `UpdateNightVisuals()` і збережені
+налаштування (`StarsDensity/Threshold/PointSize/Intensity` в `UEnvironmentSettingsSave`)
+працюють без змін; конфігурація зір лише виглядатиме інакше (інший розподіл).
 
 ## Структури-конфігурації
 

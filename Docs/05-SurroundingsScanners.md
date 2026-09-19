@@ -83,8 +83,11 @@ sweep усієї сітки, як раніше.
 
 ### Debug
 
-- `RayDebugColor` (Yellow) — один промінь на відстежувану фічу, щотіку заново від
-  поточної позиції літака.
+- `bDrawRayDebug` (true) — вмикає/вимикає відладочні промені; `RayDebugColor`
+  (Yellow) — один промінь на відстежувану фічу, щотіку заново від поточної позиції
+  літака. Вимкніть `bDrawRayDebug` на Blueprint літака (`CesiumSurroundingsScanner`),
+  якщо промені заважають — вони не впливають ні на сканування, ні на
+  `AStreetLightsManager`.
 - `bDrawScanArea` (true), `ScanAreaDebugColor` (Cyan) — дротяний контур зони
   sweep-у (4 ребра з origin до дальніх кутів + дальній прямокутник); відображає
   live `FramesBeforeLowerHalfCutoff` (після відсічки нижнє ребро сідає на вісь
@@ -180,10 +183,14 @@ per-tick тест самодостатній.
 
 ### Debug
 
-`RayDebugColor` (промінь до кожного видимого об'єкта), `bDrawScanArea`/`ScanAreaDebugColor`
+`bDrawRayDebug` (вкл/викл променів) + `RayDebugColor` (колір променя до кожного
+видимого об'єкта), `bDrawScanArea`/`ScanAreaDebugColor`
 (контур frustum камери), `bDrawObjectBBox`/`BBoxDebugColor` (footprint-квад по
 кутах), `bDrawObjectLabel`/`LabelDebugColor`/`LabelFontScale` (`elementId` як
-текст над точкою). Усе — лише при `bSensorEnabled`.
+текст над точкою). Усе — лише при `bSensorEnabled`. Окремо від цього
+`bDebugGroundTrace` (Category `Ground`) малює кожну ground-трасу (зелена — влучила,
+червона — промах) і логує прогрес розв'язання; його не плутати з жовтими променями
+`bDrawRayDebug`.
 
 ### `FCustomSurroundingObject`
 
