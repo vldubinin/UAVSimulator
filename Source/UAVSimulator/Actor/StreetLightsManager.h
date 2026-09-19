@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "UAVSimulator/Structure/StreetLightBuilding.h"
+#include "UAVSimulator/Entity/StreetLightsDataSource.h"
 #include "StreetLightsManager.generated.h"
 
 class UNiagaraSystem;
@@ -119,6 +120,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Street Lights|Footprint", meta = (ClampMin = 0.0f))
 	float LightHeightMeters = 4.0f;
 
+	// ── Джерело Cesium: випадковий прямокутник навколо точки влучання ───────────────────
+
+	/** Мінімальний розмір сторони випадкового прямокутника (м) навколо точки влучання Cesium-об'єкта. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Street Lights|Footprint", meta = (ClampMin = 1.0f))
+	float CesiumFootprintMinSizeMeters = 15.0f;
+
+	/** Максимальний розмір сторони випадкового прямокутника (м) навколо точки влучання Cesium-об'єкта. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Street Lights|Footprint", meta = (ClampMin = 1.0f))
+	float CesiumFootprintMaxSizeMeters = 40.0f;
+
 	// ── Дебаг ──────────────────────────────────────────────────────────────────────────
 
 	/** Малює footprint і позиції вогнів кожної відстежуваної будівлі. */
@@ -142,6 +153,20 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Street Lights")
 	float GetBrightness() const { return Brightness; }
+
+	/**
+	 * Обирає джерело будівель: UCustomSurroundingsScannerComponent (footprint-прямокутник,
+	 * вогні по периметру) або UCesiumSurroundingsScannerComponent (об'єкти Cesium-метаданих у
+	 * полі зору камери — один вогонь на об'єкт у точці влучання, бо метадані не дають контуру).
+	 * При зміні всі вже відстежувані вогні скидаються — обидва джерела мають різні ObjectID і
+	 * геометрію, змішувати їх не можна. Керується ComboBoxStreetLightsDataSource у
+	 * UEnvironmentSectionWidget.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Street Lights")
+	void SetDataSource(EStreetLightsDataSource NewDataSource);
+
+	UFUNCTION(BlueprintPure, Category = "Street Lights")
+	EStreetLightsDataSource GetDataSource() const { return DataSource; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -176,6 +201,14 @@ private:
 	 * кожного бере Z відповідної точки на периметрі (інтерпольований між кутами, вже на рівні
 	 * рельєфу) + LightHeightMeters. Жодного додаткового ground-trace не потрібно.
 	 */
+	/**
+	 * Джерело Cesium дає лише точку (влучання), без контуру. Будує навколо неї прямокутник із
+	 * випадковими шириною/глибиною в [CesiumFootprintMinSizeMeters, CesiumFootprintMaxSizeMeters]
+	 * і випадковим поворотом у горизонтальній площині. Генератор засіяний хешем Key, тож той самий
+	 * об'єкт завжди дає той самий прямокутник. Повертає чотири кути (метри) у порядку обходу.
+	 */
+	TArray<FVector> MakeRandomFootprintAround(const FString& Key, const FVector& CenterMeters) const;
+
 	bool BuildLightsForObject(const FString& Key, const TArray<FVector>& Corners, FStreetLightBuilding& OutBuilding) const;
 
 	/**
@@ -211,4 +244,8 @@ private:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Street Lights", meta = (AllowPrivateAccess = "true", ClampMin = "0.0", ClampMax = "100.0"))
 	float Brightness = 0.0f;
+
+	/** Джерело будівель — змінюється через SetDataSource() (скидає вже відстежувані вогні). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Street Lights", meta = (AllowPrivateAccess = "true"))
+	EStreetLightsDataSource DataSource = EStreetLightsDataSource::Custom;
 };

@@ -6,6 +6,7 @@
 #include "Components/SpinBox.h"
 #include "Components/CheckBox.h"
 #include "Components/Button.h"
+#include "Components/ComboBoxString.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/VolumetricCloudComponent.h"
@@ -18,6 +19,20 @@
 #include "UAVSimulator/UAVSimulator.h"
 
 const FString UEnvironmentSectionWidget::EnvironmentSaveSlotName = TEXT("EnvironmentSettings");
+
+namespace
+{
+	// Рядки опцій ComboBoxStreetLightsDataSource <-> EStreetLightsDataSource.
+	FString StreetLightsDataSourceToString(EStreetLightsDataSource Source)
+	{
+		return Source == EStreetLightsDataSource::Cesium ? TEXT("Cesium") : TEXT("Custom");
+	}
+
+	EStreetLightsDataSource StringToStreetLightsDataSource(const FString& Option)
+	{
+		return Option == TEXT("Cesium") ? EStreetLightsDataSource::Cesium : EStreetLightsDataSource::Custom;
+	}
+}
 
 void UEnvironmentSectionWidget::NativeConstruct()
 {
@@ -46,8 +61,19 @@ void UEnvironmentSectionWidget::NativeConstruct()
 	if (SpinBoxStreetLightsBrightness)
 		SpinBoxStreetLightsBrightness->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnStreetLightsBrightnessCommitted);
 
+	if (ComboBoxStreetLightsDataSource)
+	{
+		ComboBoxStreetLightsDataSource->ClearOptions();
+		ComboBoxStreetLightsDataSource->AddOption(StreetLightsDataSourceToString(EStreetLightsDataSource::Custom));
+		ComboBoxStreetLightsDataSource->AddOption(StreetLightsDataSourceToString(EStreetLightsDataSource::Cesium));
+	}
+
 	LoadAndApplySavedSettings();
 	SyncFromWorld();
+
+	// Підписка — після початкового Load/Sync, щоб програмні SetSelectedOption не тригерили збереження.
+	if (ComboBoxStreetLightsDataSource)
+		ComboBoxStreetLightsDataSource->OnSelectionChanged.AddDynamic(this, &UEnvironmentSectionWidget::OnStreetLightsDataSourceChanged);
 }
 
 void UEnvironmentSectionWidget::OnSectionActivated_Implementation()
@@ -91,6 +117,12 @@ void UEnvironmentSectionWidget::SyncFromWorld()
 	{
 		if (AStreetLightsManager* Manager = GetStreetLightsManager())
 			SpinBoxStreetLightsBrightness->SetValue(Manager->GetBrightness());
+	}
+
+	if (ComboBoxStreetLightsDataSource)
+	{
+		if (AStreetLightsManager* Manager = GetStreetLightsManager())
+			ComboBoxStreetLightsDataSource->SetSelectedOption(StreetLightsDataSourceToString(Manager->GetDataSource()));
 	}
 }
 
@@ -313,6 +345,13 @@ void UEnvironmentSectionWidget::OnStreetLightsBrightnessCommitted(float Value, E
 	SaveCurrentSettings();
 }
 
+void UEnvironmentSectionWidget::OnStreetLightsDataSourceChanged(FString SelectedItem, ESelectInfo::Type /*SelectionType*/)
+{
+	if (AStreetLightsManager* Manager = GetStreetLightsManager())
+		Manager->SetDataSource(StringToStreetLightsDataSource(SelectedItem));
+	SaveCurrentSettings();
+}
+
 void UEnvironmentSectionWidget::ApplyTerrainSurfaceState(bool bEnabled)
 {
 	if (ACesium3DTileset* Tileset = GetTileset())
@@ -410,7 +449,11 @@ void UEnvironmentSectionWidget::LoadAndApplySavedSettings()
 	if (AStreetLightsManager* Manager = GetStreetLightsManager())
 	{
 		Manager->SetBrightness((float)Save->StreetLightsBrightness);
+		Manager->SetDataSource(Save->StreetLightsDataSource);
 	}
+
+	if (ComboBoxStreetLightsDataSource)
+		ComboBoxStreetLightsDataSource->SetSelectedOption(StreetLightsDataSourceToString(Save->StreetLightsDataSource));
 }
 
 void UEnvironmentSectionWidget::SaveCurrentSettings()
@@ -453,6 +496,7 @@ void UEnvironmentSectionWidget::SaveCurrentSettings()
 	if (AStreetLightsManager* Manager = GetStreetLightsManager())
 	{
 		Save->StreetLightsBrightness = Manager->GetBrightness();
+		Save->StreetLightsDataSource = Manager->GetDataSource();
 	}
 
 	UGameplayStatics::SaveGameToSlot(Save, EnvironmentSaveSlotName, /*UserIndex=*/0);

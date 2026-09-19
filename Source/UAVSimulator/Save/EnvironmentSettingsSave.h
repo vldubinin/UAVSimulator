@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/SaveGame.h"
+#include "UAVSimulator/Entity/StreetLightsDataSource.h"
 
 #include "EnvironmentSettingsSave.generated.h"
 
@@ -79,4 +80,8 @@ public:
 	 *  Дефолт 0 — безпечний старт для великих міст без несподіваного навантаження при першому запуску. */
 	UPROPERTY(BlueprintReadWrite)
 	double StreetLightsBrightness = 0.0;
+
+	/** AStreetLightsManager::DataSource — джерело будівель для вуличних вогнів. */
+	UPROPERTY(BlueprintReadWrite)
+	EStreetLightsDataSource StreetLightsDataSource = EStreetLightsDataSource::Custom;
 };

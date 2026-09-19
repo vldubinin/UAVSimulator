@@ -279,6 +279,23 @@ footprint (`BBoxCornersWorldMeters`) із кроком `LightSpacingMeters` (д�
 обходів обирає той, що має найменший периметр (без самоперетину) — інакше
 лінії вогнів утворюють "метелика".
 
+### Джерело даних (`DataSource`)
+
+`AStreetLightsManager::SetDataSource(EStreetLightsDataSource)` (`Entity/StreetLightsDataSource.h`)
+обирає, з якого сканера береться список будівель. Керується
+`ComboBoxStreetLightsDataSource` (`UComboBoxString`, `OptionalWidget`; опції
+"Custom"/"Cesium" додаються з C++) у `UEnvironmentSectionWidget`, зберігається в
+`UEnvironmentSettingsSave::StreetLightsDataSource`.
+
+| Джерело | Сканер | Що виходить |
+|---------|--------|-------------|
+| `Custom` (дефолт) | `UCustomSurroundingsScannerComponent` | footprint із чотирьох кутів → вогні по периметру |
+| `Cesium` | `UCesiumSurroundingsScannerComponent` | метадані не дають контуру → навколо `HitLocationMeters` будується **прямокутник випадкового розміру** (`CesiumFootprintMin/MaxSizeMeters`, дефолт 15–40 м, випадковий поворот; генератор засіяний хешем `ObjectID`, тож прямокутник стабільний) і вогні йдуть по його периметру |
+
+Для `Cesium` менеджер сам сканер не створює (він потребує бортової камери) — береться
+той, що вже є на літаку (Blueprint), і працює лише коли камера активна.
+Перемикання джерела скидає всі вже відстежувані вогні (різні `ObjectID` і геометрія).
+
 ### Видалення — лише опційно
 
 `RunValiditySweep()` прибирає будівлі, чий центр footprint далі за

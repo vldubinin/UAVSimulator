@@ -7,6 +7,7 @@
 class USpinBox;
 class UCheckBox;
 class UButton;
+class UComboBoxString;
 class ACesiumGeoreference;
 class ACesiumSunSky;
 class ACesium3DTileset;
@@ -99,6 +100,13 @@ protected:
 	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
 	TObjectPtr<USpinBox> SpinBoxStreetLightsBrightness;
 
+	// Джерело будівель для вогнів: "Custom" (UCustomSurroundingsScannerComponent) або "Cesium"
+	// (UCesiumSurroundingsScannerComponent). Опції додаються в NativeConstruct — у UMG-віджеті
+	// їх задавати не треба. OptionalWidget = true з тієї ж причини, що й вище.
+
+	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
+	TObjectPtr<UComboBoxString> ComboBoxStreetLightsDataSource;
+
 	// — Резервні небо/сонце, що показуються, поки ландшафт Cesium вимкнено ————————
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Environment|DefaultSky")
@@ -157,6 +165,7 @@ private:
 	UFUNCTION() void OnTerrainSurfaceChanged(bool bIsChecked);
 	UFUNCTION() void OnRainIntensityCommitted(float Value, ETextCommit::Type CommitType);
 	UFUNCTION() void OnStreetLightsBrightnessCommitted(float Value, ETextCommit::Type CommitType);
+	UFUNCTION() void OnStreetLightsDataSourceChanged(FString SelectedItem, ESelectInfo::Type SelectionType);
 
 	UFUNCTION() void OnConfigurateEnvActorsBtnClicked();
 

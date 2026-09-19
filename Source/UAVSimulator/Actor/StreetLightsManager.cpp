@@ -2,6 +2,7 @@
 #include "UAVSimulator/UAVSimulator.h"
 #include "UAVSimulator/Actor/Airplane.h"
 #include "UAVSimulator/Components/CustomSurroundingsScannerComponent.h"
+#include "UAVSimulator/Components/CesiumSurroundingsScannerComponent.h"
 
 #include "Kismet/GameplayStatics.h"
 #include "DrawDebugHelpers.h"
@@ -132,6 +133,23 @@ void AStreetLightsManager::SetBrightness(float NewBrightness)
 	NiagaraComp->Activate();
 }
 
+void AStreetLightsManager::SetDataSource(EStreetLightsDataSource NewDataSource)
+{
+	if (DataSource == NewDataSource)
+		return;
+
+	DataSource = NewDataSource;
+	UE_LOG(LogUAV, Log, TEXT("StreetLightsManager::SetDataSource: %s"),
+		*StaticEnum<EStreetLightsDataSource>()->GetNameStringByValue((int64)DataSource));
+
+	// Різні джерела — різні ObjectID і геометрія: старі вогні скидаємо, нові набереться з
+	// наступних Scan(). Пушимо масив негайно (без тротлінгу), щоб старі вогні зникли одразу.
+	TrackedBuildingsMap.Reset();
+	RebuildNiagaraArrays();
+	bLightPositionsDirty = false;
+	LastRebuildTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : LastRebuildTimeSeconds;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Сканування — споживає вже перевірений робочий UCustomSurroundingsScannerComponent (лениво
 // доданий на кожен AAirplane) замість власного sweep/метадані. Див. коментар класу в .h.
@@ -155,6 +173,24 @@ void AStreetLightsManager::Scan()
 			continue;
 
 		AirplaneLocationsCm.Add(Airplane->GetActorLocation());
+
+		if (DataSource == EStreetLightsDataSource::Cesium)
+		{
+			// Cesium-сканер вимагає бортової камери (сітка променів = FOV камери), тому сам
+			// не створюємо його — беремо лише той, що вже є на літаку (Blueprint).
+			const UCesiumSurroundingsScannerComponent* CesiumScanner = Airplane->FindComponentByClass<UCesiumSurroundingsScannerComponent>();
+			if (!CesiumScanner)
+				continue;
+
+			for (const FCesiumSurroundingObject& Object : CesiumScanner->LatestScanResults)
+			{
+				// Метадані не дають контуру — лише точка влучання (усереднена по влученнях на
+				// будівлю). Навколо неї будуємо прямокутник випадкового (але стабільного для
+				// цього ObjectID) розміру й повороту й вважаємо його контуром будівлі.
+				FreshFootprints.Add(Object.ObjectID, MakeRandomFootprintAround(Object.ObjectID, Object.HitLocationMeters));
+			}
+			continue;
+		}
 
 		UCustomSurroundingsScannerComponent* Scanner = GetOrCreateScannerFor(Airplane);
 		if (!Scanner)
@@ -234,6 +270,30 @@ UCustomSurroundingsScannerComponent* AStreetLightsManager::GetOrCreateScannerFor
 // рельєфу), не з обчисленої чи семпльованої позиції.
 // ─────────────────────────────────────────────────────────────────────────────
 
+TArray<FVector> AStreetLightsManager::MakeRandomFootprintAround(const FString& Key, const FVector& CenterMeters) const
+{
+	// Потік, засіяний ObjectID: той самий об'єкт завжди дає той самий прямокутник (не "пливе"
+	// між перезапусками сканера/сесіями), різні об'єкти — різні розміри й повороти.
+	FRandomStream Random(GetTypeHash(Key));
+
+	const float MinSize = FMath::Max(1.0f, FMath::Min(CesiumFootprintMinSizeMeters, CesiumFootprintMaxSizeMeters));
+	const float MaxSize = FMath::Max(MinSize, CesiumFootprintMaxSizeMeters);
+	const double HalfWidth = Random.FRandRange(MinSize, MaxSize) * 0.5;
+	const double HalfDepth = Random.FRandRange(MinSize, MaxSize) * 0.5;
+	const double YawRad = FMath::DegreesToRadians(Random.FRandRange(0.0f, 180.0f));
+
+	const FVector AxisX(FMath::Cos(YawRad), FMath::Sin(YawRad), 0.0);
+	const FVector AxisY(-FMath::Sin(YawRad), FMath::Cos(YawRad), 0.0);
+
+	// Обхід по периметру: (-,-) -> (+,-) -> (+,+) -> (-,+).
+	return {
+		CenterMeters - AxisX * HalfWidth - AxisY * HalfDepth,
+		CenterMeters + AxisX * HalfWidth - AxisY * HalfDepth,
+		CenterMeters + AxisX * HalfWidth + AxisY * HalfDepth,
+		CenterMeters - AxisX * HalfWidth + AxisY * HalfDepth,
+	};
+}
+
 bool AStreetLightsManager::BuildLightsForObject(const FString& Key, const TArray<FVector>& InCorners, FStreetLightBuilding& OutBuilding) const
 {
 	// Порядок кутів у "bbox" сканера (x_min -> x_max -> y_min -> y_max) не гарантує обхід по
@@ -264,6 +324,7 @@ bool AStreetLightsManager::BuildLightsForObject(const FString& Key, const TArray
 
 	OutBuilding.ObjectID = Key;
 	OutBuilding.FootprintCornersWorldMeters = Corners;
+
 
 	TArray<FVector> PerimeterPoints;
 	for (int32 CornerIndex = 0; CornerIndex < Corners.Num(); ++CornerIndex)
@@ -313,6 +374,9 @@ void AStreetLightsManager::RunValiditySweep(const TArray<FVector>& AirplaneLocat
 	TArray<FString> StaleKeys;
 	for (const TPair<FString, FStreetLightBuilding>& Pair : TrackedBuildingsMap)
 	{
+		if (Pair.Value.FootprintCornersWorldMeters.Num() == 0)
+			continue;
+
 		const FVector BuildingCenterCm = Pair.Value.FootprintCornersWorldMeters[0] * 100.0;
 
 		bool bNearAnyAirplane = false;
