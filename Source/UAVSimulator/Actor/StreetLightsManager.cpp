@@ -234,8 +234,34 @@ UCustomSurroundingsScannerComponent* AStreetLightsManager::GetOrCreateScannerFor
 // рельєфу), не з обчисленої чи семпльованої позиції.
 // ─────────────────────────────────────────────────────────────────────────────
 
-bool AStreetLightsManager::BuildLightsForObject(const FString& Key, const TArray<FVector>& Corners, FStreetLightBuilding& OutBuilding) const
+bool AStreetLightsManager::BuildLightsForObject(const FString& Key, const TArray<FVector>& InCorners, FStreetLightBuilding& OutBuilding) const
 {
+	// Порядок кутів у "bbox" сканера (x_min -> x_max -> y_min -> y_max) не гарантує обхід по
+	// периметру: залежно від об'єкта y_min/y_max можуть бути зі сходу чи із заходу, і тоді
+	// з'єднання по черзі дає "метелика" (дві сторони перетинаються). Для чотирьох точок
+	// із трьох можливих циклічних обходів справжній контур — той, що має найменший периметр
+	// (обходи з перетином замінюють дві сторони діагоналями, які довші).
+	TArray<FVector> Corners = InCorners;
+	if (Corners.Num() == 4)
+	{
+		static const int32 Orders[3][4] = { {0, 1, 2, 3}, {0, 1, 3, 2}, {0, 2, 1, 3} };
+		double BestPerimeter = TNumericLimits<double>::Max();
+		const int32* BestOrder = Orders[0];
+		for (const int32(&Order)[4] : Orders)
+		{
+			double Perimeter = 0.0;
+			for (int32 i = 0; i < 4; ++i)
+				Perimeter += FVector::Dist(InCorners[Order[i]], InCorners[Order[(i + 1) % 4]]);
+			if (Perimeter < BestPerimeter)
+			{
+				BestPerimeter = Perimeter;
+				BestOrder = Order;
+			}
+		}
+		for (int32 i = 0; i < 4; ++i)
+			Corners[i] = InCorners[BestOrder[i]];
+	}
+
 	OutBuilding.ObjectID = Key;
 	OutBuilding.FootprintCornersWorldMeters = Corners;
 
