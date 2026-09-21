@@ -82,10 +82,12 @@
 Слот `EnvironmentSettings` → `UEnvironmentSettingsSave` (`OriginLatitude`,
 `OriginLongitude`, `OriginHeight`, `TimeZone`, `SolarTime`, `StarsDensity/Threshold/
 PointSize/Intensity`, `CloudsCoverage/Density/Speed`, `bTerrainSurfaceEnabled`,
-`RainIntensity`, `StreetLightsBrightness`, `StreetLightsDataSource`).
+`RainIntensity`, `FogIntensity`, `StreetLightsBrightness`, `StreetLightsDataSource`).
 
 - `SpinBoxOriginLatitude/Longitude/Height` — `ACesiumGeoreference`.
-- `SpinBoxTimeZone/SolarTime` — `ACesiumSunSky`.
+- `SpinBoxTimeZone/SolarTime` — `ACesiumSunSky`. `SpinBoxSolarTime` також автоматично оновлюється, бо час доби
+  тече сам (`ATimeOfDayManager`, `OnSolarTimeAdvanced`); `SpinBoxTimeSpeed` (`OptionalWidget`) — швидкість
+  ходу часу в разах від реального (0 = стоїть, дефолт 60). Детально — `13-Environment-Actors.md`.
 - `SpinBoxStarsDensity/Threshold/PointSize/Intensity` — параметри матеріалу
   `MI_Stars` на `StarsSphere` всередині `CesiumSunSky` (`UpdateNightVisuals`):
   разом із яскравістю зірок (`NightFactor` від нахилу сонця) дзеркалить "місяць" —
@@ -106,6 +108,11 @@ PointSize/Intensity`, `CloudsCoverage/Density/Speed`, `bTerrainSurfaceEnabled`,
   `Manager->SetRainIntensity(Value)` — єдине поле керування дощем (знаходить
   наявний `ARainEffectManager` у рівні через `GetRainEffectManager()`, спавнить,
   якщо нема): `0` вимикає дощ над усіма літаками повністю, `> 0` — значення прокидається в кожен активний `UNiagaraComponent` дощу як User Parameter `Intensity` (Float), яке в `NS_Rain` є безпосередньо Spawn Rate (частинок/с); діапазон спінбокса — 0–150000 (див. `12-Niagara.md`). Детально — `13-Environment-Actors.md`.
+- `SpinBoxFogIntensity` (`OptionalWidget = true`) → `OnFogIntensityCommitted()`:
+  `Manager->SetFogIntensity(Value)`, діапазон `0..100` (`0` — туман вимкнено, `100` — максимум;
+  діапазон виставляється з коду). `GetFogManager()` лениво спавнить `AFogManager`, якщо його ще
+  нема в рівні; той керує `AExponentialHeightFog`. Персиститься в
+  `UEnvironmentSettingsSave::FogIntensity`. Детально — `13-Environment-Actors.md`.
 - `SpinBoxStreetLightsBrightness` (`OptionalWidget = true`) →
   `OnStreetLightsBrightnessCommitted()`: `Manager->SetBrightness(Value)`, діапазон
   `0..100` (`0` — вогні вимкнені, `100` — максимум). `GetStreetLightsManager()` лениво
@@ -147,7 +154,7 @@ PointSize/Intensity`, `CloudsCoverage/Density/Speed`, `bTerrainSurfaceEnabled`,
 |----------------|------|------|
 | `UScenarioSettingsSave` | `ScenarioSettings` | `CurrentSimulatorMode`, `ScenarioSlotName`, `TargetSpawnOffsetDistance`, `OnboardCameraMode`, `SensorsMode` |
 | `USensorSettingsSave` | `SensorSettings` | `bEnableSensorCameraFrame`, `…Altimeter`, `…AttitudeIndicator`, `…CameraInclination`, `…Lidar`, `…CameraAltitude`, `…Position`, `…GeoPosition`, `…CesiumSurroundings`, `…CustomSurroundings` |
-| `UEnvironmentSettingsSave` | `EnvironmentSettings` | `OriginLatitude/Longitude/Height`, `TimeZone`, `SolarTime`, `StarsDensity/Threshold/PointSize/Intensity`, `CloudsCoverage/Density/Speed`, `bTerrainSurfaceEnabled`, `RainIntensity`, `StreetLightsBrightness` (дефолт 0), `StreetLightsDataSource` (дефолт `Custom`); залишкові `bEWInterferenceEnabled`, `EWLongitude/Latitude/Radius` — застарілі, не використовуються |
+| `UEnvironmentSettingsSave` | `EnvironmentSettings` | `OriginLatitude/Longitude/Height`, `TimeZone`, `SolarTime`, `TimeSpeed` (дефолт 60), `StarsDensity/Threshold/PointSize/Intensity`, `CloudsCoverage/Density/Speed`, `bTerrainSurfaceEnabled`, `RainIntensity`, `FogIntensity` (дефолт 0), `StreetLightsBrightness` (дефолт 0), `StreetLightsDataSource` (дефолт `Custom`); залишкові `bEWInterferenceEnabled`, `EWLongitude/Latitude/Radius` — застарілі, не використовуються |
 | `USyntheticDataSettingsSave` | `SyntheticDataSettings` | `SphericalContourBasePath`, `KeyPointOutputJsonPath`, `SceneObjectOutputJsonPath`, `MarkerDatasetBasePath`, `bEnableSensorSegmentationMask`, `bEnableSensorBBoxDetection` |
 | `UGlobalSettingsSave` | `GlobalSettings` | `SensorWarmupFrameCount` |
 | `UFlightScenarioSave` | `ScenarioSlotName` (за замовч. `TargetScenario_1`) | траєкторія — див. [07](07-Recording-Playback-Modes.md) |

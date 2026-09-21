@@ -222,7 +222,7 @@ AAirplane::Tick
   вручну розміщені актори, і спавнені `AEnvironmentActorManager`) →
   `Subsystem->SetEWSettings(...)` / `SetWindSettings(...)`.
 
-## Об'єкти середовища (РЕБ, вітер, дощ, вуличні вогні)
+## Об'єкти середовища (РЕБ, вітер, дощ, туман, вуличні вогні)
 
 `AEnvironmentActorManager` (`Actor/EnvironmentActorManager.h/.cpp`) — окрема
 сцена-актор, що спавнить і персистить `AEWZoneActor` (зони перешкод РЕБ) і
@@ -237,6 +237,7 @@ AAirplane::Tick
 Окремо від нього, за тим самим принципом "менеджер у рівні, керований одним полем у
 `UEnvironmentSectionWidget`, без зв'язку з `UUAVSimulationSubsystem`":
 - `ARainEffectManager` — дощ над усіма літаками (`SpinBoxRainIntensity`).
+- `AFogManager` — туман (`AExponentialHeightFog`), `SpinBoxFogIntensity` 0–100.
 - `AStreetLightsManager` — нічні вуличні вогні на Cesium-поверхні
   (`SpinBoxStreetLightsBrightness` 0–100 + `ComboBoxStreetLightsDataSource`
   `Custom`/`Cesium`). Не має власного виявлення: читає

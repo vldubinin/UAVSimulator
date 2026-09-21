@@ -36,6 +36,12 @@ AEnvironmentActorManager::LoadConfigurationsFromFile reads both arrays back
 once this script's window is closed and (re)spawns AEWZoneActor / AWindActor
 accordingly.
 
+A grey "Start" marker is drawn at the <latitude> <longitude> the script was launched with (where
+the map was opened). It is purely visual: it cannot be clicked/edited and is not saved.
+
+The window's size and position (and whether it is maximized) are remembered between runs in
+window_state.json next to this script, and restored on the next launch.
+
 Standalone - no dependency on map_object_marker.py.
 
 Dependency:
@@ -51,6 +57,7 @@ Example:
 import json
 import math
 import os
+import re
 import sys
 
 # Unreal's embedded Python resolves Tcl/Tk's init.tcl from a path relative to the
@@ -105,12 +112,74 @@ SIDE_VIEW_HEIGHT = 110
 # script, same convention as map_object_marker.py's map_objects.json.
 OUTPUT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "env_actors.json")
 
+# Where the window size/position the user set is remembered between runs. Next to this
+# script, like OUTPUT_FILE.
+WINDOW_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "window_state.json")
+DEFAULT_WINDOW_SIZE = (1000, 700)
+MIN_WINDOW_SIZE = (400, 300)
+WINDOW_SAVE_DELAY_MS = 400   # debounce: save this long after the last resize/move
+
+# Purely visual marker at the coordinates passed on the command line (where the map was opened).
+START_MARKER_TEXT = "Start"
+START_MARKER_COLOR_CIRCLE = "#9e9e9e"
+START_MARKER_COLOR_OUTSIDE = "#616161"
+
 # Google Maps tiles. lyrs options:
 #   m  - plain map (roads)
 #   s  - satellite
 #   y  - hybrid (satellite + labels)
 #   p  - terrain
 GOOGLE_TILE_SERVER = "https://mt0.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}&s=Ga"
+
+
+_GEOMETRY_RE = re.compile(r"^(\d+)x(\d+)(?:([+-]-?\d+)([+-]-?\d+))?$")
+
+
+def load_window_state() -> dict:
+    """Reads WINDOW_STATE_FILE; any problem (missing/corrupt file) just means 'no saved state'."""
+    try:
+        with open(WINDOW_STATE_FILE, "r", encoding="utf-8") as f:
+            state = json.load(f)
+        return state if isinstance(state, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_window_state(geometry: str, maximized: bool) -> None:
+    """Writes the window state atomically; a failure to save must never break the tool."""
+    tmp_path = WINDOW_STATE_FILE + ".tmp"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump({"geometry": geometry, "maximized": maximized}, f, indent=2)
+        os.replace(tmp_path, WINDOW_STATE_FILE)
+    except OSError:
+        pass
+
+
+def sanitize_geometry(geometry, root: "tk.Tk") -> str:
+    """
+    Turns a saved Tk geometry string ("WxH+X+Y") into one that is safe to apply now: the size is
+    kept within [MIN_WINDOW_SIZE, screen], and the position is dropped (the OS places the window)
+    if it would leave the window off-screen - e.g. it was saved on a monitor that is unplugged now.
+    """
+    default = f"{DEFAULT_WINDOW_SIZE[0]}x{DEFAULT_WINDOW_SIZE[1]}"
+    match = _GEOMETRY_RE.match(geometry) if isinstance(geometry, str) else None
+    if not match:
+        return default
+
+    virtual_x, virtual_y = root.winfo_vrootx(), root.winfo_vrooty()
+    virtual_w, virtual_h = root.winfo_vrootwidth(), root.winfo_vrootheight()
+
+    width = min(max(int(match.group(1)), MIN_WINDOW_SIZE[0]), virtual_w)
+    height = min(max(int(match.group(2)), MIN_WINDOW_SIZE[1]), virtual_h)
+    if match.group(3) is None:
+        return f"{width}x{height}"
+
+    # Tk writes a negative coordinate as "+-1920" (monitor to the left of / above the primary one).
+    x, y = (int(group.replace("+-", "-").lstrip("+")) for group in (match.group(3), match.group(4)))
+    title_bar_reachable = (virtual_x - width + 100 <= x <= virtual_x + virtual_w - 100
+                           and virtual_y <= y <= virtual_y + virtual_h - 50)
+    return f"{width}x{height}+{x}+{y}" if title_bar_reachable else f"{width}x{height}"
 
 
 def make_ew_icon(size: int = EW_MARKER_SIZE) -> "ImageTk.PhotoImage":
@@ -255,7 +324,7 @@ class ConfigurateEnvActorsApp:
         self.wind_click_start = None   # (latitude, longitude) of the first of the two placement clicks
 
         root.title("Environment actors map")
-        root.geometry("1000x700")
+        self.restore_window_state()
 
         panel = tk.Frame(root)
         panel.pack(side="top", fill="x")
@@ -279,7 +348,56 @@ class ConfigurateEnvActorsApp:
         self.map_widget.set_zoom(START_ZOOM)
         self.map_widget.add_left_click_map_command(self.on_map_left_click)
 
+        # Visual only: marks the coordinates the map was opened at. Not in ew_objects/wind_objects,
+        # so it has no click handler, cannot be edited/deleted and is never exported by SAVE.
+        self.start_marker = self.map_widget.set_marker(
+            start_lat, start_lon, text=START_MARKER_TEXT,
+            marker_color_circle=START_MARKER_COLOR_CIRCLE, marker_color_outside=START_MARKER_COLOR_OUTSIDE)
+
         self.load_existing_objects()
+
+    # ------------------------------------------------------------------ #
+    # Window size/position memory
+    # ------------------------------------------------------------------ #
+
+    def restore_window_state(self):
+        """Applies the size/position saved last time (or the default size on the first run) and starts tracking changes."""
+        state = load_window_state()
+        geometry = sanitize_geometry(state.get("geometry"), self.root)
+        self.root.geometry(geometry)
+
+        # Tk reports the maximized window's geometry as the full screen, so the last "normal"
+        # geometry is tracked separately and is what gets saved together with the maximized flag.
+        self._normal_geometry = geometry
+        self._save_job = None
+        if state.get("maximized"):
+            try:
+                self.root.state("zoomed")
+            except tk.TclError:
+                pass  # "zoomed" exists on Windows only; elsewhere just open at the saved size
+
+        self.root.bind("<Configure>", self.on_window_configure)
+        self.root.protocol("WM_DELETE_WINDOW", self.on_window_close)
+
+    def on_window_configure(self, event):
+        if event.widget is not self.root:
+            return  # <Configure> from child widgets bubbles up to the root as well
+        if self._save_job is not None:
+            self.root.after_cancel(self._save_job)
+        self._save_job = self.root.after(WINDOW_SAVE_DELAY_MS, self.persist_window_state)
+
+    def persist_window_state(self):
+        self._save_job = None
+        maximized = self.root.state() == "zoomed"
+        if not maximized:
+            self._normal_geometry = self.root.geometry()
+        save_window_state(self._normal_geometry, maximized)
+
+    def on_window_close(self):
+        if self._save_job is not None:
+            self.root.after_cancel(self._save_job)
+        self.persist_window_state()
+        self.root.destroy()
 
     # ------------------------------------------------------------------ #
     # Load (pick up whatever Unreal last wrote/saved)

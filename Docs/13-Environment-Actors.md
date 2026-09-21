@@ -1,4 +1,4 @@
-# 13 — Об'єкти середовища: РЕБ-зони, вітер, дощ та вуличні вогні
+# 13 — Об'єкти середовища: РЕБ-зони, вітер, дощ, туман та вуличні вогні
 
 Паралельна, опційна система наземних/просторових об'єктів середовища, що
 впливають на політ і/або сенсори — незалежна від аеродинамічної ієрархії
@@ -399,6 +399,65 @@ User-параметра в Custom Hlsl працює нормально — ла�
 `Brightness=0` через колір/деактивацію компонента). Рендерер — стандартний
 `DefaultSpriteMaterial`; для продакшн-вигляду варто замінити на власний
 емісивний матеріал вуличного ліхтаря.
+
+## Час доби — `ATimeOfDayManager`
+
+`Actor/TimeOfDayManager.h/.cpp`. Автоматично й поступово рухає час доби: щотіку накопичує
+`DeltaTime × TimeSpeed / 3600` год і раз на `UpdateInterval` (дефолт 0.1 с — `UpdateSun()` чіпає
+SkyLight/атмосферу, щокадру його викликати не варто) додає накопичене до `ACesiumSunSky::SolarTime`
+(`Fmod 24`), викликає `UpdateSun()` і розсилає `OnSolarTimeAdvanced(NewSolarTime)`. Незалежний від
+`AAirplane` актор рівня, як `ARainEffectManager`; лениво спавниться
+`UEnvironmentSectionWidget::GetTimeOfDayManager()`.
+
+| Властивість | Дефолт | Роль |
+|---|---|---|
+| `TimeSpeed` (`SetTimeSpeed/GetTimeSpeed`) | 60 | У разів швидше за реальний час: `1` = реальний, `60` = симуляційна хвилина за секунду (доба за 24 хв), `0` = час стоїть (єдиний вимикач) |
+| `UpdateInterval` | 0.1 | Мінімальний інтервал (с) між викликами `UpdateSun()` |
+
+- Рухається лише `SolarTime`; дата (`Year/Month/Day`) не змінюється — після 24:00 доба просто починається заново.
+- Ручне введення `SpinBoxSolarTime` працює як і раніше: менеджер додає приріст до поточного `SunSky->SolarTime`.
+- Не працює, поки `SunSky` прихований (вимкнено ландшафт Cesium — `ApplyTerrainSurfaceState`).
+- Сам `ACesiumSunSky` не рухає «місяць» і не оновлює `NightFactor` зір — тому `UEnvironmentSectionWidget`
+  підписаний на `OnSolarTimeAdvanced` (`OnSolarTimeAdvanced()`): оновлює `SpinBoxSolarTime` і викликає
+  `ApplyStarsSettingsFromWidgets()` → `UpdateNightVisuals()`. Підписка працює й під час польоту, коли меню
+  `Collapsed` (віджет живий, лише `NativeTick` не викликався б). У цьому хендлері **не** викликається
+  `SaveCurrentSettings()` — подія йде ~10 разів/с.
+- Керування: `SpinBoxTimeSpeed` (`OptionalWidget`, `UEnvironmentSectionWidget`), персиститься в
+  `UEnvironmentSettingsSave::TimeSpeed`. Поточне `SolarTime` зберігається разом з рештою налаштувань
+  (при будь-якому `SaveCurrentSettings()`), тож наступний запуск продовжує з того ж часу.
+- `SpinBoxTimeSpeed` потрібно додати вручну в `WBP_EnvironmentSection` (біля `SpinBoxSolarTime`); без нього
+  працює дефолт 60 (або значення зі збереженого слота).
+
+## Туман — `AFogManager`
+
+`Actor/FogManager.h/.cpp`. Симуляція туману одним параметром **`FogIntensity` [0,100]**
+(`SetFogIntensity/GetFogIntensity`): `0` = туман вимкнено (єдиний вимикач, окремого прапорця нема),
+`100` = максимальний. Незалежний від `AAirplane` актор рівня, як `ARainEffectManager`; лениво
+спавниться `UEnvironmentSectionWidget::GetFogManager()`.
+
+Керує штатним `AExponentialHeightFog`: бере наявний у рівні (`GetActorOfClass`), інакше спавнить
+свій у позиції менеджера. Це рушійний туман, тож він автоматично потрапляє і в основний вид, і в
+`USceneCaptureComponent2D` бортової камери — жодних правок матеріалів не потрібно. Якщо в рівні вже
+стоїть свій `ExponentialHeightFog`, менеджер його перебирає під себе (на `0` ховає, вище — перезаписує
+щільність/falloff).
+
+`ApplyFog()` (при `BeginPlay` і кожній зміні): `0` → `SetVisibility(false)`; інакше
+`FogDensity = MaxFogDensity × (FogIntensity/100)²` (квадратична крива — нижня половина шкали дає легку
+димку, а не одразу стіну), `FogHeightFalloff`, `FogMaxOpacity = 1`, `StartDistance`, `VolumetricFog`.
+
+| Властивість | Дефолт | Роль |
+|---|---|---|
+| `MaxFogDensity` | 0.5 | `FogDensity` при `FogIntensity = 100`. Орієнтир: `0.02` — дефолт рушія (легка димка), `~0.5` — щільний туман з видимістю в кількадесят метрів |
+| `FogHeightFalloff` | 0.02 | Мале значення розтягує туман по висоті, щоб він накривав БПЛА на сотнях метрів (дефолт рушія `0.2` гасить туман вже за ~50 м над `FogHeight`) |
+| `FogStartDistance` | 0 | Дальність (см), до якої туман не діє |
+| `bUseVolumetricFog` | `false` | Volumetric fog (розсіювання світла): гарніше, але дорожче й лише на ближній дистанції |
+
+- Висота, від якої туман густий, — Z актора `AExponentialHeightFog` (для спавненого — Z менеджера, тобто
+  `0`). Якщо земля Cesium суттєво вище/нижче `Z=0`, підніміть/опустіть актор туману в рівні.
+- Керування: `SpinBoxFogIntensity` (`OptionalWidget`, `UEnvironmentSectionWidget`; діапазон 0–100
+  виставляється з коду в `NativeConstruct`), персиститься в `UEnvironmentSettingsSave::FogIntensity`
+  (дефолт `0`). Спінбокс потрібно додати вручну в `WBP_EnvironmentSection`; без нього туман лишається
+  вимкненим (або таким, як у збереженому слоті).
 
 ## Нічне небо: зорі — `M_Stars` / `MI_Stars`
 

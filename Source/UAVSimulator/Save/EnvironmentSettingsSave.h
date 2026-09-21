@@ -29,6 +29,10 @@ public:
 	UPROPERTY(BlueprintReadWrite)
 	double SolarTime = 0.0;
 
+	/** ATimeOfDayManager::TimeSpeed — у разів швидше за реальний час (0 = час стоїть). */
+	UPROPERTY(BlueprintReadWrite)
+	double TimeSpeed = 60.0;
+
 	// — Зоряне небо (StarsSphere / MI_Stars) — значення відповідають дефолтам матеріалу —
 	UPROPERTY(BlueprintReadWrite)
 	double StarsDensity = 200.0;
@@ -74,6 +78,11 @@ public:
 	 *  0 = дощу нема взагалі — єдиний вимикач, окремого bool-прапорця нема). */
 	UPROPERTY(BlueprintReadWrite)
 	double RainIntensity = 1.0;
+
+	/** AFogManager::FogIntensity — інтенсивність туману [0,100]; 0 — вимкнено (єдиний вимикач,
+	 *  окремого bool-прапорця нема, той самий принцип, що RainIntensity). */
+	UPROPERTY(BlueprintReadWrite)
+	double FogIntensity = 0.0;
 
 	/** AStreetLightsManager::Brightness — яскравість нічних вуличних вогнів [0,100]; 0 —
 	 *  вимкнено (єдиний вимикач, окремого bool-прапорця нема, той самий принцип, що RainIntensity).

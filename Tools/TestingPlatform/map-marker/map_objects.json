@@ -15926,5 +15926,49 @@
                 "longitude": 36.29690561950065
             }
         }
+    },
+    {
+        "elementId": "obj731",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.039202999006726,
+                "longitude": 36.296562834504016
+            },
+            "y_min": {
+                "latitude": 50.03933736820611,
+                "longitude": 36.29689542842186
+            },
+            "x_max": {
+                "latitude": 50.03977148151088,
+                "longitude": 36.29650382590569
+            },
+            "y_max": {
+                "latitude": 50.039626777512105,
+                "longitude": 36.296106858971484
+            }
+        }
+    },
+    {
+        "elementId": "obj732",
+        "type": "building",
+        "bbox": {
+            "x_min": {
+                "latitude": 50.03874131735319,
+                "longitude": 36.29569916320122
+            },
+            "y_min": {
+                "latitude": 50.03864484599916,
+                "longitude": 36.295827909233935
+            },
+            "x_max": {
+                "latitude": 50.0386965271058,
+                "longitude": 36.29594592643059
+            },
+            "y_max": {
+                "latitude": 50.03879988915215,
+                "longitude": 36.295822544815906
+            }
+        }
     }
 ]

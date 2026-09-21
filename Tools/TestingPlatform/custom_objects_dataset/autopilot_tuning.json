@@ -1,0 +1,30 @@
+{
+  "roll_gain": 3.0,
+  "pitch_gain": 0.2,
+  "tail_threshold_deg": 48.0,
+  "switch_distance_m": 0.0,
+  "roll_rate_limit_deg_s": 180.0,
+  "alignment_lead_time_s": 0.0,
+  "roll_distance_curve": [
+    [
+      0.0,
+      1.0
+    ],
+    [
+      50.0,
+      1.0
+    ],
+    [
+      100.0,
+      1.0
+    ],
+    [
+      150.0,
+      1.0
+    ],
+    [
+      200.0,
+      1.0
+    ]
+  ]
+}

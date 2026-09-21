@@ -16,6 +16,8 @@
 #include "UAVSimulator/Actor/EnvironmentActorManager.h"
 #include "UAVSimulator/Actor/RainEffectManager.h"
 #include "UAVSimulator/Actor/StreetLightsManager.h"
+#include "UAVSimulator/Actor/TimeOfDayManager.h"
+#include "UAVSimulator/Actor/FogManager.h"
 #include "UAVSimulator/UAVSimulator.h"
 
 const FString UEnvironmentSectionWidget::EnvironmentSaveSlotName = TEXT("EnvironmentSettings");
@@ -58,8 +60,23 @@ void UEnvironmentSectionWidget::NativeConstruct()
 	if (SpinBoxRainIntensity)
 		SpinBoxRainIntensity->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnRainIntensityCommitted);
 
+	if (SpinBoxFogIntensity)
+	{
+		SpinBoxFogIntensity->SetMinValue(0.0f);
+		SpinBoxFogIntensity->SetMaxValue(100.0f);
+		SpinBoxFogIntensity->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnFogIntensityCommitted);
+	}
+
 	if (SpinBoxStreetLightsBrightness)
 		SpinBoxStreetLightsBrightness->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnStreetLightsBrightnessCommitted);
+
+	if (SpinBoxTimeSpeed)
+		SpinBoxTimeSpeed->OnValueCommitted.AddDynamic(this, &UEnvironmentSectionWidget::OnTimeSpeedCommitted);
+
+	// Менеджер часу доби живе весь рівень, а віджет лише ховається (Collapsed) на час польоту —
+	// тож підписка діє і під час симуляції (NativeTick згорнутого віджета не викликається).
+	if (ATimeOfDayManager* TimeManager = GetTimeOfDayManager())
+		TimeManager->OnSolarTimeAdvanced.AddUniqueDynamic(this, &UEnvironmentSectionWidget::OnSolarTimeAdvanced);
 
 	if (ComboBoxStreetLightsDataSource)
 	{
@@ -107,10 +124,22 @@ void UEnvironmentSectionWidget::SyncFromWorld()
 		ApplyTerrainSurfaceState(bEnabled);
 	}
 
+	if (SpinBoxTimeSpeed)
+	{
+		if (ATimeOfDayManager* Manager = GetTimeOfDayManager())
+			SpinBoxTimeSpeed->SetValue(Manager->GetTimeSpeed());
+	}
+
 	if (SpinBoxRainIntensity)
 	{
 		if (ARainEffectManager* Manager = GetRainEffectManager())
 			SpinBoxRainIntensity->SetValue(Manager->GetRainIntensity());
+	}
+
+	if (SpinBoxFogIntensity)
+	{
+		if (AFogManager* Manager = GetFogManager())
+			SpinBoxFogIntensity->SetValue(Manager->GetFogIntensity());
 	}
 
 	if (SpinBoxStreetLightsBrightness)
@@ -173,6 +202,20 @@ void UEnvironmentSectionWidget::OnSolarTimeCommitted(float Value, ETextCommit::T
 		ApplyStarsSettingsFromWidgets();
 	}
 	SaveCurrentSettings();
+}
+
+void UEnvironmentSectionWidget::OnTimeSpeedCommitted(float Value, ETextCommit::Type /*CommitType*/)
+{
+	if (ATimeOfDayManager* Manager = GetTimeOfDayManager())
+		Manager->SetTimeSpeed(Value);
+	SaveCurrentSettings();
+}
+
+void UEnvironmentSectionWidget::OnSolarTimeAdvanced(double NewSolarTime)
+{
+	// Без SaveCurrentSettings — виклик приходить ~10 разів/с, писати слот щоразу не можна.
+	SpinBoxSolarTime->SetValue((float)NewSolarTime);
+	ApplyStarsSettingsFromWidgets();
 }
 
 void UEnvironmentSectionWidget::OnStarsDensityCommitted(float /*Value*/, ETextCommit::Type /*CommitType*/)
@@ -338,6 +381,13 @@ void UEnvironmentSectionWidget::OnRainIntensityCommitted(float Value, ETextCommi
 	SaveCurrentSettings();
 }
 
+void UEnvironmentSectionWidget::OnFogIntensityCommitted(float Value, ETextCommit::Type /*CommitType*/)
+{
+	if (AFogManager* Manager = GetFogManager())
+		Manager->SetFogIntensity(Value);
+	SaveCurrentSettings();
+}
+
 void UEnvironmentSectionWidget::OnStreetLightsBrightnessCommitted(float Value, ETextCommit::Type /*CommitType*/)
 {
 	if (AStreetLightsManager* Manager = GetStreetLightsManager())
@@ -418,6 +468,11 @@ void UEnvironmentSectionWidget::LoadAndApplySavedSettings()
 			FVector(Save->OriginLongitude, Save->OriginLatitude, Save->OriginHeight));
 	}
 
+	if (SpinBoxTimeSpeed)
+		SpinBoxTimeSpeed->SetValue((float)Save->TimeSpeed);
+	if (ATimeOfDayManager* Manager = GetTimeOfDayManager())
+		Manager->SetTimeSpeed((float)Save->TimeSpeed);
+
 	SpinBoxStarsDensity->SetValue((float)Save->StarsDensity);
 	SpinBoxStarsThreshold->SetValue((float)Save->StarsThreshold);
 	SpinBoxStarsPointSize->SetValue((float)Save->StarsPointSize);
@@ -442,6 +497,12 @@ void UEnvironmentSectionWidget::LoadAndApplySavedSettings()
 	{
 		Manager->SetRainIntensity((float)Save->RainIntensity);
 	}
+
+	if (SpinBoxFogIntensity)
+		SpinBoxFogIntensity->SetValue((float)Save->FogIntensity);
+
+	if (AFogManager* Manager = GetFogManager())
+		Manager->SetFogIntensity((float)Save->FogIntensity);
 
 	if (SpinBoxStreetLightsBrightness)
 		SpinBoxStreetLightsBrightness->SetValue((float)Save->StreetLightsBrightness);
@@ -474,6 +535,9 @@ void UEnvironmentSectionWidget::SaveCurrentSettings()
 		Save->SolarTime = SunSky->SolarTime;
 	}
 
+	if (ATimeOfDayManager* Manager = GetTimeOfDayManager())
+		Save->TimeSpeed = Manager->GetTimeSpeed();
+
 	Save->StarsDensity   = SpinBoxStarsDensity->GetValue();
 	Save->StarsThreshold = SpinBoxStarsThreshold->GetValue();
 	Save->StarsPointSize = SpinBoxStarsPointSize->GetValue();
@@ -492,6 +556,9 @@ void UEnvironmentSectionWidget::SaveCurrentSettings()
 	{
 		Save->RainIntensity = Manager->GetRainIntensity();
 	}
+
+	if (AFogManager* Manager = GetFogManager())
+		Save->FogIntensity = Manager->GetFogIntensity();
 
 	if (AStreetLightsManager* Manager = GetStreetLightsManager())
 	{
@@ -580,6 +647,44 @@ ARainEffectManager* UEnvironmentSectionWidget::GetRainEffectManager() const
 	// лишиться незаданим, доки його не признать вручну в редакторі (як EWZoneActorClass вище).
 	ARainEffectManager* Spawned = World->SpawnActor<ARainEffectManager>();
 	UE_LOG(LogUAV, Log, TEXT("EnvironmentSectionWidget::GetRainEffectManager: no ARainEffectManager in level — spawned %s"),
+		Spawned ? *Spawned->GetName() : TEXT("FAILED"));
+	return Spawned;
+}
+
+ATimeOfDayManager* UEnvironmentSectionWidget::GetTimeOfDayManager() const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+		return nullptr;
+
+	if (ATimeOfDayManager* Existing = Cast<ATimeOfDayManager>(
+			UGameplayStatics::GetActorOfClass(World, ATimeOfDayManager::StaticClass())))
+	{
+		return Existing;
+	}
+
+	// У рівні ще немає розміщеного менеджера — створюємо, інакше час доби нікому рухати.
+	ATimeOfDayManager* Spawned = World->SpawnActor<ATimeOfDayManager>();
+	UE_LOG(LogUAV, Log, TEXT("EnvironmentSectionWidget::GetTimeOfDayManager: no ATimeOfDayManager in level — spawned %s"),
+		Spawned ? *Spawned->GetName() : TEXT("FAILED"));
+	return Spawned;
+}
+
+AFogManager* UEnvironmentSectionWidget::GetFogManager() const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+		return nullptr;
+
+	if (AFogManager* Existing = Cast<AFogManager>(
+			UGameplayStatics::GetActorOfClass(World, AFogManager::StaticClass())))
+	{
+		return Existing;
+	}
+
+	// У рівні ще немає розміщеного менеджера — створюємо, інакше туман нікому вмикати.
+	AFogManager* Spawned = World->SpawnActor<AFogManager>();
+	UE_LOG(LogUAV, Log, TEXT("EnvironmentSectionWidget::GetFogManager: no AFogManager in level — spawned %s"),
 		Spawned ? *Spawned->GetName() : TEXT("FAILED"));
 	return Spawned;
 }

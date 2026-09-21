@@ -1,0 +1,14 @@
+path: C:\Users\DubakusPC\Documents\Python\Khai\yolo\custom_objects_dataset
+train: images/train
+val: images/train
+names:
+  0: building
+  1: technical
+  2: parking
+
+# labels/<split>/*.meta.json — per-object id + type + class + pixel bbox + lat/long/altitude:
+# {"image": "000000.jpg", "objects": [{"id": "obj1", "type": "building", "class": 0,
+#   "bbox_px": [x1, y1, x2, y2], "latitude": .., "longitude": .., "altitude": ..}, ...]}
+# Прив'язка id -> latitude/longitude (усі бачені об'єкти, не тільки цього кадру) — у virtual_map.json поруч.
+# Позиція дрона для кожного кадру (topic drone_geo_position) — у exp_geo_position.txt поруч:
+# '{image_name} {latitude} {longitude} {altitude_m}' на рядок.

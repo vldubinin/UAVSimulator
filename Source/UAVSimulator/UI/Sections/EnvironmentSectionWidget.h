@@ -15,6 +15,8 @@ class AVolumetricCloud;
 class AEnvironmentActorManager;
 class ARainEffectManager;
 class AStreetLightsManager;
+class ATimeOfDayManager;
+class AFogManager;
 
 UCLASS()
 class UAVSIMULATOR_API UEnvironmentSectionWidget : public USimulatorSectionWidget
@@ -43,6 +45,12 @@ protected:
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<USpinBox> SpinBoxSolarTime;
+
+	// Швидкість ходу часу доби (ATimeOfDayManager): у разів швидше за реальний, 0 = час стоїть.
+	// OptionalWidget = true: спінбоксу ще нема в UMG Blueprint, доки його не додадуть вручну.
+
+	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
+	TObjectPtr<USpinBox> SpinBoxTimeSpeed;
 
 	// — Зоряне небо (StarsSphere / MI_Stars, керується з UpdateNightVisuals) ———————————
 
@@ -91,6 +99,14 @@ protected:
 
 	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
 	TObjectPtr<USpinBox> SpinBoxRainIntensity;
+
+	// — Туман (AFogManager) ——————————————————————————————————————————————————————
+	// OptionalWidget = true: спінбоксу ще нема в UMG Blueprint, доки його не додадуть вручну.
+	// 0 = туман вимкнено, 100 = максимальний — єдине джерело правди, окремого чекбокса нема.
+	// Діапазон 0–100 виставляється з коду в NativeConstruct.
+
+	UPROPERTY(meta = (BindWidget, OptionalWidget = true))
+	TObjectPtr<USpinBox> SpinBoxFogIntensity;
 
 	// — Нічні вуличні вогні (AStreetLightsManager) ————————————————————————————————
 	// OptionalWidget = true: те саме застереження, що й для SpinBoxRainIntensity вище —
@@ -147,6 +163,8 @@ private:
 	AEnvironmentActorManager* GetEnvironmentActorManager() const;
 	ARainEffectManager*  GetRainEffectManager() const;
 	AStreetLightsManager* GetStreetLightsManager() const;
+	ATimeOfDayManager*   GetTimeOfDayManager() const;
+	AFogManager*         GetFogManager() const;
 
 	static const FString EnvironmentSaveSlotName;
 
@@ -155,6 +173,10 @@ private:
 	UFUNCTION() void OnOriginHeightCommitted(float Value, ETextCommit::Type CommitType);
 	UFUNCTION() void OnTimeZoneCommitted(float Value, ETextCommit::Type CommitType);
 	UFUNCTION() void OnSolarTimeCommitted(float Value, ETextCommit::Type CommitType);
+	UFUNCTION() void OnTimeSpeedCommitted(float Value, ETextCommit::Type CommitType);
+	// Викликається ATimeOfDayManager після кожного кроку часу: синхронізує спінбокс часу
+	// і перераховує місяць/зорі (сам SunSky їх не рухає).
+	UFUNCTION() void OnSolarTimeAdvanced(double NewSolarTime);
 	UFUNCTION() void OnStarsDensityCommitted(float Value, ETextCommit::Type CommitType);
 	UFUNCTION() void OnStarsThresholdCommitted(float Value, ETextCommit::Type CommitType);
 	UFUNCTION() void OnStarsPointSizeCommitted(float Value, ETextCommit::Type CommitType);
@@ -164,6 +186,7 @@ private:
 	UFUNCTION() void OnCloudsSpeedCommitted(float Value, ETextCommit::Type CommitType);
 	UFUNCTION() void OnTerrainSurfaceChanged(bool bIsChecked);
 	UFUNCTION() void OnRainIntensityCommitted(float Value, ETextCommit::Type CommitType);
+	UFUNCTION() void OnFogIntensityCommitted(float Value, ETextCommit::Type CommitType);
 	UFUNCTION() void OnStreetLightsBrightnessCommitted(float Value, ETextCommit::Type CommitType);
 	UFUNCTION() void OnStreetLightsDataSourceChanged(FString SelectedItem, ESelectInfo::Type SelectionType);
 
