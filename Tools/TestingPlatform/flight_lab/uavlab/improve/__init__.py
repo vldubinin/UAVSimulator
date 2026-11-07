@@ -2,6 +2,7 @@
 uavlab improve — замкнений цикл «тест → аналіз → правка LLM → повторний тест» (варіант A, Claude API).
 
     uavlab improve my_algo.py -c test.yaml [--max-iterations 5] [--max-cost 5] [--approve] [--allow params,code,autopilot_pid]
+    uavlab improve --resume improve/<run_id> [--max-iterations N] [--max-cost USD]   # продовжити перерваний
     uavlab apply improve/<run_id>          # перенести найкращу версію в оригінальні файли
 
 Алгоритм:
@@ -12,6 +13,8 @@ uavlab improve — замкнений цикл «тест → аналіз → �
     -> оцінка; краща — стає найкращою, інакше відкидається (агент бачить це в історії).
   Наприкінці — валідація найкращої версії на improve.validation_configs і звіт improve_report.html.
 Кожен тест — окремий процес `uavlab run` (чисті імпорти модулів алгоритму, ізоляція падінь).
+Стан зберігається після кожного кроку (state.json) — перерваний прогін (Ctrl+C, падіння Unreal, помилка
+API) продовжується з останнього завершеного етапу: `uavlab improve --resume <тека прогону>`.
 """
 
 from __future__ import annotations
@@ -137,7 +140,7 @@ def _context(ws: Workspace, best: Version, last: Optional[Version], criteria: li
         ("best_metrics", json.dumps(metrics, ensure_ascii=False, indent=1, default=str)),
         ("iteration_history", json.dumps(history, ensure_ascii=False, indent=1, default=str)),
     ]
-    if last is not None and last is not best and last.status == "run":
+    if last is not None and last is not best and last.status == "scored":
         blocks.append(("last_attempt_reverted", json.dumps({
             "version": f"v{last.index}", "change": {k: last.change.get(k) for k in ("summary", "hypothesis", "params", "autopilot_pid")},
             "diff": last.change.get("diff"), "evaluation": last.evaluation,
@@ -164,162 +167,365 @@ def _confirm(v: Version) -> bool:
     return input("Запустити тест з цими змінами? [y/N] ").strip().lower() in ("y", "yes", "т", "так")
 
 
-def run_improve(controller_path: str | Path, cfg: dict) -> Path:
-    controller_path = Path(controller_path).resolve()
-    icfg = cfg["improve"]
-    extra_path = str(controller_path.parent)  # нескопійовані локальні залежності алгоритму
-    run_dir = Path(icfg.get("runs_dir", "improve")).resolve() / f"{time.strftime('%Y%m%d_%H%M%S')}_{controller_path.stem}"
-    ws = Workspace.create(run_dir, controller_path, cfg)
-    budget = Budget(float(icfg.get("max_cost_usd", 5.0)))
-    analysis_cfg = dict(cfg["analysis"])
-    use_llm_analysis = bool(icfg.get("analyze_each_iteration", True))
-    history: list[dict] = []
-    criteria: list[dict] = list(cfg.get("acceptance") or [])
-    criteria_notes = ""
-    stop_reason = "max_iterations"
-    _log(f"Робоча тека: {run_dir}")
+class ImproveInterrupted(Exception):
+    """Цикл зупинено так, що його можна продовжити через --resume (Ctrl+C, помилка API агента...)."""
 
-    def run_and_score(v: Version) -> bool:
-        nonlocal criteria, criteria_notes
+
+class ImproveRun:
+    """Стан циклу improve + його збереження після КОЖНОГО кроку (state.json), щоб `--resume`
+    продовжив з останнього завершеного етапу:
+
+      версія created            -> перервано під час роботи агента: версію прибрано, правки готуються заново
+      версія proposed/approved  -> правки збережено, тест не завершено: тест запускається повторно (без агента)
+      версія tested             -> тест завершено, оцінки немає: лише аналіз + оцінка
+      версія scored/rejected/…  -> готово
+      phase validation          -> цикл завершено, валідація/звіт не дійшли до кінця
+    """
+
+    def __init__(self, run_dir: Path, cfg: dict, ws: Workspace, state: dict) -> None:
+        self.run_dir = run_dir
+        self.cfg = cfg
+        self.icfg = cfg["improve"]
+        self.ws = ws
+        self.analysis_cfg = dict(cfg["analysis"])
+        self.extra_path = str(Path(state["controller"]).parent)  # нескопійовані локальні залежності алгоритму
+        self.budget = Budget(float(self.icfg.get("max_cost_usd", 5.0)))
+        self.budget.items = [tuple(x) for x in state.get("budget_items", [])]
+        self.history: list[dict] = state.get("history", [])
+        self.criteria: list[dict] = state.get("criteria") or list(cfg.get("acceptance") or [])
+        self.criteria_notes: str = state.get("criteria_notes", "")
+        self.iterations_done: int = state.get("iterations_done", 0)
+        self.best_index: Optional[int] = state.get("best")
+        self.last_index: Optional[int] = state.get("last")
+        self.phase: str = state.get("phase", "loop")
+        self.stop_reason: Optional[str] = state.get("stop_reason")
+        self.validation: list[dict] = state.get("validation", [])
+        self.state = state
+        self.resumed = False
+        self._agent: Optional[ChangeAgent] = None
+
+    # ── створення / відновлення ──────────────────────────────────────────
+    @classmethod
+    def create(cls, controller_path: Path, cfg: dict) -> "ImproveRun":
+        controller_path = controller_path.resolve()
+        run_dir = (Path(cfg["improve"].get("runs_dir", "improve")).resolve()
+                   / f"{time.strftime('%Y%m%d_%H%M%S')}_{controller_path.stem}")
+        ws = Workspace.create(run_dir, controller_path, cfg)
+        (run_dir / "run_config.yaml").write_text(
+            yaml.safe_dump({k: v for k, v in cfg.items() if not k.startswith("_")} | {"_config_path": cfg.get("_config_path")},
+                           allow_unicode=True, sort_keys=False), encoding="utf-8")
+        run = cls(run_dir, cfg, ws, {"controller": str(controller_path)})
+        run.save()
+        return run
+
+    @classmethod
+    def resume(cls, run_dir: Path, improve_overrides: dict) -> "ImproveRun":
+        run_dir = run_dir.resolve()
+        if not (run_dir / "state.json").exists():
+            raise SystemExit(f"[uavlab improve] {run_dir} не схожий на теку прогону improve (немає state.json).")
+        state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+        cfg = load_config(None, yaml.safe_load((run_dir / "run_config.yaml").read_text(encoding="utf-8")))
+        cfg["improve"].update(improve_overrides)
+        ws = Workspace.load(run_dir, state.get("versions", []))
+        run = cls(run_dir, cfg, ws, state)
+        run.resumed = True
+        if run.phase == "done":
+            # Завершений прогін можна продовжити, лише якщо дали більше ітерацій/бюджету і ще не все пройдено.
+            best = run.best
+            if best is not None and best.evaluation and best.evaluation.get("all_passed"):
+                _log("Усі критерії вже пройдено — продовжувати нічого, лише оновлюю звіт.")
+                run.phase = "report"
+            else:
+                run.phase, run.stop_reason = "loop", None
+        return run
+
+    # ── стан ─────────────────────────────────────────────────────────────
+    def version(self, index: Optional[int]) -> Optional[Version]:
+        return next((v for v in self.ws.versions if v.index == index), None) if index is not None else None
+
+    @property
+    def best(self) -> Optional[Version]:
+        return self.version(self.best_index)
+
+    def save(self) -> None:
+        self.state.update({
+            "versions": [v.to_state() for v in self.ws.versions],
+            "best": self.best_index, "last": self.last_index, "iterations_done": self.iterations_done,
+            "history": self.history, "criteria": self.criteria, "criteria_notes": self.criteria_notes,
+            "budget_items": self.budget.items, "phase": self.phase, "stop_reason": self.stop_reason,
+            "validation": self.validation, "updated": time.strftime("%Y-%m-%d %H:%M:%S"),
+        })
+        tmp = self.run_dir / "state.json.tmp"
+        tmp.write_text(json.dumps(self.state, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        os.replace(tmp, self.run_dir / "state.json")  # атомарно: перерваний запис не зіпсує стан
+
+    @property
+    def agent(self) -> ChangeAgent:
+        if self._agent is None:
+            self._agent = ChangeAgent(self.icfg, language=self.analysis_cfg.get("language", "uk"))
+        return self._agent
+
+    # ── кроки ────────────────────────────────────────────────────────────
+    def _test(self, v: Version) -> None:
         _log(f"Тест версії v{v.index}...")
-        session = _run_version(v.entry_path, v.config_path, Path(v.config["record"]["sessions_dir"]), extra_path,
-                               v.dir / "run.log")
+        session = _run_version(v.entry_path, v.config_path, Path(v.config["record"]["sessions_dir"]),
+                               self.extra_path, v.dir / "run.log")
         if session is None:
-            v.status = "failed_to_run"
-            _log(f"v{v.index}: тест не відбувся (див. {v.dir / 'run.log'})")
-            return False
-        v.session_dir, v.status = session, "run"
-        metrics, v.report = _analyze(session, analysis_cfg, use_llm_analysis, budget)
-        if not criteria:
+            # Сесії немає — зазвичай це середовище (Unreal не відповідає / впав), а не версія алгоритму
+            # (винятки алгоритму дають сесію зі stop_reason=controller_exception). Версія лишається
+            # непротестованою, --resume запустить її тест повторно.
+            self.save()
+            raise ImproveInterrupted(f"тест v{v.index} не відбувся — перевірте Unreal (лог: {v.dir / 'run.log'})")
+        summary = json.loads((session / "summary.json").read_text(encoding="utf-8")) if (session / "summary.json").exists() else {}
+        if summary.get("stop_reason") == "user_interrupt":
+            # Ctrl+C під час тесту — це не результат версії: лишаємо її непротестованою.
+            raise ImproveInterrupted(f"тест v{v.index} перервано")
+        v.session_dir, v.status = session, "tested"
+        self.save()
+
+    def _score(self, v: Version) -> None:
+        metrics, v.report = _analyze(v.session_dir, self.analysis_cfg,
+                                     bool(self.icfg.get("analyze_each_iteration", True)), self.budget)
+        if not self.criteria:
             _log("Критеріїв приймання немає — генерую з objective (один раз, далі вони заморожені)...")
-            criteria, criteria_notes, usage = generate_criteria(cfg.get("objective", ""), metrics, icfg)
-            budget.add("acceptance criteria", usage_cost(usage))
-            if not criteria:
+            self.criteria, self.criteria_notes, usage = generate_criteria(self.cfg.get("objective", ""), metrics, self.icfg)
+            self.budget.add("acceptance criteria", usage_cost(usage))
+            if not self.criteria:
                 raise SystemExit("[uavlab improve] Не вдалося сформулювати критерії — задайте acceptance у конфігу.")
-            for c in criteria:
+            for c in self.criteria:
                 op = "max" if "max" in c else "min"
                 _log(f"  критерій: {c['metric']} {'<=' if op == 'max' else '>='} {c[op]}  ({c.get('rationale', '')})")
-            if criteria_notes:
-                _log(f"  примітка: {criteria_notes}")
-            if icfg.get("approve") and input("Прийняти ці критерії? [y/N] ").strip().lower() not in ("y", "yes", "т", "так"):
+            if self.criteria_notes:
+                _log(f"  примітка: {self.criteria_notes}")
+            if self.icfg.get("approve") and input("Прийняти ці критерії? [y/N] ").strip().lower() not in ("y", "yes", "т", "так"):
+                self.criteria = []
                 raise SystemExit("[uavlab improve] Критерії не прийнято — задайте acceptance у конфігу вручну.")
-        (run_dir / "acceptance.yaml").write_text(yaml.safe_dump(criteria, allow_unicode=True, sort_keys=False), encoding="utf-8")
-        v.evaluation = _evaluate_version(v, criteria, metrics)
-        v._metrics = metrics  # type: ignore[attr-defined]
+        (self.run_dir / "acceptance.yaml").write_text(
+            yaml.safe_dump(self.criteria, allow_unicode=True, sort_keys=False), encoding="utf-8")
+        v.evaluation = _evaluate_version(v, self.criteria, metrics)
+        v.status = "scored"
         e = v.evaluation
         _log(f"v{v.index}: пройдено {e['passed']}/{e['total']} критеріїв, перевищення {e['violation']}"
              + (f", ПРОВАЛ: {e['hard_fail']}" if e["hard_fail"] else ""))
+
+    def _decide(self, v: Version) -> None:
+        """Порівняння з найкращою, запис в історію, оновлення best."""
+        best = self.best
+        ok = v.status == "scored"
+        v.kept = bool(ok and (best is None or is_better(v.evaluation, best.evaluation)))
+        if v.index == 0:
+            v.kept = ok
+        else:
+            self.history.append({
+                "version": f"v{v.index}", "base": f"v{v.parent}",
+                "result": "kept (new best)" if v.kept else ("failed to run" if not ok else "reverted (not better)"),
+                "summary": v.change.get("summary"), "hypothesis": v.change.get("hypothesis"),
+                "params": v.change.get("params"), "autopilot_pid": v.change.get("autopilot_pid"),
+                "code_edits": v.change.get("code_edits"),
+                "evaluation": {k: (v.evaluation or {}).get(k) for k in ("passed", "total", "violation", "hard_fail")},
+                "criteria_values": [(d["metric"], d["value"], d["ok"]) for d in (v.evaluation or {}).get("details", [])],
+            })
+            _log(f"  -> {self.history[-1]['result']}")
+            self.last_index = v.index
+        if v.kept:
+            self.best_index = v.index
+        self.save()
+
+    def _finish_version(self, v: Version) -> None:
+        """Доводить версію до кінця з того стану, на якому її перервали."""
+        if v.status in ("proposed", "approved"):
+            if v.index > 0:
+                time.sleep(float(self.icfg.get("pause_between_runs_s", 3.0)))
+            self._test(v)
+        if v.status == "tested":
+            if not (v.session_dir and (v.session_dir / "summary.json").exists()):
+                v.status, v.session_dir = "proposed", None  # сесія не дописана — тест заново
+                self.save()
+                return self._finish_version(v)
+            self._score(v)
+            self._decide(v)
+
+    def _recover(self) -> None:
+        """Наводить лад після переривання: недороблені версії або доробляються, або прибираються."""
+        for v in list(self.ws.versions):
+            if v.status == "created" and v.index > 0:
+                _log(f"v{v.index}: перервано під час роботи агента — версію прибрано, правки буде підготовлено заново")
+                self.ws.discard(v)
+                self.iterations_done = max(0, self.iterations_done - 1)
+                self.save()
+        for v in self.ws.versions:
+            if v.status == "failed_to_run":  # стан зі старих прогонів — тест повторюється
+                v.status = "proposed"
+        v0 = self.version(0)
+        if v0 is not None and v0.status == "created":
+            v0.status = "proposed"  # базова версія не потребує агента — просто тест
+        for v in list(self.ws.versions):
+            if v.status in ("proposed", "approved", "tested"):
+                if v.status != "tested" and self.icfg.get("approve") and v.index > 0 and v.status != "approved":
+                    if not _confirm(v):
+                        v.status, v.kept = "rejected", False
+                        self.history.append({"version": f"v{v.index}", "result": "rejected by user",
+                                             "summary": v.change.get("summary")})
+                        self.last_index = v.index
+                        self.save()
+                        continue
+                    v.status = "approved"
+                    self.save()
+                if self.resumed:
+                    _log(f"Відновлення: доводжу v{v.index} (стан: {v.status})")
+                self._finish_version(v)
+
+    def _iteration(self) -> bool:
+        """Одна ітерація. False — цикл треба зупинити (stop_reason виставлено)."""
+        best = self.best
+        if best.evaluation["all_passed"]:
+            self.stop_reason = "all_criteria_passed"
+            return False
+        if self.iterations_done >= int(self.icfg.get("max_iterations", 5)):
+            self.stop_reason = "max_iterations"
+            return False
+        if self.budget.spent >= self.budget.max_usd:
+            self.stop_reason = "budget_exhausted"
+            return False
+
+        v = self.ws.branch(best)
+        self.iterations_done += 1
+        self.save()  # v зі статусом created: якщо агента переривуть — версію буде прибрано при --resume
+        _log(f"Ітерація {self.iterations_done}: агент готує правки (база v{best.index})...")
+        n_usage = len(self.agent.usages)
+        last = self.version(self.last_index)
+        try:
+            v.change = self.agent.propose(
+                v, _context(self.ws, best, last, self.criteria, self.cfg, self.history, best.metrics()), self.extra_path)
+        except KeyboardInterrupt:
+            raise
+        except Exception as exc:
+            raise ImproveInterrupted(f"агент не зміг запропонувати правки: {exc}") from exc
+        finally:
+            spent = sum(usage_cost(u) for u in self.agent.usages[n_usage:])
+            if spent:
+                self.budget.add(f"agent v{v.index}", spent)
+        v.save_change()
+        _log(f"  {v.change.get('summary', '')}")
+
+        no_changes = not (v.change.get("diff") or v.change.get("params") or v.change.get("autopilot_pid"))
+        if no_changes:
+            v.status = "no_changes"
+            self.stop_reason = "agent_stopped" if v.change.get("stop_improving") else "no_changes"
+            self.history.append({"version": f"v{v.index}", "result": "no changes proposed", "summary": v.change.get("summary")})
+            self.save()
+            return False
+
+        v.status = "proposed"
+        self.save()
+        if self.icfg.get("approve"):
+            if not _confirm(v):
+                v.status, v.kept = "rejected", False
+                self.history.append({"version": f"v{v.index}", "result": "rejected by user", "summary": v.change.get("summary"),
+                                     "params": v.change.get("params"), "autopilot_pid": v.change.get("autopilot_pid"),
+                                     "diff": v.change.get("diff")})
+                self.last_index = v.index
+                self.save()
+                return True
+            v.status = "approved"
+            self.save()
+        self._finish_version(v)
         return True
 
-    # ── v0: базова лінія ──────────────────────────────────────────────────
-    v0 = ws.versions[0]
-    if not run_and_score(v0):
-        raise SystemExit("[uavlab improve] Базовий тест (v0) не відбувся — перевірте Unreal і `uavlab run` вручну.")
-    v0.kept = True
-    best: Version = v0
-    last: Optional[Version] = None
-    agent = ChangeAgent(icfg, language=analysis_cfg.get("language", "uk"))
+    def _validate(self) -> None:
+        best = self.best
+        done = {val["config"] for val in self.validation}
+        for vc in self.icfg.get("validation_configs") or []:
+            if str(vc) in done:
+                continue  # уже провалідовано до переривання
+            vcfg = load_config(vc)
+            vcfg["controller_params"] = best.config.get("controller_params", {})
+            vcfg["autopilot_pid"] = best.config.get("autopilot_pid", {})
+            vcfg.setdefault("record", {})["extra_sources"] = []
+            vdir = self.run_dir / "validation" / Path(vc).stem
+            vdir.mkdir(parents=True, exist_ok=True)
+            vcfg["record"]["sessions_dir"] = str(vdir / "sessions")
+            vcfg["analysis"]["enabled"] = False
+            cpath = vdir / "config.yaml"
+            cpath.write_text(yaml.safe_dump({k: x for k, x in vcfg.items() if not k.startswith("_")},
+                                            allow_unicode=True, sort_keys=False), encoding="utf-8")
+            _log(f"Валідація найкращої версії v{best.index} на {vc}...")
+            time.sleep(float(self.icfg.get("pause_between_runs_s", 3.0)))
+            sess = _run_version(best.entry_path, cpath, Path(vcfg["record"]["sessions_dir"]), self.extra_path, vdir / "run.log")
+            if sess is None:
+                self.validation.append({"config": str(vc), "status": "failed_to_run"})
+            else:
+                metrics, _ = _analyze(sess, self.analysis_cfg, False, self.budget)
+                summary = json.loads((sess / "summary.json").read_text(encoding="utf-8"))
+                self.validation.append({"config": str(vc), "status": "run", "session": str(sess),
+                                        "evaluation": evaluate(self.criteria, metrics, summary)})
+            self.save()
 
-    for it in range(1, int(icfg.get("max_iterations", 5)) + 1):
-        if best.evaluation["all_passed"]:
-            stop_reason = "all_criteria_passed"
-            break
-        if budget.spent + agent.cost >= budget.max_usd:
-            stop_reason = "budget_exhausted"
-            break
+    def _write_report(self) -> Path:
+        best, v0 = self.best, self.version(0)
+        result = {
+            "run_dir": str(self.run_dir), "stop_reason": self.stop_reason, "best_version": f"v{best.index}",
+            "baseline": v0.evaluation, "best": best.evaluation, "criteria": self.criteria,
+            "criteria_notes": self.criteria_notes, "history": self.history, "validation": self.validation,
+            "best_controller_params": best.config.get("controller_params"),
+            "best_autopilot_pid": best.config.get("autopilot_pid"),
+            "cost_usd_estimate": round(self.budget.spent, 3), "cost_items": self.budget.items,
+        }
+        (self.run_dir / "summary.json").write_text(json.dumps(result, ensure_ascii=False, indent=2, default=str),
+                                                   encoding="utf-8")
+        return render_improve_report(self.ws, best, result)
 
-        v = ws.branch(best)
-        _log(f"Ітерація {it}: агент готує правки (база v{best.index})...")
+    # ── головний цикл ────────────────────────────────────────────────────
+    def run(self) -> Path:
+        _log(f"Робоча тека: {self.run_dir}")
         try:
-            v.change = agent.propose(v, _context(ws, best, last, criteria, cfg, history, best._metrics), extra_path)  # type: ignore[attr-defined]
-        except Exception as exc:
-            _log(f"Агент не зміг запропонувати правки: {exc}")
-            stop_reason = "agent_error"
-            shutil.rmtree(v.dir, ignore_errors=True)
-            ws.versions.pop()
-            break
-        v.save_change()
-        no_changes = not (v.change.get("diff") or v.change.get("params") or v.change.get("autopilot_pid"))
-        _log(f"  {v.change.get('summary', '')}")
-        if no_changes:
-            stop_reason = "agent_stopped" if v.change.get("stop_improving") else "no_changes"
-            v.status = "rejected"
-            history.append({"version": f"v{v.index}", "result": "no changes proposed", "summary": v.change.get("summary")})
-            break
-        if icfg.get("approve") and not _confirm(v):
-            v.status, v.kept = "rejected", False
-            history.append({"version": f"v{v.index}", "result": "rejected by user", "summary": v.change.get("summary"),
-                            "params": v.change.get("params"), "autopilot_pid": v.change.get("autopilot_pid"),
-                            "diff": v.change.get("diff")})
-            last = v
-            continue
+            self._recover()
+            v0 = self.version(0)
+            if self.best_index is None:
+                if v0.status != "scored":
+                    raise SystemExit("[uavlab improve] Базовий тест (v0) не відбувся — перевірте Unreal і "
+                                     f"`uavlab run` вручну, потім: uavlab improve --resume \"{self.run_dir}\"")
+                self.best_index = 0
+                self.save()
 
-        time.sleep(float(icfg.get("pause_between_runs_s", 3.0)))
-        ok = run_and_score(v)
-        v.kept = bool(ok and is_better(v.evaluation, best.evaluation))
-        history.append({
-            "version": f"v{v.index}", "base": f"v{best.index}",
-            "result": "kept (new best)" if v.kept else ("failed to run" if not ok else "reverted (not better)"),
-            "summary": v.change.get("summary"), "hypothesis": v.change.get("hypothesis"),
-            "params": v.change.get("params"), "autopilot_pid": v.change.get("autopilot_pid"),
-            "code_edits": v.change.get("code_edits"),
-            "evaluation": {k: (v.evaluation or {}).get(k) for k in ("passed", "total", "violation", "hard_fail")},
-            "criteria_values": [(d["metric"], d["value"], d["ok"]) for d in (v.evaluation or {}).get("details", [])],
-        })
-        _log(f"  -> {history[-1]['result']}")
-        last = v
-        if v.kept:
-            best = v
-    else:
-        if best.evaluation["all_passed"]:
-            stop_reason = "all_criteria_passed"
+            if self.phase == "loop":
+                while self._iteration():
+                    pass
+                self.phase = "validation"
+                self.save()
+            if self.phase == "validation":
+                self._validate()
+                self.phase = "report"
+                self.save()
+        except (KeyboardInterrupt, ImproveInterrupted) as exc:
+            self.save()
+            why = "Ctrl+C" if isinstance(exc, KeyboardInterrupt) else str(exc)
+            _log(f"Цикл перервано ({why}). Стан збережено.")
+            if self.best is not None and self.best.evaluation:
+                _log(f"Проміжний звіт: {self._write_report()}")
+            _log(f"Продовжити з останнього завершеного кроку: uavlab improve --resume \"{self.run_dir}\"")
+            raise SystemExit(130 if isinstance(exc, KeyboardInterrupt) else 2)
 
-    budget.add("change agent", agent.cost)
+        out = self._write_report()
+        self.phase = "done"
+        self.save()
+        best, v0 = self.best, self.version(0)
+        _log("=" * 60)
+        _log(f"Завершено: {self.stop_reason}. Найкраща версія: v{best.index} "
+             f"({best.evaluation['passed']}/{best.evaluation['total']} критеріїв; база v0: "
+             f"{v0.evaluation['passed']}/{v0.evaluation['total']}). Оцінка вартості: ${self.budget.spent:.2f}")
+        _log(f"Звіт: {out}")
+        if best is not v0:
+            _log(f"Перенести в оригінальні файли: uavlab apply \"{self.run_dir}\"")
+        return self.run_dir
 
-    # ── валідація на додаткових сценаріях ────────────────────────────────
-    validation = []
-    for vc in icfg.get("validation_configs") or []:
-        vcfg = load_config(vc)
-        vcfg["controller_params"] = best.config.get("controller_params", {})
-        vcfg["autopilot_pid"] = best.config.get("autopilot_pid", {})
-        vcfg.setdefault("record", {})["extra_sources"] = []
-        vdir = run_dir / "validation" / Path(vc).stem
-        vdir.mkdir(parents=True, exist_ok=True)
-        vcfg["record"]["sessions_dir"] = str(vdir / "sessions")
-        vcfg["analysis"]["enabled"] = False
-        cpath = vdir / "config.yaml"
-        cpath.write_text(yaml.safe_dump({k: x for k, x in vcfg.items() if not k.startswith("_")},
-                                        allow_unicode=True, sort_keys=False), encoding="utf-8")
-        _log(f"Валідація найкращої версії v{best.index} на {vc}...")
-        time.sleep(float(icfg.get("pause_between_runs_s", 3.0)))
-        sess = _run_version(best.entry_path, cpath, Path(vcfg["record"]["sessions_dir"]), extra_path, vdir / "run.log")
-        if sess is None:
-            validation.append({"config": str(vc), "status": "failed_to_run"})
-            continue
-        metrics, _ = _analyze(sess, analysis_cfg, False, budget)
-        summary = json.loads((sess / "summary.json").read_text(encoding="utf-8"))
-        validation.append({"config": str(vc), "status": "run", "session": str(sess),
-                           "evaluation": evaluate(criteria, metrics, summary)})
 
-    result = {
-        "run_dir": str(run_dir), "stop_reason": stop_reason, "best_version": f"v{best.index}",
-        "baseline": v0.evaluation, "best": best.evaluation, "criteria": criteria, "criteria_notes": criteria_notes,
-        "history": history, "validation": validation,
-        "best_controller_params": best.config.get("controller_params"),
-        "best_autopilot_pid": best.config.get("autopilot_pid"),
-        "cost_usd_estimate": round(budget.spent, 3), "cost_items": budget.items,
-    }
-    (run_dir / "summary.json").write_text(json.dumps(result, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
-    out = render_improve_report(ws, best, result)
+def run_improve(controller_path: str | Path, cfg: dict) -> Path:
+    return ImproveRun.create(Path(controller_path), cfg).run()
 
-    _log("=" * 60)
-    _log(f"Завершено: {stop_reason}. Найкраща версія: v{best.index} "
-         f"({best.evaluation['passed']}/{best.evaluation['total']} критеріїв; база v0: "
-         f"{v0.evaluation['passed']}/{v0.evaluation['total']}). Оцінка вартості: ${budget.spent:.2f}")
-    _log(f"Звіт: {out}")
-    if best is not v0:
-        _log(f"Перенести в оригінальні файли: uavlab apply \"{run_dir}\"")
-    return run_dir
+
+def resume_improve(run_dir: str | Path, improve_overrides: Optional[dict] = None) -> Path:
+    return ImproveRun.resume(Path(run_dir), improve_overrides or {}).run()
 
 
 def apply_run(run_dir: str | Path) -> None:

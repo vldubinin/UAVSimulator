@@ -2,6 +2,7 @@
 uavlab run <algo.py> [--config test.yaml] [--start auto|wait] [--mode AutoTrack] [--time-limit S] [--no-analysis]
 uavlab analyze <sessions/<id>> [--no-llm] [--model claude-opus-5-5]
 uavlab improve <algo.py> -c test.yaml [--max-iterations N] [--max-cost USD] [--allow params,code,autopilot_pid] [--approve]
+uavlab improve --resume <improve/<run_id>> [--max-iterations N] [--max-cost USD] [--approve]
 uavlab apply <improve/<run_id>>
 """
 
@@ -35,7 +36,9 @@ def main(argv=None) -> int:
     a.add_argument("--language")
 
     im = sub.add_parser("improve", help="цикл тест → аналіз → правка Claude → повторний тест")
-    im.add_argument("controller")
+    im.add_argument("controller", nargs="?", help="файл алгоритму (не потрібен з --resume)")
+    im.add_argument("--resume", metavar="RUN_DIR",
+                    help="продовжити перерваний прогін з останнього завершеного кроку (тека improve/<run_id>)")
     im.add_argument("--config", "-c")
     im.add_argument("--max-iterations", type=int)
     im.add_argument("--max-cost", type=float, help="бюджет, $ (оцінка за токенами)")
@@ -51,12 +54,9 @@ def main(argv=None) -> int:
 
     if args.cmd == "improve":
         from .config import load_config
-        from .improve import run_improve
+        from .improve import resume_improve, run_improve
 
-        cfg = load_config(args.config)
-        if cfg.get("start") != "auto":
-            cfg["start"] = "auto"  # цикл перезапускає тести сам
-        ic = cfg["improve"]
+        ic: dict = {}
         if args.max_iterations is not None:
             ic["max_iterations"] = args.max_iterations
         if args.max_cost is not None:
@@ -67,6 +67,18 @@ def main(argv=None) -> int:
             ic["approve"] = True
         if args.no_iteration_analysis:
             ic["analyze_each_iteration"] = False
+
+        if args.resume:
+            if args.controller or args.config:
+                p.error("з --resume алгоритм і конфіг беруться з теки прогону — не вказуйте їх")
+            resume_improve(args.resume, ic)  # прапорці CLI перекривають збережені налаштування improve
+            return 0
+        if not args.controller:
+            p.error("вкажіть файл алгоритму або --resume <тека прогону>")
+        cfg = load_config(args.config)
+        if cfg.get("start") != "auto":
+            cfg["start"] = "auto"  # цикл перезапускає тести сам
+        cfg["improve"].update(ic)
         run_improve(args.controller, cfg)
         return 0
 
