@@ -8,9 +8,7 @@ float FPidController::Update(float Setpoint, float Measurement, float DeltaTime,
 	}
 
 	// Гейн-шедулінг: масштабуємо всі три коефіцієнти одним множником з кривої (порожня крива -> 1).
-	const float ScheduleMultiplier = (GainScheduleCurve.GetRichCurveConst()->GetNumKeys() > 0)
-		? GainScheduleCurve.GetRichCurveConst()->Eval(ScheduleInput)
-		: 1.f;
+	const float ScheduleMultiplier = GetScheduleMultiplier(ScheduleInput);
 	const float EffectiveKp = Kp * ScheduleMultiplier;
 	const float EffectiveKi = Ki * ScheduleMultiplier;
 	const float EffectiveKd = Kd * ScheduleMultiplier;
@@ -79,6 +77,23 @@ float FPidController::Update(float Setpoint, float Measurement, float DeltaTime,
 	LastOutput          = Output;
 
 	return Output;
+}
+
+float FPidController::GetScheduleMultiplier(float ScheduleInput) const
+{
+	return HasGainSchedule() ? GainScheduleCurve.GetRichCurveConst()->Eval(ScheduleInput) : 1.f;
+}
+
+bool FPidController::HasGainSchedule() const
+{
+	const FRichCurve* Curve = GainScheduleCurve.GetRichCurveConst();
+	return Curve && Curve->GetNumKeys() > 0;
+}
+
+void FPidController::DisableGainSchedule()
+{
+	GainScheduleCurve.ExternalCurve = nullptr;
+	GainScheduleCurve.GetRichCurve()->Reset();
 }
 
 void FPidController::Reset()

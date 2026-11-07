@@ -145,7 +145,7 @@ def step_responses(t: np.ndarray, target: Optional[np.ndarray], actual: Optional
         frac = (y - y0) / amp
         overshoot = max(0.0, float(np.nanmax(frac) - 1.0)) * 100.0
         rise10 = tw[np.argmax(frac >= 0.1)] if (frac >= 0.1).any() else None
-        rise90 = tw[np.argmax(frac >= 0.9)] if (frac >= 0.9).any() else None
+        rise90 = tw[np.argmax(frac >= 0.9)] if (frac >= 0.9).any() else None  # = t90 від моменту ступеня
         outside = np.abs(y - sp) > max(settle_band, 0.1 * abs(amp))
         settle = float(tw[np.where(outside)[0][-1]]) if outside.any() else 0.0
         settled = not outside[-max(1, y.size // 10):].any()
@@ -153,6 +153,7 @@ def step_responses(t: np.ndarray, target: Optional[np.ndarray], actual: Optional
             "t": _r(t0, 2), "from": _r(sp_before, 2), "to": _r(sp, 2), "window_s": _r(t_end - t0, 2),
             "start_value": _r(y0, 2), "reached_fraction": _r(float(np.nanmax(frac)), 2),
             "final_error": _r(float(sp - y[-1]), 2),
+            "t90_s": _r(rise90, 2) if rise90 is not None else None,
             "overshoot_pct": _r(overshoot, 1),
             "rise_time_s": _r(rise90 - rise10, 2) if rise10 is not None and rise90 is not None else None,
             "settling_time_s": _r(settle, 2) if settled else None,
@@ -168,6 +169,10 @@ def step_responses(t: np.ndarray, target: Optional[np.ndarray], actual: Optional
         "overshoot_pct_max": _r(float(np.max(ov)), 1) if ov else None,
         "settling_time_s_median": _r(float(np.median(st)), 2) if st else None,
         "not_settled_count": sum(1 for i in items if not i["settled_within_window"]),
+        # Агрегати для критеріїв приймання: t90_s_max = None, якщо хоч один ступінь не досяг 90 %.
+        "t90_s_max": (None if any(i["t90_s"] is None for i in items) else _r(max(i["t90_s"] for i in items), 2)),
+        "reached_fraction_min": _r(min(i["reached_fraction"] for i in items), 2),
+        "final_abs_error_max": _r(max(abs(i["final_error"]) for i in items), 2),
         "examples": items[:8],
     }
 
@@ -298,6 +303,9 @@ def compute_metrics(session: dict) -> dict:
         "pitch_step_response": step_responses(t, tgt_pitch, pitch, min_jump=3.0, settle_band=1.5),
     }
     m["attitude_tracking"] = inner
+    sched = {ax: _stats(_col(truth, f"autopilot.gain_schedule_multiplier.{ax}")) for ax in ("roll", "pitch", "yaw_rate")}
+    if any(sched.values()):
+        m["autopilot_gain_schedule_multiplier"] = sched  # ефективний Kp = Kp × множник
     for name, tgt, act, thr in (("roll", tgt_roll, roll, ROLL_ERR_ANOMALY_DEG),
                                 ("pitch", tgt_pitch, pitch, PITCH_ERR_ANOMALY_DEG)):
         if tgt is None or act is None:

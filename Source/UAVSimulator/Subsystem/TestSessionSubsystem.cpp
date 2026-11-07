@@ -250,6 +250,9 @@ FString UTestSessionSubsystem::HandleRequest(const FString& RequestJson)
 			GM->ScenarioSlotName = Slot;
 		}
 
+		const TSharedPtr<FJsonObject>* StartOverrides = nullptr;
+		PendingPidOverrides = Req->TryGetObjectField(TEXT("pid_overrides"), StartOverrides) ? *StartOverrides : nullptr;
+
 		if (AUAVSimulatorPlayerController* PC = GetSimPlayerController(World))
 		{
 			PC->StartSimulationAndHideMenu();
@@ -298,6 +301,37 @@ FString UTestSessionSubsystem::HandleRequest(const FString& RequestJson)
 		return ToJsonString(R);
 	}
 
+	if (Command == TEXT("SET_AUTOPILOT_PID"))
+	{
+		const TSharedPtr<FJsonObject>* Overrides = nullptr;
+		if (!Req->TryGetObjectField(TEXT("pid_overrides"), Overrides))
+		{
+			return ToJsonString(MakeReply(false, TEXT("pid_overrides object is required")));
+		}
+		FString Error;
+		const int32 Applied = ApplyPidOverrides(*Overrides, Error);
+		if (!Error.IsEmpty())
+		{
+			return ToJsonString(MakeReply(false, Error));
+		}
+		if (bSessionRunning)
+		{
+			SessionManifest = BuildManifest();
+		}
+
+		TSharedRef<FJsonObject> Ev = MakeShared<FJsonObject>();
+		Ev->SetStringField(TEXT("type"), TEXT("event"));
+		Ev->SetStringField(TEXT("kind"), TEXT("pid_changed"));
+		Ev->SetStringField(TEXT("session_id"), SessionId);
+		Ev->SetNumberField(TEXT("sim_time"), World ? World->GetTimeSeconds() : 0.0);
+		Ev->SetObjectField(TEXT("pid_overrides"), (*Overrides).ToSharedRef());
+		PublishEvent(Ev);
+
+		TSharedRef<FJsonObject> R = MakeReply(Applied > 0, Applied > 0 ? FString() : TEXT("no active autopilot"));
+		R->SetNumberField(TEXT("applied_to"), Applied);
+		return ToJsonString(R);
+	}
+
 	return ToJsonString(MakeReply(false, FString::Printf(TEXT("unknown command '%s'"), *Command)));
 }
 
@@ -333,6 +367,17 @@ void UTestSessionSubsystem::NotifySimulationStarted()
 	PendingStopReason.Reset();
 	LastCollisionEventTime = -1.0e9;
 
+	if (PendingPidOverrides.IsValid())
+	{
+		FString Error;
+		ApplyPidOverrides(PendingPidOverrides, Error);
+		if (!Error.IsEmpty())
+		{
+			UE_LOG(LogUAV, Warning, TEXT("TestSessionSubsystem: pid_overrides зі START не застосовано — %s"), *Error);
+		}
+		PendingPidOverrides.Reset();
+	}
+
 	SessionManifest = BuildManifest();
 	BindCollisionEvents();
 
@@ -367,6 +412,56 @@ void UTestSessionSubsystem::NotifySimulationStopped()
 	bSessionRunning = false;
 	PendingStopReason.Reset();
 	SessionManifest.Reset();
+}
+
+int32 UTestSessionSubsystem::ApplyPidOverrides(const TSharedPtr<FJsonObject>& Overrides, FString& OutError)
+{
+	if (!Overrides.IsValid()) return 0;
+
+	// Перевірка ключів до будь-яких змін — або все, або нічого.
+	for (const auto& Pair : Overrides->Values)
+	{
+		if (Pair.Key != TEXT("roll") && Pair.Key != TEXT("pitch") && Pair.Key != TEXT("yaw_rate"))
+		{
+			OutError = FString::Printf(TEXT("unknown PID axis '%s' (roll | pitch | yaw_rate)"), *Pair.Key);
+			return 0;
+		}
+		if (!Pair.Value.IsValid() || Pair.Value->Type != EJson::Object)
+		{
+			OutError = FString::Printf(TEXT("PID axis '%s' must be an object"), *Pair.Key);
+			return 0;
+		}
+	}
+
+	auto Apply = [](FPidController& Pid, const TSharedPtr<FJsonObject>& O)
+	{
+		double V = 0.0;
+		if (O->TryGetNumberField(TEXT("kp"), V)) Pid.Kp = static_cast<float>(V);
+		if (O->TryGetNumberField(TEXT("ki"), V)) Pid.Ki = static_cast<float>(V);
+		if (O->TryGetNumberField(TEXT("kd"), V)) Pid.Kd = static_cast<float>(V);
+		if (O->TryGetNumberField(TEXT("integral_clamp"), V)) Pid.IntegralClamp = FMath::Max(0.f, static_cast<float>(V));
+		if (O->TryGetNumberField(TEXT("derivative_filter_s"), V)) Pid.DerivativeFilterTimeConstant = FMath::Max(0.f, static_cast<float>(V));
+		bool B = false;
+		if (O->TryGetBoolField(TEXT("invert_output"), B)) Pid.bInvertOutput = B;
+		FString Schedule;
+		if (O->TryGetStringField(TEXT("gain_schedule"), Schedule) && Schedule == TEXT("disable")) Pid.DisableGainSchedule();
+		Pid.Reset(); // інтеграл/похідна, накопичені зі старими коефіцієнтами, більше не валідні
+	};
+
+	int32 Applied = 0;
+	for (TActorIterator<AAirplane> It(GetWorld()); It; ++It)
+	{
+		UAttitudeControlComponent* AC = It->FindComponentByClass<UAttitudeControlComponent>();
+		if (!AC || !AC->IsAutopilotActive()) continue;
+
+		const TSharedPtr<FJsonObject>* Axis = nullptr;
+		if (Overrides->TryGetObjectField(TEXT("roll"), Axis))     Apply(AC->RollPid, *Axis);
+		if (Overrides->TryGetObjectField(TEXT("pitch"), Axis))    Apply(AC->PitchPid, *Axis);
+		if (Overrides->TryGetObjectField(TEXT("yaw_rate"), Axis)) Apply(AC->YawRatePid, *Axis);
+		++Applied;
+		UE_LOG(LogUAV, Log, TEXT("TestSessionSubsystem: PID автопілота %s змінено ззовні (лише на цю сесію)"), *It->GetName());
+	}
+	return Applied;
 }
 
 void UTestSessionSubsystem::BindCollisionEvents()
@@ -569,6 +664,11 @@ TSharedRef<FJsonObject> UTestSessionSubsystem::BuildManifest() const
 			AP->SetObjectField(TEXT("roll_pid"),     StructToJson(FPidController::StaticStruct(), &AC->RollPid));
 			AP->SetObjectField(TEXT("pitch_pid"),    StructToJson(FPidController::StaticStruct(), &AC->PitchPid));
 			AP->SetObjectField(TEXT("yaw_rate_pid"), StructToJson(FPidController::StaticStruct(), &AC->YawRatePid));
+			TSharedRef<FJsonObject> Sched = MakeShared<FJsonObject>();
+			Sched->SetBoolField(TEXT("roll"),     AC->RollPid.HasGainSchedule());
+			Sched->SetBoolField(TEXT("pitch"),    AC->PitchPid.HasGainSchedule());
+			Sched->SetBoolField(TEXT("yaw_rate"), AC->YawRatePid.HasGainSchedule());
+			AP->SetObjectField(TEXT("gain_schedule_active"), Sched);
 			A->SetObjectField(TEXT("autopilot"), AP);
 		}
 

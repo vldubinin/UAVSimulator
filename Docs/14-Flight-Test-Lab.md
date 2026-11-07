@@ -146,6 +146,14 @@ analysis:
 | `{"command":"GET_MANIFEST"}` | `{"manifest":{...}}` — під час сесії той, що зібраний на старті |
 | `{"command":"START","mode":"AutoTrack","scenario_slot":"..."}` | `mode`/`scenario_slot` опційні; `AUAVSimulatorPlayerController::StartSimulationAndHideMenu()`; відповідь `session_id`, `mode`, `autopilot_active` |
 | `{"command":"STOP","reason":"time_limit"}` | `StopSimulationAndShowMenu()` (те саме, що `Q`); причина в `session_end` — `bench:<reason>` |
+| `{"command":"SET_AUTOPILOT_PID","pid_overrides":{"roll":{"kp":3}}}` | PID автопілота всіх активних літаків **на час сесії** (Blueprint не змінюється); оновлює маніфест, подія `pid_changed`; відповідь `applied_to` |
+
+`START` також приймає `"pid_overrides"` — вони застосовуються в `NotifySimulationStarted()` **до** побудови
+маніфесту. Поля осі (`roll` / `pitch` / `yaw_rate`): `kp`, `ki`, `kd`, `integral_clamp`, `derivative_filter_s`,
+`invert_output` (bool), `gain_schedule` (`"keep"` | `"disable"` — `FPidController::DisableGainSchedule()`
+обнуляє криву лише для екземпляра). Після зміни викликається `FPidController::Reset()`. У конфігу стенда —
+секція `autopilot_pid`. Маніфест містить `gain_schedule_active` по осях, `flight_truth` —
+`autopilot.gain_schedule_multiplier` (множник на поточній швидкості: ефективний Kp = Kp × множник).
 
 **PUB `tcp://*:5558`** — односкладові JSON-події:
 
@@ -281,6 +289,61 @@ PID-полів), `metrics`, `events`, `timeseries_overview` (≤ 400 рядкі�
 `report.html` (світла/темна тема): вердикт, мета, сильні сторони, проблеми за severity з
 доказами й правками коду, наступні тести, графіки, метрики, таблиця аномалій. Короткий
 підсумок друкується в консоль.
+
+## Автоматичне покращення: `uavlab improve`
+
+Замкнений цикл «тест → аналіз → правка Claude → повторний тест» (`uavlab/improve/`):
+
+```powershell
+uavlab improve examples/step_response.py -c test_configs/step_response.yaml
+uavlab improve my_algo.py -c my_test.yaml --max-iterations 8 --max-cost 3 --allow params,autopilot_pid --approve
+uavlab apply improve\<run_id>        # перенести найкращу версію в оригінальні файли
+```
+
+1. **v0** — копія алгоритму (файл + сусідні модулі, які він імпортує + `record.extra_sources`) у
+   `improve/<run_id>/v0/src/`, тест, аналіз.
+2. **Критерії приймання** (`acceptance` у конфігу) — формальні пороги над `metrics.json`:
+   `{metric: "attitude_tracking.roll_step_response.t90_s_max", max: 2.0}` / `min:`. Якщо їх немає, Claude
+   один раз перетворює `objective` на критерії за списком наявних метрик; вони записуються в
+   `acceptance.yaml` і **заморожуються** — агент не може їх змінити (як і мету, критерії зупинки й сам тест).
+3. **Ітерація**: нова версія = копія **найкращої** → агент (Claude, tool use) вносить правки → тест в
+   окремому процесі (`uavlab run`, чисті імпорти) → аналіз → оцінка. Версія лишається, лише якщо
+   `(без провалу, к-сть пройдених критеріїв, −сумарне перевищення)` строго краще (поріг 2 % проти шуму);
+   інакше вона відкидається, а агент бачить її в `iteration_history` / `last_attempt_reverted`.
+   Провал незалежно від метрик: `crash`, `controller_exception`, `telemetry_lost`, `min_altitude`,
+   `max_distance`, переривання.
+4. Стоп: усі критерії пройдено · `max_iterations` · `max_cost_usd` · агент вважає, що покращувати нічого.
+5. **Валідація** найкращої версії на `improve.validation_configs` (інші сценарії — проти підгонки під один тест).
+6. `improve_report.html`: критерії v0 vs найкраща, кожна ітерація (гіпотеза, параметри, PID, diff коду,
+   посилання на звіт аналізу), валідація, оцінка вартості. **Оригінали не змінюються** до `uavlab apply`.
+
+**Інструменти агента** (`improve/agent.py`, strict tool schemas; набір — `improve.allow`):
+
+| Інструмент | `allow` | Дія |
+|------------|---------|-----|
+| `read_file` | завжди | прочитати файл алгоритму версії (з номерами рядків) |
+| `edit_code` | `code` | точна заміна `old_str → new_str` (рівно одне входження); відкат, якщо файл не компілюється; заборонені в доданих рядках `subprocess`, `os.system`, `eval`, `exec`, `socket`, `requests`… |
+| `set_controller_params` | `params` | `controller_params` версії (`value_json` — JSON-літерал) |
+| `set_autopilot_pid` | `autopilot_pid` | `autopilot_pid` версії → `pid_overrides` у `START` (лише на час тестів) |
+| `submit_changes` | завжди | завершити ітерацію; перед прийняттям стенд перевіряє, що алгоритм імпортується в окремому процесі |
+
+Контекст агента: мета, заморожені критерії, оцінка найкращої версії, її `controller_params`, ефективні PID з
+маніфесту + множник гейн-шедулінгу, звіт аналізу, метрики, історія ітерацій, остання відкинута спроба з
+diff, код головного файлу з номерами рядків.
+
+`uavlab apply <run>` — код найкращої версії копіюється в оригінальні файли (резервна копія `*.bak-<час>`),
+параметри — у `<конфіг>.improved.yaml` поруч з оригіналом (YAML-коментарі оригіналу не чіпаються), для PID
+друкуються значення для Blueprint (`AttitudeControl` → `RollPid`/`PitchPid`/`YawRatePid`) — або залиште
+`autopilot_pid` у конфігу.
+
+Конфіг (`improve:`): `max_iterations` (5), `max_cost_usd` (5.0, оцінка за токенами), `allow`
+(`[params, code, autopilot_pid]`), `approve` (false — `--approve` показує diff і питає перед кожним тестом),
+`model`, `effort`, `max_agent_turns` (20), `analyze_each_iteration` (true; false — дешевше, агент бачить лише
+метрики), `validation_configs`, `pause_between_runs_s`, `runs_dir` (`improve`).
+
+Вартість: ітерація ≈ 1 тест + аналіз ($0.1–0.3) + агент ($0.05–0.3). Перевірено на мок-симуляторі:
+з `Kp = 1`, кривою-множником 0.1 і `Ki = 0` агент за одну ітерацію вимкнув криву, підняв Kp і додав Ki
+тангажу — 1/4 → 4/4 критеріїв, ≈ $0.14 (без LLM-аналізу ітерацій).
 
 ## Перевірка без Unreal
 

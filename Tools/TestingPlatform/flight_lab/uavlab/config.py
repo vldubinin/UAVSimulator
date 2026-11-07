@@ -39,6 +39,25 @@ DEFAULTS: dict[str, Any] = {
         "sensors_max_hz": 10.0,      # обмеження частоти запису sensors.jsonl
         "extra_sources": [],         # додаткові .py-файли/теки алгоритму (відносно файлу алгоритму) для LLM
     },
+    # PID внутрішнього автопілота на час сесії (Blueprint не змінюється), напр. {"roll": {"kp": 3, "ki": 0.1}}.
+    # Поля осі: kp, ki, kd, integral_clamp, derivative_filter_s, invert_output, gain_schedule (keep|disable).
+    "autopilot_pid": {},
+    # Формальні критерії "пройдено" для uavlab improve: [{metric: "attitude_tracking.roll.rms_error", max: 3}].
+    # Порожньо — improve згенерує їх з objective на першій ітерації і заморозить.
+    "acceptance": [],
+    "improve": {
+        "runs_dir": "improve",
+        "max_iterations": 5,
+        "max_cost_usd": 5.0,               # оцінка за токенами (аналіз + агент)
+        "allow": ["params", "code", "autopilot_pid"],
+        "approve": False,                  # True — підтверджувати кожну правку в консолі
+        "model": "claude-opus-5-5",
+        "effort": "high",
+        "max_agent_turns": 20,
+        "analyze_each_iteration": True,    # повний LLM-аналіз кожної версії (діагноз для агента)
+        "validation_configs": [],          # додаткові сценарії для фінальної перевірки найкращої версії
+        "pause_between_runs_s": 3.0,
+    },
     "analysis": {
         "enabled": True,
         "model": "claude-opus-5-5",

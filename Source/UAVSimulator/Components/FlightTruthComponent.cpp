@@ -185,6 +185,17 @@ void UFlightTruthComponent::CaptureState(float DeltaTime)
 		Out->SetNumberField(TEXT("rudder"),   AttitudeControl->GetLastRudderCmd());
 		AP->SetObjectField(TEXT("pid_output"), Out);
 
+		// Множник кривої гейн-шедулінгу на поточній швидкості: ефективний Kp = Kp × множник.
+		if (FlightDynamics)
+		{
+			const float V = FlightDynamics->GetAirspeed();
+			TSharedRef<FJsonObject> Sched = MakeShared<FJsonObject>();
+			Sched->SetNumberField(TEXT("roll"),     AttitudeControl->RollPid.GetScheduleMultiplier(V));
+			Sched->SetNumberField(TEXT("pitch"),    AttitudeControl->PitchPid.GetScheduleMultiplier(V));
+			Sched->SetNumberField(TEXT("yaw_rate"), AttitudeControl->YawRatePid.GetScheduleMultiplier(V));
+			AP->SetObjectField(TEXT("gain_schedule_multiplier"), Sched);
+		}
+
 		const double LastCmd = AttitudeControl->GetLastCommandWorldTime();
 		if (LastCmd >= 0.0)
 		{

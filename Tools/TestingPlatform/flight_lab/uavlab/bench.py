@@ -99,6 +99,8 @@ def run_test(controller_path: str | Path, cfg: dict) -> Path:
         fields = {"mode": cfg.get("mode")}
         if cfg.get("scenario_slot"):
             fields["scenario_slot"] = cfg["scenario_slot"]
+        if cfg.get("autopilot_pid"):
+            fields["pid_overrides"] = cfg["autopilot_pid"]  # застосовуються до побудови маніфесту
         resp = session.request("START", **fields)
         if not resp.get("ok"):
             raise SystemExit(f"[uavlab] Unreal відхилив START: {resp.get('error')}")
@@ -110,10 +112,20 @@ def run_test(controller_path: str | Path, cfg: dict) -> Path:
     else:
         session_id = waiter.wait_for_session_start()
 
+    if has_session and cfg.get("autopilot_pid") and cfg["start"] != "auto":
+        # Сесію стартували з меню — PID-перевизначення шлемо вже після старту.
+        resp = session.try_request("SET_AUTOPILOT_PID", pid_overrides=cfg["autopilot_pid"])
+        if not (resp and resp.get("ok")):
+            _log(f"УВАГА: autopilot_pid не застосовано: {(resp or {}).get('error')}")
+
     manifest: dict = {}
     if has_session:
         resp = session.try_request("GET_MANIFEST")
         manifest = (resp or {}).get("manifest", {}) if resp and resp.get("ok") else {}
+    if cfg.get("autopilot_pid") and manifest.get("aircraft") and not any(
+            "gain_schedule_active" in (a.get("autopilot") or {}) for a in manifest["aircraft"]):
+        _log("УВАГА: autopilot_pid задано, але збірка Unreal ще не підтримує pid_overrides "
+             "(немає gain_schedule_active у маніфесті) — PID НЕ змінено. Перезберіть C++ модуль.")
     session_id = session_id or time.strftime("%Y%m%d_%H%M%S_local")
 
     rec_cfg = cfg["record"]

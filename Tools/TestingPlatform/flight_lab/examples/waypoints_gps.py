@@ -14,7 +14,7 @@ from pathlib import Path
 from uavlab import Command, Controller
 
 GPS_DIR = Path(__file__).resolve().parents[2] / "custom_objects_dataset" / "gps_autopilote"
-sys.path.insert(0, str(GPS_DIR))
+sys.path.append(str(GPS_DIR))  # append: копії autopilote.py поруч (uavlab improve) мають пріоритет
 from autopilote import Autopilote  # noqa: E402
 from common import latlon_to_local_m  # noqa: E402
 

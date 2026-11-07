@@ -1,6 +1,8 @@
 """
 uavlab run <algo.py> [--config test.yaml] [--start auto|wait] [--mode AutoTrack] [--time-limit S] [--no-analysis]
 uavlab analyze <sessions/<id>> [--no-llm] [--model claude-opus-5-5]
+uavlab improve <algo.py> -c test.yaml [--max-iterations N] [--max-cost USD] [--allow params,code,autopilot_pid] [--approve]
+uavlab apply <improve/<run_id>>
 """
 
 from __future__ import annotations
@@ -32,7 +34,47 @@ def main(argv=None) -> int:
     a.add_argument("--model")
     a.add_argument("--language")
 
+    im = sub.add_parser("improve", help="цикл тест → аналіз → правка Claude → повторний тест")
+    im.add_argument("controller")
+    im.add_argument("--config", "-c")
+    im.add_argument("--max-iterations", type=int)
+    im.add_argument("--max-cost", type=float, help="бюджет, $ (оцінка за токенами)")
+    im.add_argument("--allow", help="що можна змінювати: params,code,autopilot_pid")
+    im.add_argument("--approve", action="store_true", help="підтверджувати кожну правку перед тестом")
+    im.add_argument("--no-iteration-analysis", action="store_true",
+                    help="не робити повний LLM-аналіз кожної версії (дешевше; агент бачить лише метрики)")
+
+    ap = sub.add_parser("apply", help="перенести найкращу версію improve в оригінальні файли")
+    ap.add_argument("run_dir")
+
     args = p.parse_args(argv)
+
+    if args.cmd == "improve":
+        from .config import load_config
+        from .improve import run_improve
+
+        cfg = load_config(args.config)
+        if cfg.get("start") != "auto":
+            cfg["start"] = "auto"  # цикл перезапускає тести сам
+        ic = cfg["improve"]
+        if args.max_iterations is not None:
+            ic["max_iterations"] = args.max_iterations
+        if args.max_cost is not None:
+            ic["max_cost_usd"] = args.max_cost
+        if args.allow:
+            ic["allow"] = [a.strip() for a in args.allow.split(",") if a.strip()]
+        if args.approve:
+            ic["approve"] = True
+        if args.no_iteration_analysis:
+            ic["analyze_each_iteration"] = False
+        run_improve(args.controller, cfg)
+        return 0
+
+    if args.cmd == "apply":
+        from .improve import apply_run
+
+        apply_run(args.run_dir)
+        return 0
 
     from .config import load_config
 

@@ -20,6 +20,10 @@ class UPrimitiveComponent;
  *      {"command":"GET_MANIFEST"}                 → {"ok":true,"manifest":{...}}
  *      {"command":"START","mode":"AutoTrack"}     → старт симуляції (mode/scenario_slot опційні)
  *      {"command":"STOP","reason":"time_limit"}   → зупинка + повернення в меню
+ *      {"command":"SET_AUTOPILOT_PID","pid_overrides":{"roll":{"kp":3}}} → PID автопілота на льоту
+ *    START теж приймає "pid_overrides" — застосовуються ДО побудови маніфесту сесії. Зміни PID діють
+ *    лише на час сесії (Blueprint не змінюється). Поля осі: kp, ki, kd, integral_clamp,
+ *    derivative_filter_s, invert_output (bool), gain_schedule ("keep" | "disable").
  *
  *  - PUB `EventsEndpoint` (tcp://*:5558) — односкладові JSON-події:
  *      {"type":"session_start","session_id":..,"sim_time":..,"manifest":{...}}
@@ -78,6 +82,9 @@ private:
 	void PublishEvent(const TSharedRef<FJsonObject>& Event);
 	void BindCollisionEvents();
 
+	/** Застосовує {"roll":{...},"pitch":{...},"yaw_rate":{...}} до всіх активних автопілотів. Повертає к-сть літаків. */
+	int32 ApplyPidOverrides(const TSharedPtr<FJsonObject>& Overrides, FString& OutError);
+
 	UFUNCTION()
 	void HandleAirplaneHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 	                       UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
@@ -90,4 +97,7 @@ private:
 	double  SessionStartSimTime = 0.0;
 	double  LastCollisionEventTime = -1.0e9;
 	TSharedPtr<FJsonObject> SessionManifest;
+
+	/** pid_overrides з команди START — застосовуються в NotifySimulationStarted до побудови маніфесту. */
+	TSharedPtr<FJsonObject> PendingPidOverrides;
 };

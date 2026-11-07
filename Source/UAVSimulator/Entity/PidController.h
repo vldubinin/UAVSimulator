@@ -106,4 +106,13 @@ struct UAVSIMULATOR_API FPidController
 
 	/** Скидає весь стан регулятора (інтеграл, історію похідної, first-call guard). */
 	void Reset();
+
+	/** Множник GainScheduleCurve для заданого ScheduleInput (1, якщо крива порожня). */
+	float GetScheduleMultiplier(float ScheduleInput) const;
+
+	/** true, якщо крива гейн-шедулінгу має ключі (внутрішні або зовнішнього UCurveFloat). */
+	bool HasGainSchedule() const;
+
+	/** Вимикає гейн-шедулінг лише для цього екземпляра (зовнішній ассет кривої не змінюється). */
+	void DisableGainSchedule();
 };
