@@ -43,6 +43,7 @@ void USubAerodynamicSurfaceSC::InitComponent(
 
 	// Центр тиску — точка прикладання аеродинамічних сил (локальний простір)
 	CenterOfPressure = UAerodynamicPhysicsLibrary::FindCenterOfPressure(StartChord, EndChord, CenterOfPressureOffset);
+	CenterOfPressurePercent = FMath::Clamp(CenterOfPressureOffset, 0.f, 100.f);
 	// Площа чотирикутної секції поверхні (в cm²)
 	SurfaceArea      = UAerodynamicPhysicsLibrary::CalculateQuadSurfaceArea(StartChord, EndChord);
 
@@ -74,6 +75,12 @@ void USubAerodynamicSurfaceSC::InitComponent(
 		FString::Printf(TEXT("Dist to CoM: %f"), DistanceToCenterOfMass),
 		CenterOfPressure, FVector(-20.f, 0.f, 50.f), FRotator(90.f, 180.f, 0.f), FColor::Red,
 		FName(FString::Printf(TEXT("Distance_%s"), *SurfaceName.ToString())));
+}
+
+void USubAerodynamicSurfaceSC::SetPitchingMomentSettings(bool bApply, float ReferencePercent)
+{
+	bApplyProfilePitchingMoment   = bApply;
+	ProfileMomentReferencePercent = FMath::Clamp(ReferencePercent, 0.f, 100.f);
 }
 
 FAerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(
@@ -114,6 +121,12 @@ FAerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(
 	// Результуюча швидкість повітря відносно поверхні = -V_linear + Wind - V_rotational
 	FVector WorldAirVelocity    = -LinearVelocity + Wind - RotationalVelocity;
 
+	// SurfaceArea рахується в локальних (незмасштабованих) координатах — переводимо у світові,
+	// щоб площа масштабувалась разом з актором (CalibrationSettings), як і плечі сил.
+	// Локальна X — хорда, локальна Y — розмах.
+	const FVector WorldScale = GetComponentScale();
+	const float   WorldArea  = SurfaceArea * FMath::Abs(WorldScale.X * WorldScale.Y);
+
 	float Speed           = UAerodynamicPhysicsLibrary::VelocityToMetersPerSecond(WorldAirVelocity);
 	float AoA             = UAerodynamicPhysicsLibrary::CalculateAngleOfAttack(WorldAirVelocity, AverageChordDirection, GetUpVector());
 	float DynamicPressure = 0.5f * AirDensity * (Speed * Speed);  // q = 0.5 * ρ * V² (Па)
@@ -138,9 +151,22 @@ FAerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(
 	FAerodynamicProfileRow* Profile = AerodynamicProfileLookup::FindProfile(AerodynamicTable, FlapAngle);
 
 	// Розраховуємо сили в Ньютонах, конвертуємо у внутрішні одиниці Unreal (kg·cm/s²)
-	float LiftPower   = UAerodynamicPhysicsLibrary::CalculateLift(AoA, DynamicPressure, SurfaceArea, Profile);
-	float DragPower   = UAerodynamicPhysicsLibrary::CalculateDrag(AoA, DynamicPressure, SurfaceArea, Profile);
-	float TorquePower = UAerodynamicPhysicsLibrary::CalculateTorque(AoA, DynamicPressure, SurfaceArea, AverageChordLength, Profile);
+	float LiftPower   = UAerodynamicPhysicsLibrary::CalculateLift(AoA, DynamicPressure, WorldArea, Profile);
+	float DragPower   = UAerodynamicPhysicsLibrary::CalculateDrag(AoA, DynamicPressure, WorldArea, Profile);
+
+	// Тангажний момент (Н·м, + = кабрування в аеродинамічній конвенції).
+	// Cm у таблиці задано відносно ProfileMomentReferencePercent хорди, а сила прикладається в центрі тиску
+	// (її момент уже враховано через r × F) — тож переносимо Cm у центр тиску:
+	//   Cm_cp = Cm_ref + Cl · (x_cp − x_ref) / c
+	// Без цього момент підйомної сили враховувався б двічі.
+	float TorquePower = 0.f;
+	if (bApplyProfilePitchingMoment && Profile)
+	{
+		const float RefMomentNm = UAerodynamicPhysicsLibrary::CalculateTorque(AoA, DynamicPressure, WorldArea, AverageChordLength, Profile);
+		const float LiftMomentTransferNm = LiftPower * AverageChordLength
+			* (CenterOfPressurePercent - ProfileMomentReferencePercent) / 100.f;
+		TorquePower = RefMomentNm + LiftMomentTransferNm;
+	}
 
 	// Підйомна сила — перпендикулярна до потоку і до осі розмаху
 	FVector LiftForce  = UAerodynamicPhysicsLibrary::CalculateLiftDirection(WorldAirVelocity, GetRightVector())
@@ -148,8 +174,11 @@ FAerodynamicForce USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface(
 	// Сила опору — протилежна до напрямку руху
 	FVector DragForce  = WorldAirVelocity.GetSafeNormal()
 		* UAerodynamicPhysicsLibrary::NewtonsToKiloCentimeter(DragPower);
-	// Тангажний момент навколо осі розмаху (конвертація Н·м → kg·cm²/s² через 10000)
-	FVector TorqueForce = GetRightVector() * (TorquePower * 10000.0f);
+	// Тангажний момент навколо осі розмаху (конвертація Н·м → kg·cm²/s² через 10000).
+	// ЗНАК: у фізиці Unreal момент уздовж +Right (для крила +Y) опускає ніс — це видно з r × F, де підйомна
+	// сила позаду CoM дає +Y і пікірування. Аеродинамічний Cm > 0 означає кабрування (збільшення AoA),
+	// тому вектор моменту = −Right · Cm. (Раніше тут був +Right, і від'ємний Cm профілю кабрував літак.)
+	FVector TorqueForce = -GetRightVector() * (TorquePower * 10000.0f);
 
 	FAerodynamicForce Result = FAerodynamicForce(LiftForce, DragForce, TorqueForce, RelativePosition);
 

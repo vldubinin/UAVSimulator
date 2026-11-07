@@ -45,7 +45,7 @@ Unreal Engine 5.7 UAV (Unmanned Aerial Vehicle) flight dynamics simulator. Writt
 
 Sensor components, `USensorBusComponent`, `UAeroVisualizerComponent`, the aerodynamic-surface hierarchy and `UKeyPointComponent` are *not* CDOs — they are added on the Blueprint subclass (e.g. `Content/Airplanes/Cessna_172`).
 
-`AAirplane::CalibrationSettings` (`FAircraftCalibrationSettings`) — if `ExpectedWingSpanMeters > 0`, `BeginPlay` uniformly rescales the actor so the raw "design" wingspan (`UFlightDynamicsComponent::GetDesignWingSpanCm`) matches it. `TelemetryWidgetClass` (a `UAirplaneTelemetryWidget`) is instantiated only on the locally-controlled pawn; `CameraWidgetClass` when the camera is active for this role.
+`AAirplane::CalibrationSettings` (`FAircraftCalibrationSettings`) — if `ExpectedWingSpanMeters > 0`, `BeginPlay` uniformly rescales the actor so the raw "design" wingspan (`UFlightDynamicsComponent::GetDesignWingSpanCm`) matches it; if `bApplyExpectedCenterOfMass`, `ApplyCenterOfMassCalibration()` then sets the mesh `COMNudge` so the physical CoM lands on `ExpectedCenterOfMass` (design-local cm). `TelemetryWidgetClass` (a `UAirplaneTelemetryWidget`) is instantiated only on the locally-controlled pawn; `CameraWidgetClass` when the camera is active for this role.
 
 Runtime reconfiguration is split in two: `RefreshConfigurations()` (Niagara + camera + widgets, driven by `UUAVSimulationSubsystem::OnVisualSettingsChanged` / `OnCameraSettingsChanged`) and `RefreshSensorSettings()` (per-sensor `bSensorEnabled`, driven by `OnSensorSettingsChanged`). Role is resolved from actor tags `Player` / `Target` / `AutoTracker` against `EOnboardTargetMode` — `Drone` covers `Player` **and** `AutoTracker`.
 
@@ -78,7 +78,7 @@ AAirplane (APawn)
         └── UControlSurfaceSC        # ailerons, elevators, rudders
 ```
 
-Each `USubAerodynamicSurfaceSC` reads its airfoil polar from a DataTable, computes AoA from the local airflow vector, looks up CL/CD, and applies force+torque via `FAerodynamicForce`. Control surfaces (`EFlapType`: Aileron, Elevator, Rudder) can be deflected by pilot input.
+Each `USubAerodynamicSurfaceSC` reads its airfoil polar from a DataTable, computes AoA from the local airflow vector, looks up CL/CD, and applies force+torque via `FAerodynamicForce` (moment = `r × F` about the CoM). The profile's own Cm is **off by default** (`UAerodynamicSurfaceSC::bApplyProfilePitchingMoment`): the VSPAERO polars store `CMytot` about the leading edge, which already contains the lift moment, so using it raw double-counts it. When enabled, Cm is transferred to the CoP (`ProfileMomentReferencePercent`) and applied as `−Right · M` (in Unreal physics a torque along `+Right` pitches the nose **down**). Control surfaces (`EFlapType`: Aileron, Elevator, Rudder) can be deflected by pilot input.
 
 **Actuator dynamics** — `UControlSurfaceSC` owns an `FActuatorDynamics` (`Entity/ActuatorDynamics.h`): `RateLimitedOnly` (default) / `FirstOrderLag` / `CriticallyDampedSecondOrder`. `USubAerodynamicSurfaceSC::CalculateForcesOnSubSurface` passes the *commanded* flap angle through `UControlSurfaceSC::Move(angle, DeltaTime)` and uses the returned **actual (lagged)** angle to look up the polar — so actuator lag affects the flight physics, not just the visual deflection.
 
@@ -103,7 +103,7 @@ Getters backed by `UUAVPhysicsStateComponent` (updated at the top of each tick):
 - `GetVortexWakeLines()` — `const TArray<TArray<FTrailingVortexNode>>&`, the shed trailing-vortex wake (consumed by `UAeroVisualizerComponent`)
 - `CurrentThrottle` (actual throttle after engine spool-up) / `CurrentThrustN` (actual engine thrust, N; `0` until the engine spools past 0.01) — read via `AAirplane::GetThrottle01()` / `GetThrustN()` for the HUD
 - `GetControlState()` — current `FControlInputState`
-- `GetDesignWingSpanCm()` — raw `|Offset.Y|` sum over `Surfaces[0].SurfaceForm`, **before** actor scale (used for `CalibrationSettings` auto-rescale)
+- `GetDesignWingSpanCm()` — raw `|Offset.Y|` sum over the **main wing's** `SurfaceForm` (surface with the largest raw span — `GetComponents` order is not guaranteed, so never assume `Surfaces[0]`), **before** actor scale (used for `CalibrationSettings` auto-rescale)
 
 (`UUAVPhysicsStateComponent` itself exposes `GetLinearVelocity` / `GetAngularVelocity` / `GetCenterOfMass` / `GetAirflowDirection`.)
 

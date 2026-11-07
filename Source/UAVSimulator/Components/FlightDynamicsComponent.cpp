@@ -91,6 +91,8 @@ void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 		// Сумарна індуктивна сила від несучої лінії (для діагностики опору)
 		FVector TotalInducedForceUU = FVector::ZeroVector;
 
+		const int32 MainWingIdx = FindMainWingIndex();
+
 		FAerodynamicForce TotalForce;
 		for (int32 SurfaceIdx = 0; SurfaceIdx < Surfaces.Num(); SurfaceIdx++)
 		{
@@ -120,7 +122,14 @@ void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 			const float SpanM = SpanCm / 100.0f;
 
 			// Кутта-Жуковський у зворотньому напрямку: Γ = F / (ρ * V * b)
-			const float ForceN = SurfaceForce.PositionalForce.Size() / 100.0f;
+			// Γ рахується лише з ПІДЙОМНОЇ складової (перпендикулярної до швидкості; опір циркуляції не створює)
+			// і зі ЗНАКОМ: + коли сила йде вздовж "верху" поверхні (крило несе вгору), − коли поверхня тисне
+			// вниз (напр. стабілізатор при балансуванні або політ із від'ємним перевантаженням).
+			const FVector VelDirForGamma = PhysicsState->GetLinearVelocity().GetSafeNormal();
+			const FVector SurfaceLiftUU  = SurfaceForce.PositionalForce
+				- FVector::DotProduct(SurfaceForce.PositionalForce, VelDirForGamma) * VelDirForGamma;
+			const float LiftSign = FVector::DotProduct(SurfaceLiftUU, Surface->GetUpVector()) >= 0.0f ? 1.0f : -1.0f;
+			const float ForceN   = LiftSign * SurfaceLiftUU.Size() / 100.0f;
 			const float Gamma  = (SpeedMs > 0.1f && SpanM > 0.01f)
 				? ForceN / (AirDensity * SpeedMs * SpanM)
 				: 0.0f;
@@ -128,9 +137,10 @@ void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 			const FVector SurfaceCenter = Surface->GetComponentLocation();
 			const FVector RightDir      = Surface->GetRightVector();
 
-			if (SurfaceIdx == 0)
+			if (SurfaceIdx == MainWingIdx)
 			{
-				// Правий кінець крила — дзеркальна точка до лівого (CurrentBoundVortices[0].StartPoint = SurfaceCenter - RightDir * SpanCm/2).
+				// Кінці головного крила — симетричні точки відносно центру поверхні вздовж розмаху.
+				CurrentLeftWingtipWorldPos  = SurfaceCenter - RightDir * (SpanCm / 2.0f);
 				CurrentRightWingtipWorldPos = SurfaceCenter + RightDir * (SpanCm / 2.0f);
 			}
 
@@ -217,14 +227,26 @@ void UFlightDynamicsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 
 				const float   MassKg  = Mesh->GetMass();
 				const float   WeightN = MassKg * 9.81f;
+				const float   InducedUpN = TotalInducedForceUU.Z / 100.0f;
+
+				// Знаковий кут атаки в площині симетрії (+ = потік знизу, ніс вище вектора швидкості)
+				// і кутова швидкість тангажу (+ = кабрування; у фізиці UE обертання навколо +Y опускає ніс).
+				const FTransform& ActorXf = Owner->GetActorTransform();
+				const FVector VelBody     = ActorXf.InverseTransformVectorNoScale(VelCmS);
+				const float   SignedAoA   = VelBody.IsNearlyZero() ? 0.f : FMath::RadiansToDegrees(FMath::Atan2(-VelBody.Z, VelBody.X));
+				const FVector OmegaBody   = ActorXf.InverseTransformVectorNoScale(PhysicsState->GetAngularVelocity());
+				const float   PitchRateDeg = -FMath::RadiansToDegrees(OmegaBody.Y);
+				const float   LoadFactor  = WeightN > 0.f ? (LiftUpN + InducedUpN) / WeightN : 0.f;
 
 				UE_LOG(LogUAV, Warning,
-					TEXT("[Розгін] %s | V=%.1f км/год (%.1f м/с) гор=%.1f верт=%.1f м/с | AoA=%.1f° | ")
+					TEXT("[Розгін] %s | V=%.1f км/год (%.1f м/с) гор=%.1f верт=%.1f м/с | AoA=%+.1f° q=%+.1f°/с | ")
 					TEXT("газ ц/факт=%.2f/%.2f | Kтяги=%.3f Тяга=%.0f Н | опір поляри=%.0f Н індукт=%.0f Н разом=%.0f Н | ")
-					TEXT("підйом=%.0f Н вага=%.0f Н | маса=%.1f кг"),
-					*Owner->GetName(), SpeedKmh, VelCmS.Size() / 100.0f, HorizKmh, VertMs, GetAngleOfAttack(),
+					TEXT("підйом=%.0f Н індукт↑=%.0f Н n=%.2f вага=%.0f Н | маса=%.1f кг | керм: елер=%.2f/%.2f рв=%.2f/%.2f рн=%.2f"),
+					*Owner->GetName(), SpeedKmh, VelCmS.Size() / 100.0f, HorizKmh, VertMs, SignedAoA, PitchRateDeg,
 					TargetThrottle, CurrentThrottle, LoggedThrustMultiplier, LoggedActualThrustN,
-					DragN, InducedDragN, DragN + InducedDragN, LiftUpN, WeightN, MassKg);
+					DragN, InducedDragN, DragN + InducedDragN, LiftUpN, InducedUpN, LoadFactor, WeightN, MassKg,
+					ControlState.LeftAileronAngle, ControlState.RightAileronAngle,
+					ControlState.LeftElevatorAngle, ControlState.RightElevatorAngle, ControlState.RudderAngle);
 
 				// ── Діагностика центру мас: чи адекватна позиція CoM для розрахунку моменту (r × F) ──
 				{
@@ -306,9 +328,13 @@ void UFlightDynamicsComponent::UpdateVortexWake()
 			}
 		};
 
-		// З кореня скидається +Gamma, з кінцівки скидається -Gamma (правило правої руки: сегмент іде Root→Tip)
-		TryAddNode(i * 2,     BV.StartPoint,  BV.Gamma);
-		TryAddNode(i * 2 + 1, BV.EndPoint,   -BV.Gamma);
+		// Знаки підкови. Приєднаний вихор іде Start(−Right) → End(+Right). За Кутта-Жуковським F = ρ·U×Γ⃗
+		// (U = −V потік повітря) підйомна сила ВГОРУ вимагає Γ⃗ спрямованого від End до Start, тобто
+		// циркуляція підкови: з далекого сліду → End → Start → назад у слід. Вузли лінії йдуть від старих
+		// (далеко позаду) до нових (біля крила), тож лінія біля End несе +Γ (тече до крила), а біля Start — −Γ.
+		// Раніше знаки були навпаки: на крилі виходив скіс потоку ВГОРУ, і "індуктивний опір" штовхав літак уперед.
+		TryAddNode(i * 2,     BV.StartPoint, -BV.Gamma);
+		TryAddNode(i * 2 + 1, BV.EndPoint,    BV.Gamma);
 	}
 }
 
@@ -325,16 +351,12 @@ float UFlightDynamicsComponent::GetAngleOfAttack() const
 
 FVector UFlightDynamicsComponent::GetLeftWingtipWorldPosition() const
 {
-	if (CurrentBoundVortices.Num() > 0)
-		return CurrentBoundVortices[0].StartPoint;
-	return FVector::ZeroVector;
+	return CurrentLeftWingtipWorldPos;
 }
 
-float UFlightDynamicsComponent::GetDesignWingSpanCm() const
+float UFlightDynamicsComponent::GetRawSurfaceSpanCm(const UAerodynamicSurfaceSC* Surface)
 {
-	if (Surfaces.Num() == 0) return 0.0f;
-
-	const UAerodynamicSurfaceSC* Surface = Surfaces[0];
+	if (!Surface) return 0.0f;
 	float SpanCm = 0.0f;
 	for (const auto& Form : Surface->SurfaceForm)
 	{
@@ -342,6 +364,28 @@ float UFlightDynamicsComponent::GetDesignWingSpanCm() const
 	}
 	if (Surface->Mirror) SpanCm *= 2.0f;
 	return SpanCm;
+}
+
+int32 UFlightDynamicsComponent::FindMainWingIndex() const
+{
+	int32 BestIdx  = INDEX_NONE;
+	float BestSpan = 0.0f;
+	for (int32 i = 0; i < Surfaces.Num(); i++)
+	{
+		const float Span = GetRawSurfaceSpanCm(Surfaces[i]);
+		if (Span > BestSpan)
+		{
+			BestSpan = Span;
+			BestIdx  = i;
+		}
+	}
+	return BestIdx;
+}
+
+float UFlightDynamicsComponent::GetDesignWingSpanCm() const
+{
+	const int32 MainWingIdx = FindMainWingIndex();
+	return MainWingIdx != INDEX_NONE ? GetRawSurfaceSpanCm(Surfaces[MainWingIdx]) : 0.0f;
 }
 
 FVector UFlightDynamicsComponent::GetInducedVelocity(const FVector& TargetPosCm) const

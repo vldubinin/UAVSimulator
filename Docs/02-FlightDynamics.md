@@ -81,8 +81,16 @@ AirflowDirection, ControlState, bVisualizeForces, DeltaTime)`** за кадр:
    командний кут визначає силу. `Clamp` до `[Min, Max]`, тоді `RoundToInt`.
 6. `AerodynamicProfileLookup::FindProfile(AerodynamicTable, FlapAngle)` — рядок
    `FLAP_{angle}_Deg`; `nullptr` (сили 0), якщо таблиця/рядок відсутні.
-7. `CalculateLift/Drag/Torque` (Н) → `NewtonsToKiloCentimeter` (1 Н = 100
-   kg·cm/s²). Момент Н·м → внутрішні через `×10000`.
+7. `CalculateLift/Drag` (Н) → `NewtonsToKiloCentimeter` (1 Н = 100
+   kg·cm/s²). Площа — `SurfaceArea` (локальна) × `|Scale.X·Scale.Y|` компонента,
+   тобто масштабується разом з актором. Власний момент профілю Cm
+   застосовується **лише** якщо `UAerodynamicSurfaceSC::bApplyProfilePitchingMoment`
+   (за замовч. `false`): тоді Cm переноситься з точки відліку таблиці
+   (`ProfileMomentReferencePercent`, VSPAERO без `Xcg` — 0 % = передня кромка) у
+   центр тиску: `Cm_cp = Cm_ref + Cl·(x_cp − x_ref)/c` — інакше момент підйомної
+   сили рахувався б двічі (вдруге через `r × F`). Вектор моменту = **`−Right` · M**
+   (у фізиці Unreal момент уздовж `+Right` опускає ніс, а Cm > 0 — кабрування).
+   Н·м → внутрішні через `×10000`.
 8. `FAerodynamicForce(LiftForce, DragForce, TorqueForce, RelativePosition)` —
    конструктор одразу рахує `RotationalForce = Torque + r × (Lift+Drag)`.
 
@@ -146,9 +154,9 @@ Z=рискання), `IsMirror : bool`, `IsReverseDirection : bool`,
 | `GetAirspeed()` | `PhysicsState->GetLinearVelocity().Size() / 100` — м/с |
 | `GetAirspeedKmh()` | те саме × 3.6 |
 | `GetAngleOfAttack()` | кут між `ActorForward` і вектором швидкості, градуси |
-| `GetLeftWingtipWorldPosition()` | `CurrentBoundVortices[0].StartPoint` |
-| `GetRightWingtipWorldPosition()` | `CurrentRightWingtipWorldPos` (дзеркальна точка) |
-| `GetDesignWingSpanCm()` | сира сума `|Offset.Y|` по `Surfaces[0].SurfaceForm` (× 2 якщо `Mirror`), **без** масштабу актора — для авто-калібрування |
+| `GetLeftWingtipWorldPosition()` | `CurrentLeftWingtipWorldPos` — лівий кінець головного крила |
+| `GetRightWingtipWorldPosition()` | `CurrentRightWingtipWorldPos` — правий кінець головного крила |
+| `GetDesignWingSpanCm()` | сира сума `|Offset.Y|` по `SurfaceForm` **головного крила** (× 2 якщо `Mirror`), **без** масштабу актора — для авто-калібрування. Головне крило = поверхня з найбільшим сирим розмахом (`FindMainWingIndex`), бо порядок `GetComponents` не гарантований: раніше бралося `Surfaces[0]`, і Cessna калібрувалась за розмахом стабілізатора (×3.19) |
 | `GetVortexWakeLines()` | `const TArray<TArray<FTrailingVortexNode>>&` — для Niagara-візуалізатора |
 
 Валідні лише після тіку `UFlightDynamicsComponent` у поточному кадрі. Споживач
@@ -182,8 +190,11 @@ Z=рискання), `IsMirror : bool`, `IsReverseDirection : bool`,
      `TotalForce`.
    - Розмах секції `SpanCm` рахується вручну з `|Form.Offset.Y|` × масштаб
      `Mesh` по Y (× 2 якщо `Mirror`).
-   - **Зворотня Кутта-Жуковського:** `Γ = F / (ρ · V · b)`.
-   - `SurfaceIdx == 0` → оновлює `CurrentRightWingtipWorldPos`.
+   - **Зворотня Кутта-Жуковського:** `Γ = L / (ρ · V · b)`, де `L` — лише **підйомна**
+     складова сили поверхні (перпендикулярна до швидкості; опір циркуляції не дає), **зі
+     знаком**: `+`, якщо вона спрямована вздовж `GetUpVector()` поверхні, `−` — якщо поверхня
+     тисне «вниз» (стабілізатор при балансуванні, від'ємне перевантаження).
+   - Головне крило (`FindMainWingIndex`) → оновлює `CurrentLeft/RightWingtipWorldPos`.
    - **Еліптичний розподіл циркуляції** по розмаху: `GammaMax = Γ · 4/π`,
      `NumSegments = Clamp(round(SpanM/0.5), 2, 20)`, для кожного сегмента:
      `LocalGamma = GammaMax · sqrt(1 − (y/halfSpan)²)`.
@@ -198,14 +209,19 @@ Z=рискання), `IsMirror : bool`, `IsReverseDirection : bool`,
    `AddForceAtLocation(Forward · ActualThrust, ThrustLocationWorld)`; та сама тяга в
    ньютонах пишеться в `CurrentThrustN` (нуль, якщо двигун не розкручений).
 5. Якщо `bLogFlightDebug` (акумулятор 0.5 с) — друкує в `LogUAV` (на екран більше не виводиться):
-   швидкість (км/год, гор., верт.), AoA, газ ц/факт, K тяги, тяга (Н), опір
-   поляри / індуктивний / разом (Н), підйом (Н), вага (Н), маса (кг), а також
+   швидкість (км/год, гор., верт.), знаковий AoA і кутова швидкість тангажу `q`, газ ц/факт,
+   K тяги, тяга (Н), опір поляри / індуктивний / разом (Н), підйом (Н), вертикальна складова
+   індуктивної сили, перевантаження `n`, вага (Н), маса (кг), команди рулів, а також
    `[CoMDebug]` — позиція ЦМ і відстані до поверхонь.
 6. `UpdateVortexWake()`.
 7. `ControlState = FControlInputState()` (обнулення).
 
-**`UpdateVortexWake()`** — на кожен приєднаний вихор веде 2 лінії сліду (корінь
-`+Γ`, кінцівка `−Γ`; правило правої руки Root→Tip). Новий `FTrailingVortexNode`
+**`UpdateVortexWake()`** — на кожен приєднаний вихор веде 2 лінії сліду: біля `StartPoint`
+(−Right) `−Γ`, біля `EndPoint` (+Right) `+Γ`. Вузли лінії йдуть від старих до нових (до крила),
+тож циркуляція підкови: слід → End → Start → слід, тобто Γ⃗ приєднаного вихору спрямований
+End→Start — саме такий за `F = ρ·U×Γ⃗` дає підйомну силу вгору, скіс потоку вниз на крилі й
+**додатний** індуктивний опір. (До виправлення знаки були навпаки: скіс вгору й індуктивна
+«тяга».) Новий `FTrailingVortexNode`
 додається, лише якщо відстань до останнього ≥ `MinWakeDistance`; при переповненні
 `MaxWakeLength` — видаляється найстаріший.
 

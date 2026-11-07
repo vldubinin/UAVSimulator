@@ -62,7 +62,23 @@ public:
 		FVector GlobalCenterOfMassInWorld, FVector AirflowDirection, FControlInputState ControlState,
 		bool bVisualizeForces, float DeltaTime);
 
+	/**
+	 * Налаштовує, чи (і як) застосовувати тангажний момент Cm з поляри.
+	 * @param bApply               — false: Cm ігнорується (сила все одно прикладена в центрі тиску через r × F).
+	 * @param ReferencePercent     — точка хорди (% від передньої кромки), відносно якої пораховано Cm у таблиці
+	 *                               (VSPAERO без заданого Xcg — передня кромка, 0 %). Cm перераховується до центру тиску,
+	 *                               щоб момент підйомної сили не враховувався двічі.
+	 */
+	void SetPitchingMomentSettings(bool bApply, float ReferencePercent);
+
 private:
+	/** Чи додавати момент Cm з поляри (див. SetPitchingMomentSettings). */
+	bool bApplyProfilePitchingMoment = false;
+	/** Точка хорди (% від передньої кромки), відносно якої задано Cm у таблиці. */
+	float ProfileMomentReferencePercent = 0.f;
+	/** Положення центру тиску вздовж хорди, % від передньої кромки (з InitComponent). */
+	float CenterOfPressurePercent = 25.f;
+
 	TArray<FVector> Start3DProfile;
 	TArray<FVector> End3DProfile;
 	FChord StartChord;

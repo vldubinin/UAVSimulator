@@ -81,6 +81,9 @@ void AAirplane::BeginPlay()
 		}
 	}
 
+	// Після масштабування — бо SetActorScale3D перераховує масові характеристики.
+	ApplyCenterOfMassCalibration();
+
 	// Порядок за кадр для керування:
 	//   AAirplane::Tick -> UAttitudeControlComponent (ZMQ+PID, лише обчислення)
 	//                   -> UPilotInputComponent (зведення + ЄДИНИЙ запис у FlightDynamics)
@@ -103,6 +106,39 @@ void AAirplane::BeginPlay()
 		RefreshConfigurations();
 		RefreshSensorSettings();
 	}
+}
+
+void AAirplane::ApplyCenterOfMassCalibration()
+{
+	if (!CalibrationSettings.bApplyExpectedCenterOfMass) return;
+
+	UStaticMeshComponent* Mesh = FindComponentByClass<UStaticMeshComponent>();
+	if (!Mesh || !Mesh->IsSimulatingPhysics()) return;
+
+	const FTransform& MeshXf  = Mesh->GetComponentTransform();
+	const FVector TargetWorld = GetActorTransform().TransformPosition(CalibrationSettings.ExpectedCenterOfMass);
+
+	// 1) Базовий CoM меша без зсуву.
+	Mesh->SetCenterOfMass(FVector::ZeroVector);
+	const FVector BaseWorld = Mesh->GetCenterOfMass();
+
+	// 2) Потрібний зсув у локальних осях меша (без масштабу).
+	const FVector Nudge = MeshXf.InverseTransformVectorNoScale(TargetWorld - BaseWorld);
+	Mesh->SetCenterOfMass(Nudge);
+
+	// 3) Перевірка: залежно від версії рушія nudge може трактуватися з урахуванням масштабу компонента.
+	//    Зв'язок лінійний, тож одна корекція за фактичним коефіцієнтом дає точне попадання.
+	const FVector GotDelta = MeshXf.InverseTransformVectorNoScale(Mesh->GetCenterOfMass() - BaseWorld);
+	const float   Ratio    = Nudge.IsNearlyZero() ? 1.f : GotDelta.Size() / Nudge.Size();
+	if (Ratio > KINDA_SMALL_NUMBER && !FMath::IsNearlyEqual(Ratio, 1.f, 0.01f))
+	{
+		Mesh->SetCenterOfMass(Nudge / Ratio);
+	}
+
+	const FVector FinalLocal = GetActorTransform().InverseTransformPosition(Mesh->GetCenterOfMass());
+	UE_LOG(LogUAV, Log, TEXT("AAirplane::ApplyCenterOfMassCalibration %s: ціль=%s, отримано=%s (локально, см), COMNudge=%s"),
+		*GetName(), *CalibrationSettings.ExpectedCenterOfMass.ToString(), *FinalLocal.ToString(),
+		*Mesh->GetBodyInstance()->COMNudge.ToString());
 }
 
 void AAirplane::CleanupWidgets()

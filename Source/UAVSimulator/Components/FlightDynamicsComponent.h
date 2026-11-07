@@ -49,11 +49,11 @@ public:
 
 	float GetAngleOfAttack() const;
 	FVector GetLeftWingtipWorldPosition() const;
-	/** @return Світова позиція правого кінця крила (протилежна GetLeftWingtipWorldPosition, той самий елемент Surfaces[0]). */
+	/** @return Світова позиція правого кінця головного крила (див. FindMainWingIndex). */
 	FVector GetRightWingtipWorldPosition() const { return CurrentRightWingtipWorldPos; }
 
 	/**
-	 * @return Розмах першої поверхні (Surfaces[0]) за сирими даними SurfaceForm (Offset.Y), в см,
+	 * @return Розмах головного крила (поверхня з найбільшим розмахом, див. FindMainWingIndex) за сирими даними SurfaceForm (Offset.Y), в см,
 	 * БЕЗ урахування поточного масштабу актора — "дизайнерський" розмір із конфігурації.
 	 * Використовується для авто-калібрування масштабу актора при спавні, див. AAirplane::BeginPlay.
 	 */
@@ -134,8 +134,19 @@ private:
 	/** Приєднані вихрові нитки, що перебудовуються щотіку з активних поверхонь. */
 	TArray<FBoundVortex> CurrentBoundVortices;
 
-	/** Світова позиція правого кінця крила (Surfaces[0]), оновлюється кожен тік поруч із CurrentBoundVortices. */
+	/** Світові позиції кінців головного крила (FindMainWingIndex), оновлюються кожен тік поруч із CurrentBoundVortices. */
+	FVector CurrentLeftWingtipWorldPos  = FVector::ZeroVector;
 	FVector CurrentRightWingtipWorldPos = FVector::ZeroVector;
+
+	/** Сирий (без масштабу) розмах поверхні за SurfaceForm, см; ×2 для симетричної. */
+	static float GetRawSurfaceSpanCm(const UAerodynamicSurfaceSC* Surface);
+
+	/**
+	 * @return Індекс головного крила в Surfaces — поверхні з найбільшим сирим розмахом, або INDEX_NONE.
+	 * Порядок GetComponents не гарантований, тож Surfaces[0] може виявитися хвостом
+	 * (саме так Cessna масштабувалась у ~3.2 раза: калібрування брало розмах стабілізатора).
+	 */
+	int32 FindMainWingIndex() const;
 
 	/**
 	 * Лінії сліду хвостових вихорів, що сходять з кожної поверхні.

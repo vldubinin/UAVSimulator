@@ -62,6 +62,9 @@ public:
 	void RefreshSensorSettings();
 	void CleanupWidgets();
 
+	/** Ставить фізичний CoM меша в CalibrationSettings.ExpectedCenterOfMass (якщо bApplyExpectedCenterOfMass). Викликається з BeginPlay після масштабування. */
+	void ApplyCenterOfMassCalibration();
+
 	/** Клас віджета, який інстанціюється, коли камера активна для цього літака. Задається в Blueprint. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Computer Vision")
 	TSubclassOf<UUserWidget> CameraWidgetClass;

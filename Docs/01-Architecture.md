@@ -62,8 +62,11 @@
 - `ExpectedWingSpanMeters` — реальний розмах крил прототипу (м). Якщо `> 0`, у
   `BeginPlay` актор рівномірно масштабується так, щоб «дизайнерський» розмах
   (`UFlightDynamicsComponent::GetDesignWingSpanCm`, сира сума `|Offset.Y|` по
-  `SurfaceForm[0]`) дорівнював цьому значенню.
-- `ExpectedCenterOfMass` — заготовка, поки не використовується.
+  `SurfaceForm` головного крила — поверхні з найбільшим розмахом) дорівнював цьому значенню.
+- `bApplyExpectedCenterOfMass` + `ExpectedCenterOfMass` — якщо увімкнено, у `BeginPlay`
+  (після масштабування) `AAirplane::ApplyCenterOfMassCalibration()` підбирає `COMNudge`
+  меша так, щоб фізичний CoM опинився в `ExpectedCenterOfMass` (см, «дизайнерські»
+  локальні координати актора, до масштабу). Результат пишеться в `LogUAV`.
 
 ### Blueprint-класи віджетів
 

@@ -120,6 +120,7 @@ void UAerodynamicSurfaceSC::BuildSubsurfaces(FVector CenterOfMass, int32 Directi
 
 			// AerodynamicTable може бути nullptr — підповерхня все одно створюється для відображення
 			SubAerodynamicSurface->InitComponent(Start3DProfile, End3DProfile, ComponentName, AerodynamicCenterOffsetPercent, CenterOfMass, StartConfig.MinFlapAngle, StartConfig.MaxFlapAngle, StartConfig.StartFlapPosition, StartConfig.EndFlapPosition, StartConfig.AerodynamicTable, IsMirror, StartConfig.FlapType, ControlSurface);
+			SubAerodynamicSurface->SetPitchingMomentSettings(bApplyProfilePitchingMoment, ProfileMomentReferencePercent);
 			SubSurfaces.Add(SubAerodynamicSurface);
 		}
 	}

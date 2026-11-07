@@ -21,11 +21,18 @@ struct FAircraftCalibrationSettings
 		meta = (DisplayName = "Очікуваний розмах крил (м)", ClampMin = "0.0"))
 	float ExpectedWingSpanMeters = 0.0f;
 
+	/** Чи ставити центр мас у ExpectedCenterOfMass при спавні (замість ручного COMNudge на меші). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Калібрування літака",
+		meta = (DisplayName = "Задати центр мас явно"))
+	bool bApplyExpectedCenterOfMass = false;
+
 	/**
-	 * Очікуваний центр мас прототипу (локальні координати, см). Поки не використовується —
-	 * заготовка під майбутнє калібрування CenterOfMass разом із розмахом крил.
+	 * Очікуваний центр мас, см, у "дизайнерських" локальних координатах актора (ДО масштабування
+	 * ExpectedWingSpanMeters — ті самі одиниці, що й розташування поверхонь у Blueprint).
+	 * AAirplane::BeginPlay обчислює COMNudge меша так, щоб фізичний CoM потрапив саме сюди.
+	 * Орієнтир: 25–30 % САХ крила позаду передньої кромки.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Калібрування літака",
-		meta = (DisplayName = "Очікуваний центр мас (не використовується)"))
+		meta = (DisplayName = "Очікуваний центр мас (см, локально)", EditCondition = "bApplyExpectedCenterOfMass"))
 	FVector ExpectedCenterOfMass = FVector::ZeroVector;
 };

@@ -100,6 +100,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = "Симетрична поверхня"))
 		bool Mirror = false;
 
+	/**
+	 * Застосовувати власний тангажний момент профілю (Cm з поляри).
+	 * За замовчуванням ВИМКНЕНО: поточні поляри (VSPAERO, CMytot без заданого Xcg) містять момент відносно
+	 * передньої кромки, тобто вже включають момент підйомної сили — разом з r × F це давало подвійний облік
+	 * і величезний паразитний момент кабрування. Вмикати лише для поляр із коректною точкою відліку Cm.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration",
+		meta = (DisplayName = "Застосовувати момент профілю (Cm)"))
+		bool bApplyProfilePitchingMoment = false;
+
+	/** Точка хорди (% від передньої кромки), відносно якої пораховано Cm у таблиці поляр. VSPAERO без Xcg — 0 (передня кромка), XFoil — 25. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration",
+		meta = (DisplayName = "Точка відліку Cm (% хорди)", ClampMin = "0", ClampMax = "100", EditCondition = "bApplyProfilePitchingMoment"))
+		float ProfileMomentReferencePercent = 0.f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Configuration", meta = (DisplayName = ""))
 		bool Enable = true;
 };
