@@ -128,4 +128,8 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "Simulator")
 	bool bSimulationStarted = false;
+
+private:
+	/** Спавн/опанування акторів для CurrentSimulatorMode (тіло колишнього StartSimulation). */
+	void StartSimulationImpl();
 };

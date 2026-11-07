@@ -57,6 +57,11 @@ public:
 	bool bEnableSensorCesiumSurroundings = true;
 	bool bEnableSensorCustomSurroundings = true;
 
+	/** Топік "flight_truth" (UFlightTruthComponent) — ground truth для стенда льотних
+	 *  випробувань. Не має чекбокса в меню: публікується на літаку з тегом AutoTracker
+	 *  завжди (стенду потрібен для аналізу), на інших — за звичайним SensorsMode. */
+	bool bEnableSensorFlightTruth = true;
+
 	/** Усі AEWZoneActor на сцені. Кожна зона сама рахує свою інтенсивність перешкод
 	 *  (AEWZoneActor::GetInterferenceIntensity) — тут лише список, без копій позиції/радіуса,
 	 *  щоб ті не застарівали. TWeakObjectPtr — зони можуть бути переспавнені

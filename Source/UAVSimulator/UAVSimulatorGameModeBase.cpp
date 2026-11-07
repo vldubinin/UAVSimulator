@@ -9,6 +9,7 @@
 #include "UAVSimulator/Components/AttitudeControlComponent.h"
 #include "UAVSimulator/Save/FlightScenarioSave.h"
 #include "UAVSimulator/Subsystem/UAVSimulationSubsystem.h"
+#include "UAVSimulator/Subsystem/TestSessionSubsystem.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerStart.h"
 
@@ -79,6 +80,12 @@ void AUAVSimulatorGameModeBase::StopSimulation()
 	if (!bSimulationStarted) return;
 	bSimulationStarted = false;
 
+	// session_end для стенда льотних випробувань — ДО знищення літаків.
+	if (UTestSessionSubsystem* TestSession = GetWorld()->GetSubsystem<UTestSessionSubsystem>())
+	{
+		TestSession->NotifySimulationStopped();
+	}
+
 	TArray<AActor*> Airplanes;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AAirplane::StaticClass(), Airplanes);
 	for (AActor* Actor : Airplanes)
@@ -125,6 +132,21 @@ void AUAVSimulatorGameModeBase::BeginPlay()
 void AUAVSimulatorGameModeBase::StartSimulation()
 {
 	if (bSimulationStarted) return;
+
+	StartSimulationImpl();
+
+	// session_start для стенда льотних випробувань — ПІСЛЯ спавну, щоб маніфест містив літаки.
+	if (bSimulationStarted)
+	{
+		if (UTestSessionSubsystem* TestSession = GetWorld()->GetSubsystem<UTestSessionSubsystem>())
+		{
+			TestSession->NotifySimulationStarted();
+		}
+	}
+}
+
+void AUAVSimulatorGameModeBase::StartSimulationImpl()
+{
 	bSimulationStarted = true;
 
 	// Повторно надсилаємо поточні налаштування (могли бути змінені через UI перед стартом).

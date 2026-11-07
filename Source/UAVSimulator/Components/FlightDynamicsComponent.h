@@ -59,6 +59,10 @@ public:
 	 */
 	float GetDesignWingSpanCm() const;
 
+	/** Параметри двигуна (EditDefaultsOnly) — лише для читання, напр. маніфест UTestSessionSubsystem. */
+	float GetMaxStaticThrust() const { return MaxStaticThrust; }   // кг·см/с²
+	float GetEngineSpoolSpeed() const { return EngineSpoolSpeed; }
+
 	/** @return Повітряна швидкість (модуль лінійної швидкості mesh), м/с. */
 	float GetAirspeed() const { return PhysicsState->GetLinearVelocity().Size() / 100.0f; }
 	/** @return Та сама швидкість у км/год — зручно для порівняння з крейсерською. */

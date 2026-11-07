@@ -154,6 +154,8 @@ void UAttitudeControlComponent::PollCommands()
 				TargetPitch   = (float)Obj->GetNumberField(TEXT("pitch"));
 				TargetYawRate = (float)Obj->GetNumberField(TEXT("yaw_rate"));
 				TargetThrust  = (float)Obj->GetNumberField(TEXT("thrust"));
+				LastCommandWorldTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+				++ReceivedCommandCount;
 
 				UE_LOG(LogUAV, Log,
 					TEXT("AttitudeControlComponent: вхідний сигнал SET_ATTITUDE_TARGET — roll=%.1f° pitch=%.1f° yaw_rate=%.1f°/s thrust=%.2f"),

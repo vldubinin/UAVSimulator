@@ -1,0 +1,31 @@
+# Тест: проходження маршруту наявним GPS-автопілотом (gps_autopilote/autopilote.py).
+# У меню Unreal увімкніть сенсор drone_geo_position.
+name: "Маршрут GPS (gps_autopilote)"
+objective: "Пройти всі 6 точок маршруту (радіус 100 м) без зіткнень, з креном не більше 60° і без зриву потоку."
+start: auto
+mode: AutoTrack
+use_truth: false       # алгоритм бачить лише сенсори; truth пишеться для аналізу
+control_rate_hz: 20
+
+controller_params:
+  waypoint_radius_m: 100
+  waypoints:
+    - [50.0463231, 36.2817064, 100.0]
+    - [50.04395295027201, 36.288967727181, 90.0]
+    - [50.0455224, 36.2907573, 90.0]
+    - [50.0467817, 36.2897081, 90.0]
+    - [50.0492247, 36.2901183, 100.0]
+    - [50.05061075454689, 36.29631391551742, 70.0]
+
+stop:
+  time_limit_s: 600
+  on_crash: true
+
+record:
+  extra_sources:
+    - ../../custom_objects_dataset/gps_autopilote/autopilote.py
+    - ../../custom_objects_dataset/gps_autopilote/common.py
+
+analysis:
+  enabled: true
+  language: uk

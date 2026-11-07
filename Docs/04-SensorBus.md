@@ -90,6 +90,7 @@ for i, s in enumerate(envelope["sensors"], start=1):
 | `USegmentationMaskCameraComponent` | `segmentation_mask` | `UActorComponent` | Адаптер: `UUAVCameraComponent::GetMaskFrame()` (JPEG-байти). Потрібен `UUAVCameraComponent::MaskPostProcessMaterial` |
 | `UCesiumSurroundingsScannerComponent` | `cesium_objects` | `UActorComponent` | Метадані видимих Cesium 3D Tiles фіч — див. [05-SurroundingsScanners.md](05-SurroundingsScanners.md) |
 | `UCustomSurroundingsScannerComponent` | `custom_objects` | `UActorComponent` | Об'єкти з JSON-джерела — див. [05-SurroundingsScanners.md](05-SurroundingsScanners.md) |
+| `UFlightTruthComponent` | `flight_truth` | `UActorComponent` (CDO на `AAirplane`) | Ground truth для стенда льотних випробувань: geo-позиція, ENU-швидкість, курс, орієнтація, кутові швидкості, airspeed/AoA/ковзання/перевантаження, газ/тяга, уставка + вихід PID автопілота, вік останньої команди, вітер/РЕБ. Без чекбокса в меню (`bEnableSensorFlightTruth`); на `AutoTracker` — завжди. Формат — [14-Flight-Test-Lab.md](14-Flight-Test-Lab.md) |
 
 ### Спільні деталі сенсорів
 

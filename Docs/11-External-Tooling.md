@@ -73,5 +73,7 @@ Dual-Loop асинхронна система реального часу для
 |------|----------|-------------|
 | `5555` | Симулятор (PUB) → інструменти (SUB) | Сенсорна шина (`USensorBusComponent::Endpoint`) |
 | `5556` | Інструменти (PUSH) → симулятор (PULL) | Уставки атитюду (`UAttitudeControlComponent::CommandEndpoint` / `GameMode::AttitudeCommandEndpoint`) |
+| `5557` | Стенд (REQ) ↔ симулятор (REP) | Керування сесією льотних випробувань (`UTestSessionSubsystem`): PING/STATUS/GET_MANIFEST/START/STOP — [14-Flight-Test-Lab.md](14-Flight-Test-Lab.md) |
+| `5558` | Симулятор (PUB) → стенд (SUB) | Події сесії: `session_start` / `session_end` / `collision` |
 | `5600` | `navigation` Процес A (PUSH) → Процес B (PULL) | Crop-кадри на класифікацію |
 | `5601` | `navigation` Процес B (PUSH) → Процес A (PULL) | Результати класифікації |

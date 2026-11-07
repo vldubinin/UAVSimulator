@@ -10,6 +10,7 @@
 #include "UAVSimulator/Components/PilotInputComponent.h"
 #include "UAVSimulator/Components/KeyboardPilotInputComponent.h"
 #include "UAVSimulator/Components/GamepadPilotInputComponent.h"
+#include "UAVSimulator/Components/FlightTruthComponent.h"
 #include "UAVSimulator/Structure/AircraftCalibrationSettings.h"
 
 #include "Airplane.generated.h"
@@ -106,4 +107,8 @@ private:
 	/** Джерело вводу: джойстик / геймпад (IPilotInputSource, tier 0). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Pilot Input", meta = (AllowPrivateAccess = "true"))
 	UGamepadPilotInputComponent* GamepadInput;
+
+	/** Ground truth стану польоту (топік "flight_truth") для стенда льотних випробувань. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Telemetry", meta = (AllowPrivateAccess = "true"))
+	UFlightTruthComponent* FlightTruth;
 };

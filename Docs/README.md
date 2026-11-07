@@ -28,6 +28,7 @@
 | [11-External-Tooling.md](11-External-Tooling.md) | Зовнішні Python-інструменти: ZMQ-сімейство `Tools/TestingPlatform/` (наведення на слабкому залізі, автопілот «коло», розмітка мапи, запис датасетів позиціонування) і файлове `Tools/ProjectTools/` (інструмент карти) |
 | [12-Niagara.md](12-Niagara.md) | Усі Niagara-ефекти (`Content/FX`): `NS_VLMFlow` (вихоровий слід, Біо-Савар на GPU, `UAeroVisualizerComponent`), `NS_Rain` (дощ, `ARainEffectManager`), `NS_StreetLights` (вуличні вогні, `AStreetLightsManager`) — призначення, User Parameters, принцип роботи, покрокове налаштування, типові проблеми |
 | [13-Environment-Actors.md](13-Environment-Actors.md) | Об'єкти середовища: `AEnvironmentActorManager`, зони РЕБ (`AEWZoneActor`), вітрові вектори (`AWindActor`, реально впливають на аеродинаміку), дощ (`ARainEffectManager`, нульова зв'язаність з `AAirplane`), туман (`AFogManager`: `FogIntensity` 0–100 → `AExponentialHeightFog`, видно і в бортовій камері), нічне небо (процедурні зорі `M_Stars`: параметри, алгоритм, усунення кіл-муару), нічні вуличні вогні (`AStreetLightsManager`: яскравість 0–100, вибір джерела будівель `Custom`/`Cesium` — дані сканерів `UCustomSurroundingsScannerComponent`/`UCesiumSurroundingsScannerComponent`, один Niagara-компонент `NS_StreetLights`), інструмент карти `configurate_env_actors.py`, формат `env_actors.json` |
+| [14-Flight-Test-Lab.md](14-Flight-Test-Lab.md) | Стенд віртуальних льотних випробувань: Python-пакет `uavlab` (підключення алгоритму `Controller.step(obs)`, конфіг тесту, запис сесії), `UTestSessionSubsystem` (REP :5557 START/STOP/GET_MANIFEST, PUB :5558 події сесії), маніфест умов тесту, сенсор ground truth `flight_truth` (`UFlightTruthComponent`), детерміновані метрики, LLM-аналіз Claude зі структурованим звітом |
 
 ## Швидкий старт для читача коду
 
@@ -41,4 +42,5 @@
 4. **Керування** — усе йде через `UPilotInputComponent` (єдиний, хто пише
    контрольний API динаміки польоту).
 5. **Телеметрія назовні** — `USensorBusComponent` публікує ZMQ PUB на
-   `tcp://*:5555`; автопілот приймає ZMQ PULL на `tcp://*:5556`.
+   `tcp://*:5555`; автопілот приймає ZMQ PULL на `tcp://*:5556`; сесія
+   льотних випробувань — REP `tcp://*:5557` + PUB `tcp://*:5558` (`UTestSessionSubsystem`).

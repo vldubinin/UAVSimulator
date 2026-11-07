@@ -28,6 +28,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "UI")
 	bool IsMenuVisible() const;
 
+	/** Старт симуляції + сховати меню (як кнопка Start). Використовує UTestSessionSubsystem (команда START). */
+	UFUNCTION(BlueprintCallable, Category = "Simulator")
+	void StartSimulationAndHideMenu();
+
+	/** Зупинка симуляції + меню на секції Scenario (як Q). Використовує і Q, і UTestSessionSubsystem (STOP). */
+	UFUNCTION(BlueprintCallable, Category = "Simulator")
+	void StopSimulationAndShowMenu();
+
 	/** Викликається з AAirplane при створенні віджета камери, щоб PC міг його прибрати. */
 	void RegisterCameraWidget(UUserWidget* Widget);
 	void RemoveCameraWidgets();

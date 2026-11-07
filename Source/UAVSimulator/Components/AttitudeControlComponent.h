@@ -65,6 +65,27 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Control")
 	bool bLogAttitudeDebug = false;
 
+	// ── Стан для телеметрії (UFlightTruthComponent / UTestSessionSubsystem) ──────
+	/** true після успішного ActivateAutopilot() (ZMQ прив'язано, тік увімкнено). */
+	bool IsAutopilotActive() const { return ZmqState != nullptr; }
+
+	/** Остання прийнята уставка: roll/pitch — рад, yaw_rate — рад/с, thrust — [0,1]. */
+	float GetTargetRoll()    const { return TargetRoll; }
+	float GetTargetPitch()   const { return TargetPitch; }
+	float GetTargetYawRate() const { return TargetYawRate; }
+	float GetTargetThrust()  const { return TargetThrust; }
+
+	/** Останній вихід PID (нормовані команди [-1,1]), що віддається координатору. */
+	float GetLastAileronCmd()  const { return LastAileron; }
+	float GetLastElevatorCmd() const { return LastElevator; }
+	float GetLastRudderCmd()   const { return LastRudder; }
+
+	/** Світовий час (с) прийому останньої команди SET_ATTITUDE_TARGET; < 0 — команд ще не було. */
+	double GetLastCommandWorldTime() const { return LastCommandWorldTime; }
+
+	/** Скільки команд SET_ATTITUDE_TARGET прийнято з моменту активації. */
+	int32 GetReceivedCommandCount() const { return ReceivedCommandCount; }
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -89,4 +110,7 @@ private:
 	float LastElevator = 0.f;
 	float LastRudder   = 0.f;
 	float LastThrust   = 0.f;
+
+	double LastCommandWorldTime = -1.0;
+	int32  ReceivedCommandCount = 0;
 };

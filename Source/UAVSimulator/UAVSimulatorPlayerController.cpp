@@ -69,6 +69,20 @@ void AUAVSimulatorPlayerController::RemoveCameraWidgets()
 
 void AUAVSimulatorPlayerController::OnQPressed()
 {
+	StopSimulationAndShowMenu();
+}
+
+void AUAVSimulatorPlayerController::StartSimulationAndHideMenu()
+{
+	if (AUAVSimulatorGameModeBase* GM = Cast<AUAVSimulatorGameModeBase>(GetWorld()->GetAuthGameMode()))
+	{
+		GM->StartSimulation();
+	}
+	HideMenu();
+}
+
+void AUAVSimulatorPlayerController::StopSimulationAndShowMenu()
+{
 	RemoveCameraWidgets();
 
 	if (AUAVSimulatorGameModeBase* GM = Cast<AUAVSimulatorGameModeBase>(GetWorld()->GetAuthGameMode()))

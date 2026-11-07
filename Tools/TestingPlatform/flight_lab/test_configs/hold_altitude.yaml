@@ -1,0 +1,25 @@
+# Тест: утримання висоти й курсу. Умови (місце, погода, вітер, РЕБ, сенсори) — у меню Unreal.
+name: "Утримання висоти та курсу"
+objective: "Утримувати висоту старту ±5 м і курс старту ±3° протягом 120 с без коливань і виходу на критичні кути атаки."
+start: auto            # стенд сам натискає Start; wait — чекати Start у меню Unreal
+mode: AutoTrack
+use_truth: true
+control_rate_hz: 20
+
+controller_params:
+  kp_alt_deg_per_m: 0.3
+  kp_heading_roll_per_deg: 0.8
+  max_pitch_deg: 12
+  max_roll_deg: 25
+  thrust: 0.7
+
+stop:
+  time_limit_s: 120
+  on_crash: true
+  min_altitude_m: null
+
+analysis:
+  enabled: true
+  model: claude-opus-5-5
+  effort: high
+  language: uk

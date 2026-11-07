@@ -52,6 +52,9 @@ AAirplane::AAirplane()
 	KeyboardInput = CreateDefaultSubobject<UKeyboardPilotInputComponent>(TEXT("KeyboardInput"));
 	GamepadInput  = CreateDefaultSubobject<UGamepadPilotInputComponent>(TEXT("GamepadInput"));
 
+	// Ground truth для стенда льотних випробувань — UActorComponent, тож кореня не потребує.
+	FlightTruth = CreateDefaultSubobject<UFlightTruthComponent>(TEXT("FlightTruth"));
+
 	// CameraComp не є CDO — створюється динамічно в RefreshConfigurations, коли камера увімкнена.
 }
 
@@ -308,6 +311,10 @@ void AAirplane::RefreshSensorSettings()
 
 	if (UCustomSurroundingsScannerComponent* C = FindComponentByClass<UCustomSurroundingsScannerComponent>())
 		C->bSensorEnabled = bSensorsActive && Subsystem->bEnableSensorCustomSurroundings;
+
+	// Автопілотований літак — об'єкт випробувань стенда: truth потрібен йому незалежно від SensorsMode.
+	if (FlightTruth)
+		FlightTruth->bSensorEnabled = Subsystem->bEnableSensorFlightTruth && (bSensorsActive || bIsAutoTracker);
 }
 
 UTexture2D* AAirplane::GetCameraOutputTexture() const

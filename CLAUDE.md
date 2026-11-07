@@ -39,6 +39,7 @@ Unreal Engine 5.7 UAV (Unmanned Aerial Vehicle) flight dynamics simulator. Writt
 - **`UAttitudeControlComponent`** — ZMQ autopilot; also an `IPilotInputSource` (tier 100), see *Pilot Input*
 - **`UPilotInputComponent`** — coordinator for all control input; the sole writer to `UFlightDynamicsComponent`'s control API, see *Pilot Input*
 - **`UKeyboardPilotInputComponent`** / **`UGamepadPilotInputComponent`** — `IPilotInputSource` implementations (tier 0)
+- **`UFlightTruthComponent`** — ground-truth sensor (`flight_truth`) for the flight-test bench, see *Flight Test Lab*
 
 `UUAVCameraComponent` (onboard OpenCV camera) is *not* a CDO — it is created lazily in `RefreshConfigurations()` when the camera is enabled; it is a `UActorComponent`, not a `USceneComponent`, so it has no transform and cannot be attached to a scene hierarchy. `AAirplane::GetCameraOutputTexture()` exposes `UUAVCameraComponent::OutputTexture` for UI/sensor consumers.
 
@@ -170,6 +171,15 @@ A parallel, opt-in sensor system publishes UAV telemetry over ZeroMQ for externa
 
 `r.CustomDepth=3` (`Config/DefaultEngine.ini`) is enabled to support the segmentation-mask render pipeline.
 
+### Flight Test Lab (virtual flight tests + LLM analysis)
+
+User control algorithms (Python) are tested against the simulator and auto-analysed by Claude. Full doc: `Docs/14-Flight-Test-Lab.md`.
+
+- **`UTestSessionSubsystem`** (`Subsystem/TestSessionSubsystem.h`, `UTickableWorldSubsystem`, Game/PIE only) — ZMQ **REP `tcp://*:5557`** (`PING`/`STATUS`/`GET_MANIFEST`/`START {mode, scenario_slot}`/`STOP {reason}`) + **PUB `tcp://*:5558`** (`session_start` with manifest, `session_end {reason: user | bench:<r>}`, `event kind=collision` from each airplane mesh's `OnComponentHit`). Polled with `ZMQ_DONTWAIT` every tick. `AUAVSimulatorGameModeBase::StartSimulation()` (spawn body now in private `StartSimulationImpl()`) calls `NotifySimulationStarted()` after spawning; `StopSimulation()` calls `NotifySimulationStopped()` before destroying airplanes — so menu Start/`Q` and bench START/STOP share one path. `AUAVSimulatorPlayerController::StartSimulationAndHideMenu()` / `StopSimulationAndShowMenu()` (the latter is what `OnQPressed` does).
+- **Manifest** (`BuildManifest()`): mode, physics substepping, Cesium origin, **all menu `USaveGame` slots** via `FJsonObjectConverter` (hence `JsonUtilities` in Build.cs), applied sensor flags, EW zones / wind vectors, per-aircraft calibration/mass/wingspan/engine params/**full autopilot PIDs**/sensor list.
+- **`UFlightTruthComponent`** — CDO on `AAirplane`, topic `flight_truth` via the existing sensor bus; enabled when `UUAVSimulationSubsystem::bEnableSensorFlightTruth && (role active for SensorsMode || AutoTracker)`. Reads `UAttitudeControlComponent`'s new telemetry getters (`GetTarget*`, `GetLast*Cmd`, `GetLastCommandWorldTime`, `GetReceivedCommandCount`, `IsAutopilotActive`) and `UFlightDynamicsComponent::GetMaxStaticThrust/GetEngineSpoolSpeed`.
+- **Python bench** `Tools/TestingPlatform/flight_lab` (package `uavlab`, `pip install -e .`): user writes a `uavlab.Controller` subclass (`step(obs) -> Command` in degrees, optional `on_start/is_done/on_stop`, `ctx.log/ctx.event`); `uavlab run algo.py -c test.yaml` (`start: auto|wait`) records `sessions/<id>/` (truth.csv, steps.csv, events.jsonl, manifest, controller source), then `analysis/` computes deterministic metrics + plots and sends them to Claude (`claude-opus-5-5`, structured-output JSON report, server-side `fallbacks: "default"`) → `report.html`. Re-run analysis offline: `uavlab analyze sessions/<id>`.
+
 ### ML Dataset Generation
 
 Tool actors under `DatasetGen/`, driven from the menu's *Synthetic Data* section (`USyntheticDataSectionWidget`, paths persisted in `USyntheticDataSettingsSave`). Not part of the runtime simulation. See `Docs/09-Dataset-Generation.md`.
@@ -253,6 +263,9 @@ HUD widgets (on the flown pawn only): `UAirplaneTelemetryWidget` (`SetAirplane()
 | `Components/FlightRecorderComponent.h/cpp` | Records flight frames to `UFlightScenarioSave` save game |
 | `Components/UAVCameraComponent.h/cpp` | Onboard camera + OpenCV processing (`UActorComponent`, no scene transform) |
 | `Components/SensorBusComponent.h` | Discovers `IUAVSensorInterface` components on the owner and publishes `FSensorFrame`s over ZMQ PUB |
+| `Subsystem/TestSessionSubsystem.h/cpp` | Flight-test session bridge: REP :5557 (START/STOP/GET_MANIFEST/STATUS/PING), PUB :5558 (session_start/session_end/collision), scenario manifest builder |
+| `Components/FlightTruthComponent.h/cpp` | Sensor `flight_truth`: ground truth + autopilot setpoint/PID output/command age + wind/EW for the flight-test bench |
+| `Tools/TestingPlatform/flight_lab/` | Python package `uavlab`: test bench (`bench.py`), algorithm contract (`controller.py`), session recorder, metrics/plots/Claude analysis (`analysis/`), examples + test configs |
 | `Components/AttitudeControlComponent.h/cpp` | ZMQ PULL command receiver (`tcp://*:5556`); `FPidController` per axis; `IPilotInputSource` tier 100 (feeds `UPilotInputComponent`, no longer writes the API directly) |
 | `Entity/PidController.h/cpp` | `FPidController` USTRUCT — anti-windup, derivative filter, angular-error unwrap, gain-scheduling curve; used by `UAttitudeControlComponent` |
 | `Entity/ActuatorDynamics.h/cpp` | `FActuatorDynamics` USTRUCT — control-surface transient (rate limit / first-order lag / 2nd-order); owned by `UControlSurfaceSC` |
