@@ -267,11 +267,16 @@ viz:
   waypoints_param: waypoints
   radius_param: waypoint_radius_m
   tile_server: null           # null — OpenStreetMap
+  keep_open: true             # false (або --map-autoclose) — не чекати закриття вікна після тесту
 ```
 
 `uavlab/__main__.py` має guard `if __name__ == "__main__"` — обов'язково: на Windows (spawn) процес карти
-заново імпортує головний модуль. `uavlab improve` карту не відкриває (тести без нагляду), якщо `viz.enabled`
-не ввімкнено в конфігу явно.
+заново імпортує головний модуль.
+
+`uavlab improve` карту за замовчуванням не відкриває (тести без нагляду). `uavlab improve ... --map` (або
+`improve.map: true`, зберігається в `run_config.yaml`, тож діє і при `--resume`) відкриває її на кожному тесті
+циклу й валідації. Цикл завжди запускає тести з `--map-autoclose` (`viz.keep_open: false`): вікно закривається
+разом із процесом тесту, тож не блокує наступну версію.
 
 ## Синхронізація часу стенда і симулятора
 

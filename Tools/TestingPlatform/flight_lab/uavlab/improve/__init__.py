@@ -58,13 +58,18 @@ class Budget:
         return self.spent >= self.max_usd
 
 
-def _run_version(controller: Path, config_path: Path, sessions_dir: Path, extra_path: str, log_path: Path) -> Optional[Path]:
+def _run_version(controller: Path, config_path: Path, sessions_dir: Path, extra_path: str, log_path: Path,
+                 show_map: bool = False) -> Optional[Path]:
     """Запускає `uavlab run` в окремому процесі; повертає теку створеної сесії."""
     before = set(sessions_dir.glob("*")) if sessions_dir.exists() else set()
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join(filter(None, [extra_path, env.get("PYTHONPATH", "")]))
     env["PYTHONIOENCODING"] = "utf-8"
-    cmd = [sys.executable, "-m", "uavlab", "run", str(controller), "-c", str(config_path), "--no-analysis"]
+    # --map-autoclose завжди: карта (з --map або viz.enabled у конфігу) не повинна блокувати цикл між тестами
+    cmd = [sys.executable, "-m", "uavlab", "run", str(controller), "-c", str(config_path), "--no-analysis",
+           "--map-autoclose"]
+    if show_map:
+        cmd.append("--map")
     with log_path.open("w", encoding="utf-8") as log:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                                 encoding="utf-8", errors="replace", env=env, cwd=str(controller.parent))
@@ -269,7 +274,7 @@ class ImproveRun:
     def _test(self, v: Version) -> None:
         _log(f"Тест версії v{v.index}...")
         session = _run_version(v.entry_path, v.config_path, Path(v.config["record"]["sessions_dir"]),
-                               self.extra_path, v.dir / "run.log")
+                               self.extra_path, v.dir / "run.log", show_map=bool(self.icfg.get("map")))
         if session is None:
             # Сесії немає — зазвичай це середовище (Unreal не відповідає / впав), а не версія алгоритму
             # (винятки алгоритму дають сесію зі stop_reason=controller_exception). Версія лишається
@@ -459,7 +464,8 @@ class ImproveRun:
                                             allow_unicode=True, sort_keys=False), encoding="utf-8")
             _log(f"Валідація найкращої версії v{best.index} на {vc}...")
             time.sleep(float(self.icfg.get("pause_between_runs_s", 3.0)))
-            sess = _run_version(best.entry_path, cpath, Path(vcfg["record"]["sessions_dir"]), self.extra_path, vdir / "run.log")
+            sess = _run_version(best.entry_path, cpath, Path(vcfg["record"]["sessions_dir"]), self.extra_path,
+                                vdir / "run.log", show_map=bool(self.icfg.get("map")))
             if sess is None:
                 self.validation.append({"config": str(vc), "status": "failed_to_run"})
             else:

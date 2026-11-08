@@ -50,6 +50,7 @@ DEFAULTS: dict[str, Any] = {
         "waypoints_param": "waypoints",       # controller_params.<...>: [[lat, lon, alt], ...]
         "radius_param": "waypoint_radius_m",  # controller_params.<...>: радіус захоплення, м
         "tile_server": None,                  # None — OpenStreetMap
+        "keep_open": True,                    # після тесту чекати, доки вікно закриють (False — закрити самому)
     },
     "endpoints": {
         "sensors": "tcp://127.0.0.1:5555",
@@ -83,6 +84,7 @@ DEFAULTS: dict[str, Any] = {
         "analyze_each_iteration": True,    # повний LLM-аналіз кожної версії (діагноз для агента)
         "validation_configs": [],          # додаткові сценарії для фінальної перевірки найкращої версії
         "pause_between_runs_s": 3.0,
+        "map": False,                      # жива карта на кожному тесті циклу (або `uavlab improve ... --map`)
     },
     "analysis": {
         "enabled": True,

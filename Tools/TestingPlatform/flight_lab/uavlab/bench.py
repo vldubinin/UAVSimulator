@@ -421,6 +421,6 @@ def run_test(controller_path: str | Path, cfg: dict) -> Path:
             analyze_session(recorder.dir, cfg["analysis"])
         except Exception:
             _log("Аналіз не вдався (сесію збережено, повторіть: uavlab analyze <тека сесії>):\n" + traceback.format_exc())
-    if live is not None:
-        live.wait_closed()
+    if live is not None and (cfg.get("viz") or {}).get("keep_open", True):
+        live.wait_closed()  # інакше вікно (daemon-процес) закриється разом зі стендом
     return recorder.dir

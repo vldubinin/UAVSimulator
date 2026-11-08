@@ -28,6 +28,8 @@ def main(argv=None) -> int:
     r.add_argument("--no-analysis", action="store_true", help="не запускати аналіз після тесту")
     r.add_argument("--no-llm", action="store_true", help="аналіз лише метриками, без Claude")
     r.add_argument("--map", action="store_true", help="жива карта: літак, трек, точки маршруту (tkintermapview)")
+    r.add_argument("--map-autoclose", action="store_true",
+                   help="з --map: закрити карту по завершенні тесту, не чекаючи на користувача")
 
     a = sub.add_parser("analyze", help="(пере)аналізувати записану сесію без Unreal")
     a.add_argument("session_dir")
@@ -47,6 +49,8 @@ def main(argv=None) -> int:
     im.add_argument("--approve", action="store_true", help="підтверджувати кожну правку перед тестом")
     im.add_argument("--no-iteration-analysis", action="store_true",
                     help="не робити повний LLM-аналіз кожної версії (дешевше; агент бачить лише метрики)")
+    im.add_argument("--map", action="store_true",
+                    help="жива карта на кожному тесті циклу (закривається сама після тесту)")
 
     ap = sub.add_parser("apply", help="перенести найкращу версію improve в оригінальні файли")
     ap.add_argument("run_dir")
@@ -68,6 +72,8 @@ def main(argv=None) -> int:
             ic["approve"] = True
         if args.no_iteration_analysis:
             ic["analyze_each_iteration"] = False
+        if args.map:
+            ic["map"] = True
 
         if args.resume:
             if args.controller or args.config:
@@ -105,6 +111,8 @@ def main(argv=None) -> int:
             overrides.setdefault("analysis", {})["enabled"] = False
         if args.map:
             overrides.setdefault("viz", {})["enabled"] = True
+        if args.map_autoclose:
+            overrides.setdefault("viz", {})["keep_open"] = False
         cfg = load_config(args.config, overrides)
         if args.no_llm and cfg["analysis"].get("enabled", True):
             cfg["analysis"]["enabled"] = False
