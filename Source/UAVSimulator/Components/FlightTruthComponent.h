@@ -67,4 +67,9 @@ private:
 
 	FVector PrevVelocityCmS = FVector::ZeroVector;
 	bool    bHasPrevVelocity = false;
+
+	/** Для оцінки відставання фізики: скільки секунд фізики минуло за кадр, відносно DeltaTime світу. */
+	FVector PrevLocationCm = FVector::ZeroVector;
+	float   PhysicsTimeRatioEma = 1.f;
+	float   LastPhysicsTimeRatio = 1.f;
 };

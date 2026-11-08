@@ -16,7 +16,20 @@ DEFAULTS: dict[str, Any] = {
     "mode": "AutoTrack",             # ESimulatorMode для start: auto (AutoTrack | PlaybackAndAutoTrack)
     "scenario_slot": None,           # слот записаної траєкторії цілі (PlaybackAndAutoTrack)
     "control_rate_hz": 20.0,         # частота виклику step(); Controller.rate_hz має пріоритет
-    "use_truth": True,               # False — obs.truth = None (чесний тест лише на сенсорах)
+    "use_truth": True,
+    # Синхронізація часу стенда і симулятора (Docs/14 «Синхронізація часу»):
+    "simulation": {
+        # Фіксований крок часу Unreal на час тесту, с/кадр: кожен кадр = рівно стільки секунд світу,
+        # незалежно від FPS. Має бути <= ліміту фізики за кадр (MaxSubsteps × MaxSubstepDeltaTime =
+        # 16 × 0.0013 = 0.0208 с), тоді час світу = час фізики. 0 / null — реальний час (фізика відстає
+        # від годинника при низькому FPS).
+        "fixed_step_s": 0.02,
+        # Підміняти time.monotonic/time/perf_counter у модулях алгоритму на час симуляції (uavlab.simclock).
+        "sim_clock": True,
+        # Мінімально допустиме відношення «час фізики / час світу» (метрика time_sync); нижче — прогін
+        # не придатний для часових критеріїв (uavlab improve вважає це перериванням, а не провалом версії).
+        "min_physics_time_ratio": 0.9,
+    },               # False — obs.truth = None (чесний тест лише на сенсорах)
     "controller_class": None,        # якщо у файлі кілька підкласів Controller
     "controller_params": {},         # -> ctx.params
     "stop": {
@@ -26,6 +39,17 @@ DEFAULTS: dict[str, Any] = {
         "min_altitude_m": None,      # абсолютна висота (geo altitude)
         "telemetry_timeout_s": 5.0,  # нема пакетів шини стільки секунд -> зупинка
         "max_step_errors": 1,        # винятків у step() до зупинки
+        "progress_key": None,        # ім'я змінної ctx.log, що має зростати (напр. waypoint_index)
+        "no_progress_s": None,       # ... і якщо не зростала стільки секунд — зупинка "no_progress"
+    },
+    # Жива карта (tkintermapview, окреме вікно): літак, трек, точки маршруту, зони РЕБ, маркери ctx.map_marker.
+    "viz": {
+        "enabled": False,                     # або `uavlab run ... --map`
+        "follow": True,                       # центрувати карту на літаку
+        "update_hz": 5.0,
+        "waypoints_param": "waypoints",       # controller_params.<...>: [[lat, lon, alt], ...]
+        "radius_param": "waypoint_radius_m",  # controller_params.<...>: радіус захоплення, м
+        "tile_server": None,                  # None — OpenStreetMap
     },
     "endpoints": {
         "sensors": "tcp://127.0.0.1:5555",
@@ -37,6 +61,8 @@ DEFAULTS: dict[str, Any] = {
         "sessions_dir": "sessions",  # відносно поточної теки
         "sensors": True,             # сирі JSON-payload'и сенсорів у sensors.jsonl
         "sensors_max_hz": 10.0,      # обмеження частоти запису sensors.jsonl
+        "sensor_topics": None,       # які топіки писати в sensors.jsonl (None — усі, крім завеликих)
+        "max_sensor_payload_kb": 16, # payload більший за це не пишеться (custom_objects ~75 КБ/кадр)
         "extra_sources": [],         # додаткові .py-файли/теки алгоритму (відносно файлу алгоритму) для LLM
     },
     # PID внутрішнього автопілота на час сесії (Blueprint не змінюється), напр. {"roll": {"kp": 3, "ki": 0.1}}.

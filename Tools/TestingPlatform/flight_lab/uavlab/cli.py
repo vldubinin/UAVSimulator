@@ -27,6 +27,7 @@ def main(argv=None) -> int:
     r.add_argument("--time-limit", type=float, help="ліміт тривалості, с (симуляційний час)")
     r.add_argument("--no-analysis", action="store_true", help="не запускати аналіз після тесту")
     r.add_argument("--no-llm", action="store_true", help="аналіз лише метриками, без Claude")
+    r.add_argument("--map", action="store_true", help="жива карта: літак, трек, точки маршруту (tkintermapview)")
 
     a = sub.add_parser("analyze", help="(пере)аналізувати записану сесію без Unreal")
     a.add_argument("session_dir")
@@ -102,6 +103,8 @@ def main(argv=None) -> int:
             overrides.setdefault("stop", {})["time_limit_s"] = args.time_limit
         if args.no_analysis:
             overrides.setdefault("analysis", {})["enabled"] = False
+        if args.map:
+            overrides.setdefault("viz", {})["enabled"] = True
         cfg = load_config(args.config, overrides)
         if args.no_llm and cfg["analysis"].get("enabled", True):
             cfg["analysis"]["enabled"] = False

@@ -40,6 +40,9 @@ class WaypointsGps(Controller):
                 self.ctx.event("waypoint_reached", index=self.index, t=obs.t)
                 self.index += 1
 
+        # Скільки точок уже взято (0..N) — логується ДО раннього виходу, щоб успіх (N) був видно в метриках
+        # (controller_logs.waypoints_reached.max) і щоб stop.progress_key бачив останню взяту точку.
+        self.ctx.log("waypoints_reached", self.index)
         if self.index >= len(self.waypoints):
             return Command(thrust=0.55)
 

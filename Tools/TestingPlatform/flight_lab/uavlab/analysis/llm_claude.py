@@ -81,7 +81,11 @@ roll angle, pitch angle and yaw rate drive aileron/elevator/rudder in [-1,1]; th
 absolute throttle command and the engine spools up with a lag. The inner PID gains are in the manifest.
 - Telemetry "flight_truth" is the simulator's ground truth (attitude, geo position, airspeed, AoA, load factor, \
 the inner loop's current target and PID output, age of the last received command, wind and EW-jamming \
-intensity at the aircraft). Time t in tables is seconds since the start of recording.
+intensity at the aircraft). Time t in tables is seconds since the start of recording, in SIMULATION time.
+- metrics.time_sync tells whether simulated physics kept up with simulation time (physics_time_ratio ~1). If it is \
+invalid, durations / response times / rates are stretched by ~1/ratio: say so and do not blame the algorithm for \
+timing that the simulator caused. The bench can substitute simulation time for time.monotonic()/time.time() inside \
+the algorithm's modules (sim_clock); code using `from time import monotonic` is not covered.
 
 Your job: find weaknesses, failure modes and risks of the USER'S ALGORITHM and recommend concrete improvements.
 - Base every finding on evidence from the provided metrics, time windows, events, plots or source code; cite \

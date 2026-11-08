@@ -24,6 +24,12 @@ class UPrimitiveComponent;
  *    START теж приймає "pid_overrides" — застосовуються ДО побудови маніфесту сесії. Зміни PID діють
  *    лише на час сесії (Blueprint не змінюється). Поля осі: kp, ki, kd, integral_clamp,
  *    derivative_filter_s, invert_output (bool), gain_schedule ("keep" | "disable").
+ *      {"command":"SET_FIXED_STEP","fixed_step_s":0.02} → режим фіксованого кроку часу (0 — вимкнути)
+ *    START теж приймає "fixed_step_s". Фіксований крок (FApp::SetUseFixedTimeStep) робить кожен кадр
+ *    рівно dt секунд світового часу незалежно від FPS: якщо dt <= фізичного ліміту кадру
+ *    (MaxSubsteps × MaxSubstepDeltaTime, MaxPhysicsDeltaTime), фізика симулює весь dt — тож час світу
+ *    (GetTimeSeconds, `sim_time` стенда) дорівнює часу фізики. Симуляція може йти повільніше чи швидше
+ *    за реальний час, але секунди стенда стають «фізичними». Діє лише на час сесії.
  *
  *  - PUB `EventsEndpoint` (tcp://*:5558) — односкладові JSON-події:
  *      {"type":"session_start","session_id":..,"sim_time":..,"manifest":{...}}
@@ -70,6 +76,12 @@ public:
 	bool IsSessionRunning() const { return bSessionRunning; }
 	const FString& GetSessionId() const { return SessionId; }
 
+	/** Вмикає (Seconds > 0) або вимикає (0) фіксований крок часу; попередній режим відновлюється при вимкненні. */
+	void SetFixedStep(double Seconds);
+
+	/** Скільки секунд фізики UE симулює максимум за кадр (min(MaxPhysicsDeltaTime, MaxSubsteps × MaxSubstepDeltaTime)). */
+	static double GetPhysicsCapPerFrame();
+
 	/** Повний опис умов тесту: режим, місце, оточення, сенсори, літаки, PID автопілота, фізика. */
 	TSharedRef<FJsonObject> BuildManifest() const;
 
@@ -100,4 +112,11 @@ private:
 
 	/** pid_overrides з команди START — застосовуються в NotifySimulationStarted до побудови маніфесту. */
 	TSharedPtr<FJsonObject> PendingPidOverrides;
+
+	/** fixed_step_s з команди START (0 — не змінювати режим часу). */
+	double PendingFixedStep = 0.0;
+
+	bool   bFixedStepActive      = false;
+	bool   bPrevUseFixedTimeStep = false;
+	double PrevFixedDeltaTime    = 0.0;
 };

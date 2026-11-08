@@ -49,6 +49,7 @@ class Context:
     session_dir: Optional[Path] = None
     _logs: dict[str, Any] = field(default_factory=dict, repr=False)
     _events: list[dict] = field(default_factory=list, repr=False)
+    _map_ops: dict[str, Any] = field(default_factory=dict, repr=False)
 
     def log(self, name: str, value: Any) -> None:
         """Записати внутрішню змінну алгоритму на поточному кроці (число, рядок, bool)."""
@@ -57,6 +58,19 @@ class Context:
     def event(self, kind: str, **data) -> None:
         """Подія алгоритму (зміна режиму, досягнення точки маршруту...) — потрапляє в events.jsonl і в аналіз."""
         self._events.append({"kind": kind, **data})
+
+    def map_marker(self, name: str, lat: float, lon: float, label: Optional[str] = None,
+                   color: str = "orange") -> None:
+        """Іменований маркер на живій карті (--map): створюється або переміщується за ім'ям.
+        color: orange | purple | red | green | blue | gray. Напр. власна оцінка позиції алгоритмом."""
+        self._map_ops[str(name)] = {"lat": float(lat), "lon": float(lon), "label": label, "color": color}
+
+    def map_remove(self, name: str) -> None:
+        self._map_ops[str(name)] = None
+
+    def _take_map(self) -> dict[str, Any]:
+        ops, self._map_ops = self._map_ops, {}
+        return ops
 
     def _take(self) -> tuple[dict, list[dict]]:
         logs, events = self._logs, self._events
@@ -116,6 +130,8 @@ def load_controller(path: str | Path, class_name: Optional[str] = None) -> Contr
     sys.path.insert(0, str(path.parent))
     spec = importlib.util.spec_from_file_location(f"uavlab_user_{path.stem}", path)
     module = importlib.util.module_from_spec(spec)
+    # Реєструємо в sys.modules: так модуль бачать pickle/dataclasses і uavlab.simclock (підміна `time`).
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
 
     candidates = [

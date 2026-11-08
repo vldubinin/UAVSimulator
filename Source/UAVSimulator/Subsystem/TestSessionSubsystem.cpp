@@ -19,6 +19,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "PhysicsEngine/PhysicsSettings.h"
 #include "JsonObjectConverter.h"
+#include "Misc/App.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 
@@ -140,6 +141,7 @@ void UTestSessionSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 
 void UTestSessionSubsystem::Deinitialize()
 {
+	SetFixedStep(0.0); // фіксований крок — глобальний для рушія: не лишаємо його увімкненим після PIE
 	delete ZmqState;
 	ZmqState = nullptr;
 	Super::Deinitialize();
@@ -250,6 +252,9 @@ FString UTestSessionSubsystem::HandleRequest(const FString& RequestJson)
 			GM->ScenarioSlotName = Slot;
 		}
 
+		double FixedStep = 0.0;
+		PendingFixedStep = Req->TryGetNumberField(TEXT("fixed_step_s"), FixedStep) ? FixedStep : 0.0;
+
 		const TSharedPtr<FJsonObject>* StartOverrides = nullptr;
 		PendingPidOverrides = Req->TryGetObjectField(TEXT("pid_overrides"), StartOverrides) ? *StartOverrides : nullptr;
 
@@ -275,6 +280,9 @@ FString UTestSessionSubsystem::HandleRequest(const FString& RequestJson)
 		R->SetStringField(TEXT("session_id"), SessionId);
 		R->SetStringField(TEXT("mode"), EnumName(GM->CurrentSimulatorMode));
 		R->SetBoolField(TEXT("autopilot_active"), bAutopilot);
+		R->SetBoolField(TEXT("fixed_step_active"), bFixedStepActive);
+		R->SetNumberField(TEXT("fixed_step_s"), bFixedStepActive ? FApp::GetFixedDeltaTime() : 0.0);
+		R->SetNumberField(TEXT("physics_cap_per_frame_s"), GetPhysicsCapPerFrame());
 		return ToJsonString(R);
 	}
 
@@ -298,6 +306,25 @@ FString UTestSessionSubsystem::HandleRequest(const FString& RequestJson)
 
 		TSharedRef<FJsonObject> R = MakeReply(true);
 		R->SetStringField(TEXT("session_id"), StoppedId);
+		return ToJsonString(R);
+	}
+
+	if (Command == TEXT("SET_FIXED_STEP"))
+	{
+		double Seconds = 0.0;
+		if (!Req->TryGetNumberField(TEXT("fixed_step_s"), Seconds) || Seconds < 0.0 || Seconds > 0.5)
+		{
+			return ToJsonString(MakeReply(false, TEXT("fixed_step_s must be a number in [0, 0.5]")));
+		}
+		SetFixedStep(Seconds);
+		if (bSessionRunning)
+		{
+			SessionManifest = BuildManifest();
+		}
+		TSharedRef<FJsonObject> R = MakeReply(true);
+		R->SetBoolField(TEXT("fixed_step_active"), bFixedStepActive);
+		R->SetNumberField(TEXT("fixed_step_s"), bFixedStepActive ? FApp::GetFixedDeltaTime() : 0.0);
+		R->SetNumberField(TEXT("physics_cap_per_frame_s"), GetPhysicsCapPerFrame());
 		return ToJsonString(R);
 	}
 
@@ -367,6 +394,12 @@ void UTestSessionSubsystem::NotifySimulationStarted()
 	PendingStopReason.Reset();
 	LastCollisionEventTime = -1.0e9;
 
+	if (PendingFixedStep > 0.0)
+	{
+		SetFixedStep(PendingFixedStep);
+		PendingFixedStep = 0.0;
+	}
+
 	if (PendingPidOverrides.IsValid())
 	{
 		FString Error;
@@ -412,6 +445,51 @@ void UTestSessionSubsystem::NotifySimulationStopped()
 	bSessionRunning = false;
 	PendingStopReason.Reset();
 	SessionManifest.Reset();
+	SetFixedStep(0.0); // меню / вільний політ після тесту — знову в реальному часі
+}
+
+double UTestSessionSubsystem::GetPhysicsCapPerFrame()
+{
+	const UPhysicsSettings* PS = UPhysicsSettings::Get();
+	if (!PS) return 0.0;
+	double Cap = PS->MaxPhysicsDeltaTime > 0.f ? PS->MaxPhysicsDeltaTime : TNumericLimits<double>::Max();
+	if (PS->bSubstepping)
+	{
+		Cap = FMath::Min(Cap, static_cast<double>(PS->MaxSubsteps) * PS->MaxSubstepDeltaTime);
+	}
+	return Cap;
+}
+
+void UTestSessionSubsystem::SetFixedStep(double Seconds)
+{
+	if (Seconds <= 0.0)
+	{
+		if (bFixedStepActive)
+		{
+			FApp::SetUseFixedTimeStep(bPrevUseFixedTimeStep);
+			FApp::SetFixedDeltaTime(PrevFixedDeltaTime);
+			bFixedStepActive = false;
+			UE_LOG(LogUAV, Log, TEXT("TestSessionSubsystem: фіксований крок часу вимкнено — реальний час"));
+		}
+		return;
+	}
+
+	if (!bFixedStepActive)
+	{
+		bPrevUseFixedTimeStep = FApp::UseFixedTimeStep();
+		PrevFixedDeltaTime    = FApp::GetFixedDeltaTime();
+	}
+	FApp::SetFixedDeltaTime(Seconds);
+	FApp::SetUseFixedTimeStep(true);
+	bFixedStepActive = true;
+
+	const double Cap = GetPhysicsCapPerFrame();
+	UE_LOG(LogUAV, Log, TEXT("TestSessionSubsystem: фіксований крок часу %.4f с/кадр (ліміт фізики %.4f с/кадр)"), Seconds, Cap);
+	if (Seconds > Cap + 1e-6)
+	{
+		UE_LOG(LogUAV, Warning, TEXT("TestSessionSubsystem: крок %.4f с більший за ліміт фізики %.4f с — фізика все одно відставатиме у %.2f раза"),
+			Seconds, Cap, Seconds / Cap);
+	}
 }
 
 int32 UTestSessionSubsystem::ApplyPidOverrides(const TSharedPtr<FJsonObject>& Overrides, FString& OutError)
@@ -538,6 +616,10 @@ TSharedRef<FJsonObject> UTestSessionSubsystem::BuildManifest() const
 		Phys->SetBoolField(TEXT("substepping"), PS->bSubstepping);
 		Phys->SetNumberField(TEXT("max_substeps"), PS->MaxSubsteps);
 		Phys->SetNumberField(TEXT("max_substep_delta_time_s"), PS->MaxSubstepDeltaTime);
+		Phys->SetNumberField(TEXT("max_physics_delta_time_s"), PS->MaxPhysicsDeltaTime);
+		Phys->SetNumberField(TEXT("physics_cap_per_frame_s"), GetPhysicsCapPerFrame());
+		Phys->SetBoolField(TEXT("fixed_step_active"), bFixedStepActive);
+		Phys->SetNumberField(TEXT("fixed_step_s"), bFixedStepActive ? FApp::GetFixedDeltaTime() : 0.0);
 		M->SetObjectField(TEXT("physics"), Phys);
 	}
 

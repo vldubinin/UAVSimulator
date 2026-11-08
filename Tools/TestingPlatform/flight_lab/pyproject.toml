@@ -18,6 +18,7 @@ dependencies = [
 
 [project.optional-dependencies]
 camera = ["opencv-python>=4.8"]
+map = ["tkintermapview>=1.29"]
 
 [project.scripts]
 uavlab = "uavlab.cli:main"

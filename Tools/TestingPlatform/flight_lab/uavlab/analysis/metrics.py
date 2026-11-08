@@ -399,6 +399,40 @@ def compute_metrics(session: dict) -> dict:
             anomalies.append({"kind": "telemetry_gap", "t_start": _r(t[i], 2), "t_end": _r(t[i + 1], 2)})
     m["link"] = link
 
+    # ── синхронність часу: чи секунди тесту — це секунди фізики ───────────
+    ts: dict[str, Any] = {}
+    if "wall_time" in truth.columns:
+        wall = truth["wall_time"].to_numpy(dtype=float)
+        if wall[-1] - wall[0] > 1.0:
+            ts["sim_seconds_per_wall_second"] = _r((t[-1] - t[0]) / (wall[-1] - wall[0]), 3)
+    ratio = _col(truth, "time.physics_time_ratio")
+    if ratio is not None:
+        ts["physics_time_ratio_median"] = _r(float(np.nanmedian(ratio)), 3)
+        ts["physics_time_ratio_min"] = _r(float(np.nanmin(ratio)), 3)
+    else:  # стара збірка Unreal: оцінка з шляху за GPS / інтеграла шляхової швидкості
+        gs = _col(truth, "ground_speed_mps")
+        if gs is not None and lat is not None and lon is not None and t.size > 10:
+            e = (lon - lon[0]) * np.cos(np.radians(lat[0])) * DEG_M
+            n = (lat - lat[0]) * DEG_M
+            path = float(np.nansum(np.hypot(np.diff(e), np.diff(n))))
+            expected = float(np.nansum(gs[:-1] * np.diff(t)))
+            if expected > 50:
+                ts["physics_time_ratio_median"] = _r(path / expected, 3)
+                ts["physics_time_ratio_source"] = "geo_path / integral(ground_speed)"
+    fixed = _col(truth, "time.fixed_step")
+    ts["fixed_step"] = bool(fixed is not None and np.nanmean(fixed) > 0.5)
+    frame = _col(truth, "time.frame_dt_s")
+    if frame is not None:
+        ts["frame_dt_s_median"] = _r(float(np.nanmedian(frame)), 4)
+    pr = ts.get("physics_time_ratio_median")
+    ts["valid"] = pr is None or pr >= session.get("min_physics_time_ratio", 0.9)
+    if not ts["valid"]:
+        ts["warning"] = (f"Фізика відставала від часу світу (ratio {pr}): усі тривалості, швидкості реакції та часові "
+                         "критерії в секундах тесту розтягнуті приблизно в 1/ratio раза. Увімкніть simulation.fixed_step_s "
+                         "або підніміть FPS.")
+        anomalies.append({"kind": "physics_time_lag", "t_start": 0.0, "t_end": _r(t[-1], 2), "ratio": pr})
+    m["time_sync"] = ts
+
     # ── оточення ────────────────────────────────────────────────────────
     ew, wind = _col(truth, "environment.ew_intensity"), _col(truth, "environment.wind_speed_mps")
     env: dict[str, Any] = {"wind_speed_mps": _stats(wind), "ew_intensity": _stats(ew)}

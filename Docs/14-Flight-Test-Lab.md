@@ -115,9 +115,13 @@ stop:
   min_altitude_m: null
   telemetry_timeout_s: 5
   max_step_errors: 1
+  progress_key: null       # змінна ctx.log, що має зростати (напр. waypoint_index)
+  no_progress_s: null      # ... не зростала стільки секунд -> зупинка "no_progress" (кружляння, зависання)
 record:
   sessions_dir: sessions
   sensors_max_hz: 10
+  sensor_topics: null      # які топіки писати в sensors.jsonl (null — усі)
+  max_sensor_payload_kb: 16  # більші payload'и не пишуться (custom_objects ~75 КБ/кадр -> сотні МБ за тест)
   extra_sources: []        # модулі алгоритму з інших тек — щоб LLM бачив увесь код
 analysis:
   enabled: true
@@ -227,6 +231,90 @@ Payload:
   `GetLastCommandWorldTime`, `GetReceivedCommandCount`, `IsAutopilotActive`).
 - `load_factor_g` — `(a + g)·Up / g` з різниці швидкостей між тіками.
 
+## Жива карта: `--map`
+
+```powershell
+uavlab run examples/waypoints_gps.py -c test_configs/waypoints_gps.yaml --map
+```
+
+Окреме вікно OpenStreetMap (`uavlab/livemap.py`, пакет `tkintermapview`: `pip install -e .[map]`):
+
+- **літак** — синій маркер з висотою / швидкістю / курсом, стрілка курсу (250 м) і синій трек;
+- **точки маршруту** з `controller_params.waypoints` (`[[lat, lon, alt], ...]`) з колами радіуса захоплення
+  (`controller_params.waypoint_radius_m`) і лінією маршруту; колір за статусом — сірий (попереду),
+  червоний (поточна ціль), зелений (взята). Прогрес — з `ctx.log("waypoints_reached")` або
+  `ctx.log("waypoint_index")`;
+- **зони РЕБ** з маніфесту — червоні кола;
+- **маркери алгоритму**: `ctx.map_marker("estimate", lat, lon, label="PnP", color="orange")` (створює або
+  переміщує маркер за ім'ям; кольори orange / purple / red / green / blue / gray), `ctx.map_remove(name)`;
+- рядок стану: час симуляції, взяті точки, висота, швидкість, крен, `ctx.log("status")`; прапорець
+  «Стежити за літаком».
+
+Карта — **окремий процес** (multiprocessing): не гальмує цикл керування, закриття вікна не зупиняє тест;
+стенд шле лише найсвіжіший стан (`viz.update_hz`, дефолт 5 Гц), іменовані маркери не губляться. Після тесту
+вікно лишається відкритим із заголовком «завершено: <причина>»; `uavlab run` завершується, коли його закрити.
+Позиція — з `flight_truth` (карта для людини), без нього — з сенсора `drone_geo_position`.
+
+Тайли: `tile.openstreetmap.org` з власним User-Agent стенда — бібліотечний «TkinterMapView» OSM блокує
+(замість тайлів картинка «Access blocked»), тому `_patch_tile_requests()` підставляє його в процесі карти
+(сама бібліотека не змінюється). Потрібен інтернет. Свій сервер тайлів — `viz.tile_server`.
+
+```yaml
+viz:
+  enabled: false              # або --map
+  follow: true
+  update_hz: 5
+  waypoints_param: waypoints
+  radius_param: waypoint_radius_m
+  tile_server: null           # null — OpenStreetMap
+```
+
+`uavlab/__main__.py` має guard `if __name__ == "__main__"` — обов'язково: на Windows (spawn) процес карти
+заново імпортує головний модуль. `uavlab improve` карту не відкриває (тести без нагляду), якщо `viz.enabled`
+не ввімкнено в конфігу явно.
+
+## Синхронізація часу стенда і симулятора
+
+**Проблема.** UE симулює за кадр не більше `min(MaxPhysicsDeltaTime, MaxSubsteps × MaxSubstepDeltaTime)`
+секунд фізики (тут 16 × 0.0013 = **0.0208 с**, `FPhysSubstepTask::UpdateTime`). При ~11 FPS кадр триває
+~0.09 с, тож фізика проходить лише ~22 % часу світу: `airspeed` 60 м/с, а позиція зміщується на ~13 м/с.
+Усі секунди стенда (ліміти, `no_progress_s`, час реакції, критерії) розтягуються в ~4.5 раза — у прогоні
+improve `20261108_124908` саме тому жодна версія не дотягла до WP1.
+
+**Рішення — три рівні:**
+
+1. **Фіксований крок часу Unreal** (`simulation.fixed_step_s`, дефолт `0.02`). `START`/`SET_FIXED_STEP`
+   → `UTestSessionSubsystem::SetFixedStep()` → `FApp::SetUseFixedTimeStep(true)` + `SetFixedDeltaTime(dt)`:
+   кожен кадр — рівно `dt` секунд світу незалежно від FPS. При `dt` ≤ ліміту фізики час світу (`sim_time`)
+   = час фізики. Симуляція може йти повільніше (або швидше) за реальний час — це нормально: стенд живе
+   в секундах симуляції. Режим глобальний для рушія, тому вимикається в `NotifySimulationStopped()` і
+   `Deinitialize()` (меню й вільний політ — знову реальний час). Якщо `dt` > ліміту — попередження в лозі
+   Unreal і стенда. Відповідь `START` містить `fixed_step_active`, `fixed_step_s`, `physics_cap_per_frame_s`;
+   маніфест — те саме в `physics`.
+2. **Стенд живе в часі симуляції.**
+   - Крок алгоритму — за `sim_time` шини, а не за годинником ПК: `rate_hz` — кроків на секунду світу;
+     `obs.dt` — секунди симуляції від попереднього кроку; `steps.csv` має `dt_sim` поряд із `dt_wall`.
+   - **Годинник симуляції в коді алгоритму** (`simulation.sim_clock`, дефолт `true`, `uavlab/simclock.py`):
+     у модулях з теки алгоритму та `record.extra_sources` глобальна назва `time` підміняється проксі, у
+     якого `monotonic` / `perf_counter` / `time` (+ `*_ns`) повертають час симуляції, решта — справжній
+     модуль. Так чужі алгоритми з `time.monotonic()` (фільтри, похідні, оцінка курсу за інтервал, як у
+     `gps_autopilote/autopilote.py`) працюють коректно без змін. Не покривається `from time import monotonic`
+     — там використовуйте `obs.t` / `obs.dt` / `uavlab.simclock.now()`. Стенд і сторонні бібліотеки не
+     зачіпаються. `load_controller` реєструє модуль алгоритму в `sys.modules`.
+3. **Контроль.** `flight_truth.time`: `frame_dt_s`, `physics_time_ratio` (EMA проєкції зміщення на швидкість,
+   ÷ `DeltaTime`; ~1 — синхронно), `fixed_step`. Метрика `time_sync`: `physics_time_ratio_median/min`
+   (для старих збірок — оцінка «шлях за GPS / ∫ шляхової швидкості»), `sim_seconds_per_wall_second`,
+   `fixed_step`, `valid` (ratio ≥ `simulation.min_physics_time_ratio`, дефолт 0.9). Невалідний прогін дає
+   аномалію `physics_time_lag`, Claude отримує пояснення в системному промпті, а `uavlab improve`
+   вважає його **перериванням** (версія лишається `proposed`, `--resume` після виправлення), а не провалом.
+
+```yaml
+simulation:
+  fixed_step_s: 0.02          # <= physics_cap_per_frame_s (0.0208); 0 / null — реальний час
+  sim_clock: true
+  min_physics_time_ratio: 0.9
+```
+
 ## Запис сесії (`sessions/<id>/`)
 
 | Файл | Вміст |
@@ -263,10 +351,17 @@ LLM погано рахує по сирих рядах — тому все чи�
 ### 2. Пакет для LLM (`analysis/pack.py`)
 
 Текстові блоки в тегах: `test` (мета, параметри), `run_summary`, `manifest` (без службових
-PID-полів), `metrics`, `events`, `timeseries_overview` (≤ 400 рядків ключових сигналів),
-`anomaly_window_N` (±5 с навколо аномалій, 10 Гц), `controller_log_overview`,
-`controller_source` (≤ 60 тис. символів) + PNG-графіки як зображення. Копія того, що
-надсилається, — `llm_input.md`.
+PID-полів), `metrics`, `events`, `timeseries_overview` (≤ 240 рядків ключових сигналів; сталі
+колонки — одним значенням у заголовку), `anomaly_window_N` (≤ 4 вікна до 20 с, ≤ 5 Гц; аномалії, що
+перекриваються, зливаються; пріоритет: зіткнення/винятки → AoA → зв'язок → насичення → похибка
+трекінгу), `controller_log_overview` (числові `ctx.log` — ≤ 150 рядків; текстові — лише моменти
+зміни категорії, числа всередині рядка не рахуються зміною), `controller_source` (≤ 60 тис. символів)
++ PNG-графіки як зображення. Загальний бюджет — `MAX_TOTAL_CHARS` = 100 тис. символів (~30 тис.
+токенів): понад нього спершу відкидаються найменш важливі вікна, потім проріджується огляд; метрики,
+маніфест і код не обрізаються. Копія того, що надсилається, — `llm_input.md`.
+
+Сенсори в `obs.sensors` декодуються ліниво (`LazySensors`) — лише ті топіки, які алгоритм справді
+читає; великі payload'и (custom_objects, lidar) не парсяться на кожному кроці.
 
 ### 3. Claude (`analysis/llm_claude.py`)
 

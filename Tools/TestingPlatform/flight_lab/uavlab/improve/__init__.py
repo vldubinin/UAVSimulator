@@ -286,6 +286,14 @@ class ImproveRun:
     def _score(self, v: Version) -> None:
         metrics, v.report = _analyze(v.session_dir, self.analysis_cfg,
                                      bool(self.icfg.get("analyze_each_iteration", True)), self.budget)
+        sync = metrics.get("time_sync") or {}
+        if sync.get("valid") is False:
+            # Секунди тесту не були секундами фізики — часові критерії й порівняння версій некоректні.
+            v.status, v.session_dir = "proposed", None
+            self.save()
+            raise ImproveInterrupted(
+                f"фізика v{v.index} відставала від часу (physics_time_ratio {sync.get('physics_time_ratio_median')}) — "
+                "увімкніть simulation.fixed_step_s (≤ ліміту фізики) або підніміть FPS, потім --resume")
         if not self.criteria:
             _log("Критеріїв приймання немає — генерую з objective (один раз, далі вони заморожені)...")
             self.criteria, self.criteria_notes, usage = generate_criteria(self.cfg.get("objective", ""), metrics, self.icfg)

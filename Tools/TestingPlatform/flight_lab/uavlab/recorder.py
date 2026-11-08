@@ -40,7 +40,8 @@ def flatten(d: dict, prefix: str = "") -> dict:
 class SessionRecorder:
     def __init__(self, root: Path, session_id: str, config: dict, controller_path: Path,
                  sensors_max_hz: float = 10.0, record_sensors: bool = True,
-                 extra_sources: Optional[list] = None) -> None:
+                 extra_sources: Optional[list] = None, sensor_topics: Optional[list] = None,
+                 max_sensor_payload_kb: Optional[float] = 16.0) -> None:
         self.dir = Path(root) / session_id
         self.dir.mkdir(parents=True, exist_ok=True)
         self.session_id = session_id
@@ -50,6 +51,9 @@ class SessionRecorder:
         self._sensors_f = (self.dir / "sensors.jsonl").open("a", encoding="utf-8") if record_sensors else None
         self._sensors_min_dt = 1.0 / sensors_max_hz if sensors_max_hz and sensors_max_hz > 0 else 0.0
         self._last_sensor_write: dict[str, float] = {}
+        self._sensor_topics = set(sensor_topics) if sensor_topics else None
+        self._max_payload = int(max_sensor_payload_kb * 1024) if max_sensor_payload_kb else None
+        self.skipped_sensor_topics: dict[str, int] = {}  # топік -> розмір payload, що не записувався
 
         cfg_to_save = {k: v for k, v in config.items() if not k.startswith("_")}
         (self.dir / "config.yaml").write_text(yaml.safe_dump(cfg_to_save, allow_unicode=True, sort_keys=False),
@@ -85,14 +89,26 @@ class SessionRecorder:
         row.update(flatten(truth))
         self._truth_rows.append(row)
 
-    def add_sensor(self, topic: str, sim_time: float, payload: Any) -> None:
+    def add_sensor(self, topic: str, sim_time: float, raw: bytes) -> None:
+        """Сирий JSON-payload сенсора -> sensors.jsonl. Без парсингу (payload уже валідний JSON);
+        топіки поза record.sensor_topics і payload'и > max_sensor_payload_kb не пишуться — напр.
+        custom_objects дає ~75 КБ на кадр і за 10 хв роздуває файл до сотень МБ."""
         if self._sensors_f is None:
+            return
+        if self._sensor_topics is not None and topic not in self._sensor_topics:
+            return
+        if self._max_payload and len(raw) > self._max_payload:
+            self.skipped_sensor_topics[topic] = max(len(raw), self.skipped_sensor_topics.get(topic, 0))
             return
         last = self._last_sensor_write.get(topic, -1e9)
         if sim_time - last < self._sensors_min_dt:
             return
         self._last_sensor_write[topic] = sim_time
-        self._sensors_f.write(json.dumps({"t": sim_time, "topic": topic, "data": payload}, ensure_ascii=False) + "\n")
+        try:
+            data = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            return
+        self._sensors_f.write(f'{{"t": {sim_time!r}, "topic": {json.dumps(topic)}, "data": {data}}}\n')
 
     def add_step(self, row: dict) -> None:
         self._step_rows.append(row)
@@ -154,4 +170,6 @@ def load_session(session_dir: str | Path) -> dict:
         "events": _read_jsonl("events.jsonl"),
         "sources": sources,
         "entry": entry,
-    }
+    } | {"min_physics_time_ratio": ((yaml.safe_load((d / "config.yaml").read_text(encoding="utf-8")) or {})
+                                    .get("simulation") or {}).get("min_physics_time_ratio", 0.9)
+         if (d / "config.yaml").exists() else 0.9}

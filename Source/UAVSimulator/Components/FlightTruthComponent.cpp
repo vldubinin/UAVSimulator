@@ -7,6 +7,7 @@
 #include "UAVSimulator/Actor/EWZoneActor.h"
 
 #include "Components/StaticMeshComponent.h"
+#include "Misc/App.h"
 #include "GameFramework/Actor.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -163,7 +164,25 @@ void UFlightTruthComponent::CaptureState(float DeltaTime)
 		const double  N     = FVector::DotProduct(Accel + FVector(0, 0, GravityCmS2), Up) / GravityCmS2;
 		Root->SetNumberField(TEXT("load_factor_g"), N);
 	}
+	// Відставання фізики від часу світу: за кадр літак зміщується на V·dt_фізики, а світ просувається на
+	// DeltaTime. Якщо фізика не встигає (dt кадру > ліміту substepping), ratio < 1 і всі «секунди» стенда
+	// розтягуються. Оцінка — проєкція зміщення на попередню швидкість (працює лише в русі, V > 1 м/с).
+	if (bHasPrevVelocity && DeltaTime > KINDA_SMALL_NUMBER && PrevVelocityCmS.SizeSquared() > 100.0 * 100.0)
+	{
+		const double PhysDt = FVector::DotProduct(LocationCm - PrevLocationCm, PrevVelocityCmS) / PrevVelocityCmS.SizeSquared();
+		LastPhysicsTimeRatio = FMath::Clamp(static_cast<float>(PhysDt / DeltaTime), 0.f, 2.f);
+		PhysicsTimeRatioEma += 0.1f * (LastPhysicsTimeRatio - PhysicsTimeRatioEma);
+	}
+	{
+		TSharedRef<FJsonObject> Time = MakeShared<FJsonObject>();
+		Time->SetNumberField(TEXT("frame_dt_s"), DeltaTime);
+		Time->SetNumberField(TEXT("physics_time_ratio"), PhysicsTimeRatioEma);  // ~1 — фізика синхронна з часом світу
+		Time->SetBoolField(TEXT("fixed_step"), FApp::UseFixedTimeStep());
+		Root->SetObjectField(TEXT("time"), Time);
+	}
+
 	PrevVelocityCmS  = VelocityCmS;
+	PrevLocationCm   = LocationCm;
 	bHasPrevVelocity = true;
 
 	// ── Автопілот (внутрішній PID-контур) ─────────────────────────────────────

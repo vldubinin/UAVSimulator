@@ -2,6 +2,7 @@
 Observation — те, що отримує алгоритм керування на кожному кроці.
 
   obs.t          — симуляційний час (с) останнього пакета шини
+  obs.dt         — секунди СИМУЛЯЦІЇ від попереднього кроку алгоритму (0 на першому кроці)
   obs.truth      — Truth (ground truth з топіка flight_truth) або None, якщо use_truth: false
   obs.sensors    — {topic: розібраний payload}: JSON-топіки -> dict, camera/segmentation_mask -> bytes (JPEG)
   obs.camera     — декодований кадр камери (numpy BGR) або None; потребує opencv-python
@@ -13,8 +14,9 @@ Observation — те, що отримує алгоритм керування н
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 
 BINARY_TOPICS = {"camera", "segmentation_mask"}
 
@@ -26,6 +28,29 @@ def parse_payload(topic: str, payload: bytes) -> Any:
         return json.loads(payload.decode("utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError):
         return payload
+
+
+class LazySensors(Mapping):
+    """{topic: payload}, що декодує JSON лише при першому зверненні: великі топіки, які алгоритм
+    не читає (custom_objects, lidar...), не парсяться на кожному кроці."""
+
+    def __init__(self, raw: dict[str, bytes]) -> None:
+        self._raw = raw
+        self._parsed: dict[str, Any] = {}
+
+    def __getitem__(self, topic: str) -> Any:
+        if topic not in self._parsed:
+            self._parsed[topic] = parse_payload(topic, self._raw[topic])
+        return self._parsed[topic]
+
+    def __contains__(self, topic: object) -> bool:
+        return topic in self._raw
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._raw)
+
+    def __len__(self) -> int:
+        return len(self._raw)
 
 
 def _get(d: dict, *path, default=None):
@@ -87,7 +112,8 @@ class Truth:
 class Observation:
     t: float
     wall_time: float
-    sensors: dict[str, Any] = field(default_factory=dict)
+    dt: float = 0.0
+    sensors: Mapping = field(default_factory=dict)  # LazySensors у стенді
     truth: Optional[Truth] = None
     sensor_times: dict[str, float] = field(default_factory=dict)
     _camera_cache: Any = field(default=None, repr=False)

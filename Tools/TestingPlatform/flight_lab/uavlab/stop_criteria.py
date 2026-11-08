@@ -18,6 +18,12 @@ class StopCriteria:
         self.min_altitude_m = cfg.get("min_altitude_m")
         self.telemetry_timeout_s = cfg.get("telemetry_timeout_s") or 5.0
         self.max_step_errors = int(cfg.get("max_step_errors") or 1)
+        # Зупинка без прогресу: ctx.log(progress_key, число) не зростало no_progress_s секунд
+        # (напр. waypoint_index, коли літак кружляє навколо точки, яку не може взяти).
+        self.progress_key = cfg.get("progress_key")
+        self.no_progress_s = cfg.get("no_progress_s")
+        self._best_progress: Optional[float] = None
+        self._best_progress_t: Optional[float] = None
         self._start_t: Optional[float] = None
         self._start_latlon: Optional[tuple[float, float]] = None
 
@@ -38,6 +44,19 @@ class StopCriteria:
                 return "max_distance"
         if self.min_altitude_m is not None and truth.alt_m is not None and truth.alt_m < self.min_altitude_m:
             return "min_altitude"
+        return None
+
+    def check_progress(self, t: float, logs: dict) -> Optional[str]:
+        if not (self.progress_key and self.no_progress_s):
+            return None
+        value = logs.get(self.progress_key)
+        if self._best_progress_t is None:
+            self._best_progress_t = t
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            if self._best_progress is None or value > self._best_progress:
+                self._best_progress, self._best_progress_t = float(value), t
+        if t - self._best_progress_t >= float(self.no_progress_s):
+            return "no_progress"
         return None
 
     def elapsed(self, t: float) -> float:

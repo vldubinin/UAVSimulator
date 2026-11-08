@@ -19,8 +19,10 @@ from typing import Optional
 
 import zmq
 
+from . import simclock
+from .livemap import start_live_map
 from .controller import Command, Context, load_controller
-from .observation import BINARY_TOPICS, Observation, Truth, parse_payload
+from .observation import BINARY_TOPICS, LazySensors, Observation, Truth, parse_payload
 from .recorder import SessionRecorder
 from .stop_criteria import StopCriteria
 from .transport import CommandClient, SensorBusClient, SessionClient, SessionUnavailable
@@ -64,10 +66,41 @@ class _Waiter:
                         return None
 
 
+def _map_state(t: float, truth: Optional[dict], payloads: dict, progress, status) -> dict:
+    """Стан для живої карти: позиція з flight_truth, інакше з сенсора drone_geo_position."""
+    msg = {"t": t, "reached": progress, "status": status}
+    if isinstance(truth, dict) and isinstance(truth.get("geo"), dict):
+        g = truth["geo"]
+        msg.update(lat=g.get("latitude"), lon=g.get("longitude"), alt=g.get("altitude_m", 0.0),
+                   heading=truth.get("heading_deg"), airspeed=truth.get("airspeed_mps", 0.0),
+                   roll=(truth.get("attitude_deg") or {}).get("roll", 0.0))
+    elif "drone_geo_position" in payloads:
+        g = parse_payload("drone_geo_position", payloads["drone_geo_position"])
+        if isinstance(g, dict):
+            msg.update(lat=g.get("latitude"), lon=g.get("longitude"), alt=g.get("altitude_m", 0.0))
+    return msg
+
+
+def _report_time_mode(resp: dict, sim_cfg: dict) -> None:
+    if not sim_cfg.get("fixed_step_s"):
+        return
+    if "fixed_step_active" not in resp:
+        _log("УВАГА: збірка Unreal не підтримує fixed_step_s — час іде в реальному режимі; при низькому FPS "
+             "фізика відставатиме від годинника. Перезберіть C++ модуль.")
+        return
+    cap = resp.get("physics_cap_per_frame_s") or 0.0
+    _log(f"Фіксований крок часу: {resp.get('fixed_step_s'):.4f} с/кадр (ліміт фізики {cap:.4f} с/кадр) — "
+         "секунди стенда = секунди фізики")
+    if cap and resp.get("fixed_step_s", 0) > cap + 1e-6:
+        _log(f"УВАГА: крок більший за ліміт фізики — фізика відставатиме у {resp['fixed_step_s'] / cap:.2f} раза. "
+             f"Зменшіть simulation.fixed_step_s до <= {cap:.4f}.")
+
+
 def run_test(controller_path: str | Path, cfg: dict) -> Path:
     controller_path = Path(controller_path).resolve()
     controller = load_controller(controller_path, cfg.get("controller_class"))
     ep = cfg["endpoints"]
+    sim_cfg = cfg.get("simulation") or {}
 
     zctx = zmq.Context()
     bus = SensorBusClient(zctx, ep["sensors"])
@@ -101,6 +134,8 @@ def run_test(controller_path: str | Path, cfg: dict) -> Path:
             fields["scenario_slot"] = cfg["scenario_slot"]
         if cfg.get("autopilot_pid"):
             fields["pid_overrides"] = cfg["autopilot_pid"]  # застосовуються до побудови маніфесту
+        if sim_cfg.get("fixed_step_s"):
+            fields["fixed_step_s"] = float(sim_cfg["fixed_step_s"])
         resp = session.request("START", **fields)
         if not resp.get("ok"):
             raise SystemExit(f"[uavlab] Unreal відхилив START: {resp.get('error')}")
@@ -109,8 +144,14 @@ def run_test(controller_path: str | Path, cfg: dict) -> Path:
         if not resp.get("autopilot_active"):
             _log("УВАГА: автопілот (UAttitudeControlComponent) не активний — команди не впливатимуть на літак. "
                  "Використовуйте режим AutoTrack або PlaybackAndAutoTrack.")
+        _report_time_mode(resp, sim_cfg)
     else:
         session_id = waiter.wait_for_session_start()
+
+    if has_session and sim_cfg.get("fixed_step_s") and cfg["start"] != "auto":
+        # Сесію стартували з меню — фіксований крок вмикаємо вже після старту.
+        _report_time_mode(session.try_request("SET_FIXED_STEP", fixed_step_s=float(sim_cfg["fixed_step_s"])) or {},
+                          sim_cfg)
 
     if has_session and cfg.get("autopilot_pid") and cfg["start"] != "auto":
         # Сесію стартували з меню — PID-перевизначення шлемо вже після старту.
@@ -133,6 +174,7 @@ def run_test(controller_path: str | Path, cfg: dict) -> Path:
         Path(rec_cfg["sessions_dir"]), f"{session_id}_{controller_path.stem}", cfg, controller_path,
         sensors_max_hz=rec_cfg.get("sensors_max_hz", 10.0), record_sensors=rec_cfg.get("sensors", True),
         extra_sources=rec_cfg.get("extra_sources") or [],
+        sensor_topics=rec_cfg.get("sensor_topics"), max_sensor_payload_kb=rec_cfg.get("max_sensor_payload_kb", 16),
     )
     recorder.write_manifest(manifest)
     for ev in waiter.buffered_events:
@@ -143,6 +185,14 @@ def run_test(controller_path: str | Path, cfg: dict) -> Path:
                   session_id=session_id, session_dir=recorder.dir)
     controller.ctx = ctx
 
+    # Модулі алгоритму бачать час симуляції замість годинника ПК (простір імен `time` у їхніх файлах).
+    clock_dirs = [controller_path.parent] + [
+        (Path(e) if Path(e).is_absolute() else controller_path.parent / e).parent
+        if (Path(e) if Path(e).is_absolute() else controller_path.parent / e).is_file()
+        else (Path(e) if Path(e).is_absolute() else controller_path.parent / e)
+        for e in (rec_cfg.get("extra_sources") or [])]
+    use_sim_clock = bool(sim_cfg.get("sim_clock", True))
+
     stop = StopCriteria(cfg["stop"])
     rate_hz = float(controller.rate_hz or cfg["control_rate_hz"])
     period = 1.0 / max(rate_hz, 0.1)
@@ -150,6 +200,9 @@ def run_test(controller_path: str | Path, cfg: dict) -> Path:
 
     stop_reason: Optional[str] = None
     unreal_stopped = False
+    live = None
+    map_progress = None
+    map_status = None
     step_errors = collisions = 0
     started_wall = time.time()
     first_t: Optional[float] = None
@@ -157,6 +210,12 @@ def run_test(controller_path: str | Path, cfg: dict) -> Path:
 
     try:
         controller.on_start(ctx)
+        if use_sim_clock:
+            patched = simclock.patch_user_modules(clock_dirs)
+            if patched:
+                _log(f"Годинник симуляції підставлено в модулі алгоритму: {', '.join(sorted(patched))}")
+        if (cfg.get("viz") or {}).get("enabled"):
+            live = start_live_map(cfg, manifest)
         recorder.add_event({"type": "bench", "kind": "test_started", "session_id": session_id,
                             "rate_hz": rate_hz, "use_truth": use_truth})
 
@@ -166,14 +225,14 @@ def run_test(controller_path: str | Path, cfg: dict) -> Path:
         latest_bus_time: Optional[float] = None
         new_data = False
         last_bus_wall = time.monotonic()
-        next_step = time.monotonic()
         last_step_wall: Optional[float] = None
+        last_step_sim: Optional[float] = None
+        clock_repatched = False
         last_print = 0.0
         prev_cmd: Optional[Command] = None
 
         while stop_reason is None:
-            now = time.monotonic()
-            timeout_ms = int(max(0.0, min(0.05, next_step - now)) * 1000)
+            timeout_ms = 20
 
             # ── шина сенсорів ──────────────────────────────────────────────
             for envelope, payloads in bus.receive_all(timeout_ms):
@@ -188,7 +247,7 @@ def run_test(controller_path: str | Path, cfg: dict) -> Path:
                         if isinstance(latest_truth, dict):
                             recorder.add_truth(bus_time, wall, latest_truth)
                     elif topic not in BINARY_TOPICS:
-                        recorder.add_sensor(topic, bus_time, parse_payload(topic, payload))
+                        recorder.add_sensor(topic, bus_time, payload)
                 latest_bus_time = bus_time
                 first_t = bus_time if first_t is None else first_t
                 last_t = bus_time
@@ -209,6 +268,9 @@ def run_test(controller_path: str | Path, cfg: dict) -> Path:
             if stop_reason:
                 break
 
+            if live is not None and latest_bus_time is not None:
+                live.update(_map_state(latest_bus_time, latest_truth, latest_payloads, map_progress, map_status))
+
             if time.monotonic() - last_bus_wall > stop.telemetry_timeout_s:
                 stop_reason = "telemetry_lost"
                 break
@@ -222,16 +284,23 @@ def run_test(controller_path: str | Path, cfg: dict) -> Path:
                 break
 
             # ── крок алгоритму ─────────────────────────────────────────────
+            # Крок алгоритму за часом СИМУЛЯЦІЇ (не годинника ПК): rate_hz — кроків за секунду світу Unreal,
+            # тож при повільній симуляції алгоритм не отримує зайвих кроків з тими самими даними.
             now = time.monotonic()
-            if now < next_step or not new_data:
+            if not new_data:
                 continue
-            next_step = max(next_step + period, now)
+            if last_step_sim is not None and latest_bus_time - last_step_sim < period * 0.999:
+                continue
+            dt_sim = 0.0 if last_step_sim is None else latest_bus_time - last_step_sim
+            last_step_sim = latest_bus_time
             new_data = False
+            simclock.CLOCK.set(latest_bus_time)
 
             obs = Observation(
                 t=latest_bus_time,
                 wall_time=time.time(),
-                sensors={t: parse_payload(t, p) for t, p in latest_payloads.items() if t != TRUTH_TOPIC or use_truth},
+                dt=dt_sim,
+                sensors=LazySensors({t: p for t, p in latest_payloads.items() if t != TRUTH_TOPIC or use_truth}),
                 truth=truth_obj if use_truth else None,
                 sensor_times=dict(sensor_times),
             )
@@ -253,6 +322,16 @@ def run_test(controller_path: str | Path, cfg: dict) -> Path:
 
             sent = commands.send(cmd) if cmd is not None else False
             logs, ctrl_events = ctx._take()
+            if live is not None:
+                live.add_markers(ctx._take_map())
+                for key in ("waypoints_reached", "waypoint_index"):
+                    if isinstance(logs.get(key), (int, float)) and not isinstance(logs.get(key), bool):
+                        map_progress = int(logs[key])
+                        break
+                if isinstance(logs.get("status"), str):
+                    map_status = logs["status"][:60]
+            else:
+                ctx._take_map()
             for e in ctrl_events:
                 recorder.add_event({"type": "controller", "sim_time": obs.t, **e})
 
@@ -260,6 +339,7 @@ def run_test(controller_path: str | Path, cfg: dict) -> Path:
                 "sim_time": obs.t,
                 "wall_time": obs.wall_time,
                 "dt_wall": (now - last_step_wall) if last_step_wall is not None else None,
+                "dt_sim": dt_sim,
                 "step_latency_ms": latency_ms,
                 "cmd_sent": sent,
                 "cmd_held": cmd is None,
@@ -273,9 +353,16 @@ def run_test(controller_path: str | Path, cfg: dict) -> Path:
             recorder.add_step(row)
             last_step_wall = now
             prev_cmd = effective
+            if use_sim_clock and not clock_repatched:  # модулі, імпортовані ліниво в першому step()
+                simclock.patch_user_modules(clock_dirs)
+                clock_repatched = True
 
             if done and stop_reason is None:
                 stop_reason = "goal_reached"
+            if stop_reason is None:
+                stop_reason = stop.check_progress(obs.t, logs)
+                if stop_reason:
+                    _log(f"Немає прогресу за '{stop.progress_key}' {stop.no_progress_s} с — зупинка")
 
             if now - last_print >= 1.0 and truth_obj is not None:
                 last_print = now
@@ -290,6 +377,8 @@ def run_test(controller_path: str | Path, cfg: dict) -> Path:
     finally:
         stop_reason = stop_reason or "unknown"
         _log(f"Зупинка тесту: {stop_reason}")
+        if live is not None:
+            live.finish(stop_reason)
         if has_session and not unreal_stopped:
             try:
                 session.request("STOP", reason=stop_reason)
@@ -316,6 +405,7 @@ def run_test(controller_path: str | Path, cfg: dict) -> Path:
             "collisions": collisions,
             "controller_exceptions": step_errors,
             "session_channel": has_session,
+            "sensor_topics_not_recorded": recorder.skipped_sensor_topics,
         }
         recorder.finalize(summary)
         bus.close()
@@ -331,4 +421,6 @@ def run_test(controller_path: str | Path, cfg: dict) -> Path:
             analyze_session(recorder.dir, cfg["analysis"])
         except Exception:
             _log("Аналіз не вдався (сесію збережено, повторіть: uavlab analyze <тека сесії>):\n" + traceback.format_exc())
+    if live is not None:
+        live.wait_closed()
     return recorder.dir
