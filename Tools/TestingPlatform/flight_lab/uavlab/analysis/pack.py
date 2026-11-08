@@ -112,7 +112,8 @@ def _log_overview(steps: pd.DataFrame, t0: float) -> str:
         sub.insert(0, "t", t.iloc[::n])
         out.append("числові змінні:\n" + sub.rename(columns=lambda c: c.removeprefix("log.")).to_csv(index=False))
     for c in txt:
-        vals = steps[c].astype(str)
+        # NaN (крок без цього ключа) -> "": у pandas зі str-dtype astype(str) лишає NaN як float
+        vals = pd.Series([("" if pd.isna(v) else str(v)) for v in steps[c]], index=steps.index)
         keys = vals.map(lambda v: re.sub(r"[-+]?\d+(?:\.\d+)?", "#", v))
         idx = list(np.where(keys.ne(keys.shift()).to_numpy())[0])
         rows = [f"{t.iloc[i]}: {vals.iloc[i]}" for i in idx[:MAX_LOG_TRANSITIONS]]

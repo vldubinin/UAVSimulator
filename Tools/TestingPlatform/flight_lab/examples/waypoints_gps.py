@@ -15,6 +15,7 @@ from uavlab import Command, Controller
 
 GPS_DIR = Path(__file__).resolve().parents[2] / "custom_objects_dataset" / "gps_autopilote"
 sys.path.append(str(GPS_DIR))  # append: копії autopilote.py поруч (uavlab improve) мають пріоритет
+import autopilote  # noqa: E402
 from autopilote import Autopilote  # noqa: E402
 from common import latlon_to_local_m  # noqa: E402
 
@@ -26,6 +27,13 @@ class WaypointsGps(Controller):
         self.waypoints = [tuple(wp) for wp in ctx.params.get("waypoints", [])]
         self.radius_m = float(ctx.params.get("waypoint_radius_m", 100.0))
         self.index = 0
+        # controller_params.autopilote_overrides: {ІМ'Я_КОНСТАНТИ: значення} — підміна модульних констант
+        # autopilote.py на час тесту (сам файл не змінюється; константи читаються під час кожного виклику).
+        for name, value in (ctx.params.get("autopilote_overrides") or {}).items():
+            if not hasattr(autopilote, name):
+                raise ValueError(f"autopilote_overrides: невідома константа {name}")
+            setattr(autopilote, name, value)
+            ctx.event("autopilote_override", name=name, value=value)
         self.autopilot = Autopilote()
         if not self.waypoints:
             raise ValueError("controller_params.waypoints порожній")
